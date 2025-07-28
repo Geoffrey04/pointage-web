@@ -1,11 +1,9 @@
-<script setup></script>
-
 <template>
-  <h1>You did it!</h1>
-  <p>
-    Visit <a href="https://vuejs.org/" target="_blank" rel="noopener">vuejs.org</a> to read the
-    documentation
-  </p>
+  <v-app>
+    <v-main>
+      <v-container class="mt-10">
+        <v-card title="🎵 Présence École de Musique" subtitle="Vuetify est bien installé ✅" />
+      </v-container>
+    </v-main>
+  </v-app>
 </template>
-
-<style scoped></style>
