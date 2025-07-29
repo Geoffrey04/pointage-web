@@ -4,6 +4,10 @@
       <v-app-bar-nav-icon @click="drawer = !drawer" />
 
       <v-toolbar-title>École de Musique</v-toolbar-title>
+      <v-spacer />
+      <v-btn v-if="userStore.isLoggedIn" @click="logout" icon>
+        <v-icon>mdi-logout</v-icon>
+      </v-btn>
     </v-app-bar>
 
     <v-navigation-drawer app v-model="drawer" temporary :width="300">
@@ -43,4 +47,15 @@ const menuItems = [
   { title: 'Dashboard Prof', route: '/dashboard', icon: 'mdi-account-music' },
   { title: 'Admin', route: '/admin', icon: 'mdi-shield-account' },
 ]
+
+import { useUserStore } from '@/stores/user'
+import { useRouter } from 'vue-router'
+
+const userStore = useUserStore()
+const router = useRouter()
+
+const logout = () => {
+  userStore.logout()
+  router.push('/login')
+}
 </script>
