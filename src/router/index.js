@@ -6,6 +6,7 @@ import LoginView from '@/views/LoginView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import AdminView from '@/views/AdminView.vue'
 import NotFound from '@/views/NotFound.vue'
+import HomeView from '@/views/HomeView.vue'
 
 const routes = [
   {
@@ -33,6 +34,18 @@ const routes = [
     path: '/:catchAll(.*)',
     name: 'NotFound',
     component: NotFound,
+  },
+  {
+    path: '/classes',
+    name: 'Classes',
+    component: () => import('@/views/ClassesView.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/classes/:id',
+    name: 'Presence',
+    component: () => import('@/views/DashboardView.vue'),
+    meta: { requiresAuth: true },
   },
 ]
 

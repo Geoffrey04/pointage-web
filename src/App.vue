@@ -5,9 +5,15 @@
 
       <v-toolbar-title>École de Musique</v-toolbar-title>
       <v-spacer />
-      <v-btn v-if="userStore.isLoggedIn" @click="logout" icon>
-        <v-icon>mdi-logout</v-icon>
-      </v-btn>
+      <template v-if="userStore.isLoggedIn">
+        <span class="mr-2 text-subtitle2 text-white">
+          Connecté : {{ userStore.user.username }}
+        </span>
+
+        <v-btn @click="logout" icon>
+          <v-icon>mdi-logout</v-icon>
+        </v-btn>
+      </template>
     </v-app-bar>
 
     <v-navigation-drawer app v-model="drawer" temporary :width="300">

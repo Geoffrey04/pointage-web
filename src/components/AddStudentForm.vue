@@ -17,6 +17,12 @@
           :rules="[rules.required, rules.onlyLetters]"
           required
         />
+        <v-select
+          v-model="classe"
+          :items="['flûte', 'initial', 'trompette']"
+          label="Classe"
+          required
+        />
         <v-text-field
           v-model="telephone"
           label="Téléphone"
@@ -48,6 +54,7 @@ const studentStore = useStudentsStore()
 const prenom = ref('')
 const nom = ref('')
 const telephone = ref('')
+const classe = ref('')
 const formRef = ref(null)
 const formValid = ref(false)
 
@@ -76,10 +83,12 @@ function submitForm() {
     prenom: prenom.value.trim(),
     nom: nom.value.trim(),
     telephone: telephone.value.trim(),
+    classe: classe.value.trim(),
   })
 
   prenom.value = ''
   nom.value = ''
   telephone.value = ''
+  classe.value = ''
 }
 </script>

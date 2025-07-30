@@ -29,7 +29,7 @@ function handleLogin() {
   const success = userStore.login(username.value, password.value)
   console.log('Tentative de login', username.value, password.value, success)
   if (success) {
-    router.push(userStore.isAdmin ? '/admin' : '/dashboard')
+    router.push(userStore.isAdmin ? '/admin' : '/classes')
   } else {
     error.value = 'Identifiants incorrects'
   }

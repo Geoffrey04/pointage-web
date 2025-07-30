@@ -11,6 +11,9 @@
             <v-list-item-subtitle>
               📞 {{ student.telephone || 'Non renseigné' }}
             </v-list-item-subtitle>
+            <v-list-item-subtitle>
+              {{ student.classe }}
+            </v-list-item-subtitle>
           </v-list-item-content>
           <v-list-item-action>
             <v-btn icon @click.stop="deleteStudent(student.id)">
