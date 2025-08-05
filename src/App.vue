@@ -1,19 +1,46 @@
+<script setup>
+import { ref, computed } from 'vue'
+import { useUserStore } from '@/stores/user'
+import { useRouter } from 'vue-router'
+
+const drawer = ref(false)
+const userStore = useUserStore()
+const router = useRouter()
+
+const logout = () => {
+  userStore.logout()
+  router.push('/login')
+}
+
+// Menu dynamique selon user connecté
+const menuItems = computed(() => {
+  const items = [{ title: 'Accueil', route: '/', icon: 'mdi-home' }]
+
+  if (userStore.isLoggedIn && userStore.user.role === 'prof') {
+    items.push({ title: 'Mes Classes', route: '/dashboard', icon: 'mdi-account-music' })
+  }
+
+  if (userStore.isLoggedIn && userStore.user.role === 'admin') {
+    items.push({ title: 'Admin', route: '/admin', icon: 'mdi-shield-account' })
+  }
+
+  return items
+})
+</script>
+
 <template>
   <v-app>
     <v-app-bar app color="primary" dark>
       <v-app-bar-nav-icon @click="drawer = !drawer" />
-
       <v-toolbar-title>École de Musique</v-toolbar-title>
       <v-spacer />
-      <template v-if="userStore.isLoggedIn">
-        <span class="mr-2 text-subtitle2 text-white">
-          Connecté : {{ userStore.user.username }}
-        </span>
 
-        <v-btn @click="logout" icon>
+      <div v-if="userStore.isLoggedIn" class="d-flex align-center">
+        <span class="mr-4 subtitle-2">Connecté : {{ userStore.user.username }}</span>
+        <v-btn icon @click="logout">
           <v-icon>mdi-logout</v-icon>
         </v-btn>
-      </template>
+      </div>
     </v-app-bar>
 
     <v-navigation-drawer app v-model="drawer" temporary :width="300">
@@ -41,27 +68,3 @@
     </v-main>
   </v-app>
 </template>
-
-<script setup>
-import { ref } from 'vue'
-
-const drawer = ref(false)
-
-const menuItems = [
-  { title: 'Accueil', route: '/', icon: 'mdi-home' },
-  { title: 'Connexion', route: '/login', icon: 'mdi-login' },
-  { title: 'Dashboard Prof', route: '/dashboard', icon: 'mdi-account-music' },
-  { title: 'Admin', route: '/admin', icon: 'mdi-shield-account' },
-]
-
-import { useUserStore } from '@/stores/user'
-import { useRouter } from 'vue-router'
-
-const userStore = useUserStore()
-const router = useRouter()
-
-const logout = () => {
-  userStore.logout()
-  router.push('/login')
-}
-</script>

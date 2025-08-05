@@ -1,32 +1,50 @@
 import { defineStore } from 'pinia'
+import axios from 'axios'
 
 export const useUserStore = defineStore('user', {
   state: () => ({
-    user: null, // Ex : { username: 'jean', role: 'admin' }
+    user: null,
+    token: null,
   }),
   getters: {
-    isLoggedIn: (state) => !!state.user,
+    isLoggedIn: (state) => !!state.token,
     isAdmin: (state) => state.user?.role === 'admin',
   },
   actions: {
-    login(username, password) {
-      // Simuler des comptes
-      const fakeUsers = [
-        { username: 'prof1', password: 'test123', role: 'prof' },
-        { username: 'admin', password: 'admin123', role: 'admin' },
-      ]
+    async login(username, password) {
+      try {
+        const response = await axios.post('http://localhost:3000/login', { username, password })
+        this.token = response.data.token
+        this.user = response.data.user
 
-      const found = fakeUsers.find((u) => u.username === username && u.password === password)
+        localStorage.setItem('token', this.token)
+        localStorage.setItem('user', JSON.stringify(this.user))
 
-      if (found) {
-        this.user = { username: found.username, role: found.role }
+        axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
+
         return true
-      } else {
+      } catch (error) {
+        console.error('Login error:', error)
         return false
       }
     },
+
     logout() {
       this.user = null
+      this.token = null
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      delete axios.defaults.headers.common['Authorization']
+    },
+
+    initialize() {
+      const token = localStorage.getItem('token')
+      const user = localStorage.getItem('user')
+      if (token && user) {
+        this.token = token
+        this.user = JSON.parse(user)
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      }
     },
   },
 })

@@ -25,9 +25,8 @@ const error = ref('')
 const router = useRouter()
 const userStore = useUserStore()
 
-function handleLogin() {
-  const success = userStore.login(username.value, password.value)
-  console.log('Tentative de login', username.value, password.value, success)
+async function handleLogin() {
+  const success = await userStore.login(username.value, password.value)
   if (success) {
     router.push(userStore.isAdmin ? '/admin' : '/classes')
   } else {

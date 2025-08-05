@@ -6,16 +6,18 @@ import App from './App.vue'
 import router from './router'
 import vuetify from './plugins/vuetify'
 
-const app = createApp(App)
-const pinia = createPinia()
+import { useUserStore } from '@/stores/user'
 
-app.use(createPinia())
-app.use(router)
+const app = createApp(App)
+
+const pinia = createPinia()
+pinia.use(piniaPluginPersistedstate)
 app.use(pinia)
+
+app.use(router)
 app.use(vuetify)
 
-pinia.use(piniaPluginPersistedstate)
+const userStore = useUserStore()
+userStore.initialize()
 
 app.mount('#app')
-
-createApp(App).use(router).use(vuetify).mount('#app')

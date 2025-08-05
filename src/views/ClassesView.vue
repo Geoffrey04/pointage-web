@@ -24,7 +24,7 @@ const classes = ref([])
 
 onMounted(() => {
   // Exemple statique, à remplacer plus tard par un appel API
-  if (userStore.user?.username === 'prof1') {
+  if (userStore.user?.username === 'prof2') {
     classes.value = [
       { id: 'class-flu', nom: 'Flûtes', description: 'Mercredi' },
       { id: 'class-ini', nom: 'Initiaux', description: 'Samedi' },

@@ -6,11 +6,11 @@
 
       <!-- Choix année et jour habituel -->
       <v-row class="mb-4" dense>
-        <v-col cols="12" sm="4">
+        <v-col cols="12" sm="6">
           <v-select v-model="selectedYear" :items="availableYears" label="Année scolaire" />
         </v-col>
 
-        <v-col cols="12" sm="4">
+        <v-col cols="12" sm="6">
           <v-select
             v-model="selectedWeekday"
             :items="weekdays"
@@ -20,43 +20,8 @@
           />
         </v-col>
 
-        <v-col cols="12" sm="4" class="d-flex align-end">
-          <v-btn color="primary" @click="generateRecurringDates"> Générer les dates hebdo </v-btn>
-        </v-col>
-      </v-row>
-
-      <!-- Ajout date exceptionnelle -->
-      <v-row class="mb-4" dense>
-        <v-col cols="12" sm="6">
-          <v-text-field v-model="manualDate" label="Date exceptionnelle" type="date" />
-        </v-col>
-        <v-col cols="12" sm="6" class="d-flex align-end">
-          <v-btn color="secondary" @click="addManualDate"> Ajouter </v-btn>
-        </v-col>
-      </v-row>
-
-      <!-- Sélecteur compact pour suppression -->
-      <v-row class="mt-4" align="center" dense>
-        <v-col cols="9" sm="8" md="6">
-          <v-select
-            v-model="selectedDateToDelete"
-            :items="dateOptions"
-            item-title="formatted"
-            item-value="raw"
-            label="Supprimer une date"
-            dense
-            clearable
-          >
-            <template #item="{ item }">
-              <div class="text-body-2">{{ item.formatted }}</div>
-            </template>
-          </v-select>
-        </v-col>
-
-        <v-col cols="3" sm="4" md="2">
-          <v-btn color="error" :disabled="!selectedDateToDelete" @click="deleteSelectedDate" block>
-            Suppr.
-          </v-btn>
+        <v-col cols="12" class="d-flex justify-end">
+          <v-btn color="primary" @click="generateRecurringDates">Générer les dates hebdo</v-btn>
         </v-col>
       </v-row>
     </v-card>
@@ -64,16 +29,13 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useAttendanceStore } from '@/stores/Attendance'
 
 const attendanceStore = useAttendanceStore()
 
-// Gestion génération dates
 const selectedYear = ref(new Date().getFullYear())
 const selectedWeekday = ref(null)
-const manualDate = ref('')
-const selectedDateToDelete = ref(null)
 
 const weekdays = [
   { label: 'Dimanche', value: 0 },
@@ -104,40 +66,12 @@ function generateRecurringDates() {
   const start = new Date(`${selectedYear.value}-09-01`)
   const end = new Date(`${selectedYear.value + 1}-06-30`)
   const current = new Date(start)
+
   while (current <= end) {
     if (current.getDay() === selectedWeekday.value && !isHoliday(current)) {
       attendanceStore.addDate(current.toISOString().split('T')[0])
     }
     current.setDate(current.getDate() + 1)
   }
-}
-
-// Ajout manuel
-function addManualDate() {
-  if (manualDate.value) {
-    attendanceStore.addDate(manualDate.value)
-    manualDate.value = ''
-  }
-}
-
-// Options pour le <v-select>
-const dateOptions = computed(() =>
-  attendanceStore.dates
-    .map((d) => ({ raw: d, formatted: formatDate(d) }))
-    .sort((a, b) => (a.raw > b.raw ? 1 : -1)),
-)
-
-// Suppression via select
-function deleteSelectedDate() {
-  if (selectedDateToDelete.value) {
-    attendanceStore.removeDate(selectedDateToDelete.value)
-    selectedDateToDelete.value = null
-  }
-}
-
-// Utils
-function formatDate(str) {
-  const [y, m, d] = str.split('-')
-  return `${d}-${m}-${y}`
 }
 </script>

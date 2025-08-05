@@ -54,7 +54,7 @@ const router = createRouter({
   routes,
 })
 
-// 🔐 Garde de navigation
+// Garde de navigation
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
 
