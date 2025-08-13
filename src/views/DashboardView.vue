@@ -1,45 +1,81 @@
 <template>
   <v-container>
-    <h2>Mes Classes</h2>
+    <h2>Classe : {{ classe.nom || 'Classe inconnue' }}</h2>
+
     <v-row>
-      <v-col cols="12" sm="6" md="4" v-for="classe in classes" :key="classe.id">
-        <v-card @click="goToClasse(classe.id)" class="hoverable" color="blue-lighten-5">
-          <v-card-title>{{ classe.nom }}</v-card-title>
-          <v-card-subtitle>{{ classe.description }}</v-card-subtitle>
-        </v-card>
+      <v-col cols="12" md="6">
+        <AddStudent :classeId="classeId" @studentAdded="fetchStudents" />
+      </v-col>
+
+      <v-col cols="12" md="6">
+        <DateSelector :classeId="classeId" @dateChanged="fetchAttendance" />
       </v-col>
     </v-row>
+
+    <StudentList :students="students" :classeId="classeId" v-if="students.length > 0" />
+
+    <div v-else class="text-center my-4">Aucun élève dans cette classe.</div>
+
+    <PresenceTable
+      v-if="students.length > 0"
+      :students="students"
+      :classeId="classeId"
+      :selectedDate="selectedDate"
+    />
   </v-container>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import axios from 'axios'
 
-const classes = ref([])
-const router = useRouter()
+import AddStudent from '@/components/AddStudentForm.vue'
+import DateSelector from '@/components/DateSelector.vue'
+import StudentList from '@/components/StudentList.vue'
+
+const route = useRoute()
+const classeId = route.params.id
+const classe = ref({})
+const students = ref([])
+const selectedDate = ref(null)
 const userStore = useUserStore()
 
-onMounted(async () => {
-  if (!userStore.user) {
-    router.push('/login') // sécurité si pas connecté
-    return
-  }
+// Récupérer la classe
+const fetchClasse = async () => {
   try {
-    const res = await axios.get('http://localhost:3000/classes', {
-      headers: {
-        Authorization: `Bearer ${userStore.token}`,
-      },
+    const res = await axios.get(`http://localhost:3000/classes/${classeId}`, {
+      headers: { Authorization: `Bearer ${userStore.token}` },
     })
-    classes.value = res.data
+    classe.value = res.data
   } catch (err) {
-    console.error('Erreur récupération classes :', err)
+    console.error('Erreur récupération classe :', err)
   }
-})
-
-const goToClasse = (id) => {
-  router.push(`/classes/${id}`)
 }
+
+// Récupérer les élèves
+const fetchStudents = async () => {
+  try {
+    const res = await axios.get(`http://localhost:3000/classes/${classeId}/students`, {
+      headers: { Authorization: `Bearer ${userStore.token}` },
+    })
+    students.value = res.data
+  } catch (err) {
+    console.error('Erreur récupération élèves :', err)
+    students.value = []
+  }
+}
+
+// Récupérer les présences pour la date sélectionnée
+const fetchAttendance = (date) => {
+  selectedDate.value = date
+  // PresenceTable se mettra à jour automatiquement grâce au prop :selectedDate
+}
+
+onMounted(async () => {
+  if (!userStore.token) return
+  await fetchClasse()
+  await fetchStudents()
+})
 </script>

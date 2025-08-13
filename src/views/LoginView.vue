@@ -26,9 +26,15 @@ const router = useRouter()
 const userStore = useUserStore()
 
 async function handleLogin() {
+  error.value = null
   const success = await userStore.login(username.value, password.value)
   if (success) {
-    router.push(userStore.isAdmin ? '/admin' : '/classes')
+    if (userStore.user.role === 'prof') {
+      // Redirection vers la liste des classes du prof
+      router.push('/classes/${userStore.user.id}')
+    } else if (userStore.user.role === 'admin') {
+      router.push('/admin')
+    }
   } else {
     error.value = 'Identifiants incorrects'
   }

@@ -37,7 +37,7 @@ const routes = [
     component: NotFound,
   },
   {
-    path: '/classes',
+    path: '/classes/:id',
     name: 'ClassesView',
     component: ClassesView,
     // component: () => import('@/views/ClassesView.vue'),
@@ -49,6 +49,18 @@ const routes = [
     name: 'Presence',
     component: () => import('@/views/DashboardView.vue'),
     meta: { requiresAuth: true },
+  },
+  {
+    path: '/dashboard/:id',
+    name: 'DashboardView',
+    component: () => import('@/views/DashboardView.vue'),
+    meta: { requiresAuth: true, role: 'prof' },
+  },
+  {
+    path: '/classes',
+    name: 'ClassesList',
+    component: () => import('@/views/ClassesView.vue'),
+    meta: { requiresAuth: true, role: 'prof' },
   },
 ]
 

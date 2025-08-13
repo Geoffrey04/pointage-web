@@ -116,7 +116,7 @@ app.get('/my-classes', authenticateToken, authorizeRoles('prof', 'admin'), async
     const result = await pool.query(
       `SELECT c.*
        FROM classes c
-       JOIN classes_users cu ON cu.class_id = c.id
+       JOIN class_users cu ON cu.class_id = c.id
        WHERE cu.user_id = $1`,
       [req.user.id],
     )
