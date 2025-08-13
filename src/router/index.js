@@ -7,6 +7,7 @@ import DashboardView from '@/views/DashboardView.vue'
 import AdminView from '@/views/AdminView.vue'
 import NotFound from '@/views/NotFound.vue'
 import HomeView from '@/views/HomeView.vue'
+import ClassesView from '@/views/ClassesView.vue'
 
 const routes = [
   {
@@ -37,10 +38,12 @@ const routes = [
   },
   {
     path: '/classes',
-    name: 'Classes',
-    component: () => import('@/views/ClassesView.vue'),
+    name: 'ClassesView',
+    component: ClassesView,
+    // component: () => import('@/views/ClassesView.vue'),
     meta: { requiresAuth: true },
   },
+
   {
     path: '/classes/:id',
     name: 'Presence',

@@ -1,38 +1,67 @@
 <template>
   <v-container>
-    <h2>Mes Classes</h2>
-    <v-row>
-      <v-col cols="12" sm="6" md="4" v-for="classe in classes" :key="classe.id">
-        <v-card @click="goToClasse(classe.id)" class="hoverable" color="blue-lighten-5">
-          <v-card-title>{{ classe.nom }}</v-card-title>
-          <v-card-subtitle>{{ classe.description }}</v-card-subtitle>
-        </v-card>
-      </v-col>
-    </v-row>
+    <h2>Classe : {{ classe.nom || 'Classe inconnue' }}</h2>
+
+    <v-list>
+      <v-list-item v-for="student in students" :key="student.id">
+        {{ student.prenom }} {{ student.nom }}
+      </v-list-item>
+
+      <v-list-item v-if="students.length === 0"> Aucun élève dans cette classe. </v-list-item>
+    </v-list>
   </v-container>
 </template>
 
 <script setup>
-import { useRouter } from 'vue-router'
 import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import axios from 'axios'
 import { useUserStore } from '@/stores/user'
 
+const route = useRoute()
 const router = useRouter()
 const userStore = useUserStore()
 
-const classes = ref([])
+const classeId = route.params.id
+const classe = ref({})
+const students = ref([])
 
-onMounted(() => {
-  // Exemple statique, à remplacer plus tard par un appel API
-  if (userStore.user?.username === 'prof2') {
-    classes.value = [
-      { id: 'class-flu', nom: 'Flûtes', description: 'Mercredi' },
-      { id: 'class-ini', nom: 'Initiaux', description: 'Samedi' },
-    ]
+onMounted(async () => {
+  if (!userStore.token) {
+    console.error('Token JWT manquant, veuillez vous connecter.')
+    router.push('/login')
+    return
+  }
+
+  if (!classeId) {
+    console.warn('Aucun ID de classe fourni dans l’URL')
+    return
+  }
+
+  try {
+    // Récupérer les infos de la classe
+    const classeRes = await axios.get(`http://localhost:3000/classes/${classeId}`, {
+      headers: { Authorization: `Bearer ${userStore.token}` },
+    })
+    classe.value = classeRes.data
+
+    // Récupérer les élèves de la classe
+    const studentsRes = await axios.get(`http://localhost:3000/classes/${classeId}/students`, {
+      headers: { Authorization: `Bearer ${userStore.token}` },
+    })
+    students.value = studentsRes.data
+  } catch (error) {
+    if (error.response) {
+      if (error.response.status === 403) {
+        console.error('Accès refusé à cette classe.')
+      } else if (error.response.status === 404) {
+        console.error('Classe ou élèves non trouvés.')
+      } else {
+        console.error('Erreur récupération élèves :', error.response.data)
+      }
+    } else {
+      console.error('Erreur récupération élèves :', error.message)
+    }
   }
 })
-
-const goToClasse = (id) => {
-  router.push(`/classes/${id}`)
-}
 </script>

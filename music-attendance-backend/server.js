@@ -1,230 +1,166 @@
-import express from 'express'
-import pool from './db.js'
-import bcrypt from 'bcrypt'
-import jwt from 'jsonwebtoken'
-import dotenv from 'dotenv'
-import cors from 'cors'
+// server.js
 
-dotenv.config()
+require('dotenv').config()
+const express = require('express')
+const bodyParser = require('body-parser')
+const cors = require('cors')
+const jwt = require('jsonwebtoken')
+const bcrypt = require('bcrypt')
+const { Pool } = require('pg')
 
+// Création du serveur
 const app = express()
-const port = 3000
+const PORT = process.env.PORT || 3000
 
-app.use(express.json())
+// Middlewares
 app.use(cors())
+app.use(bodyParser.json())
 
-app.get('/', (req, res) => {
-  res.send('API Music Attendance fonctionne !')
+// Connexion à PostgreSQL
+const pool = new Pool({
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: process.env.DB_PORT,
 })
 
-// Création utilisateur
-app.post('/users', async (req, res) => {
-  try {
-    const { username, password, role } = req.body
+// Middleware pour vérifier le token JWT
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1]
+  if (!token) return res.sendStatus(401)
 
-    if (!username || !password || !role) {
-      return res.status(400).json({ error: 'Champs manquants' })
+  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
+    if (err) return res.sendStatus(403)
+    req.user = user
+    next()
+  })
+}
+
+// Middleware pour vérifier le rôle (admin ou prof)
+function authorizeRoles(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) {
+      return res.sendStatus(403)
     }
-
-    const userExist = await pool.query('SELECT * FROM users WHERE username = $1', [username])
-    if (userExist.rows.length > 0) {
-      return res.status(400).json({ error: 'Nom d’utilisateur déjà pris' })
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10)
-
-    await pool.query('INSERT INTO users (username, password, role) VALUES ($1, $2, $3)', [
-      username,
-      hashedPassword,
-      role,
-    ])
-
-    res.status(201).json({ message: 'Utilisateur créé avec succès' })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: 'Erreur serveur' })
+    next()
   }
-})
+}
 
-// Connexion utilisateur - on génère un token JWT
+// =======================
+//       ROUTES
+// =======================
+
+// Authentification
+// Route login
 app.post('/login', async (req, res) => {
   try {
     const { username, password } = req.body
+
+    // Vérification que les champs sont présents
     if (!username || !password) {
-      return res.status(400).json({ error: 'Champs manquants' })
+      return res.status(400).json({ message: 'Username et mot de passe requis' })
     }
 
-    const userResult = await pool.query('SELECT * FROM users WHERE username = $1', [username])
-    if (userResult.rows.length === 0) {
-      return res.status(400).json({ error: 'Utilisateur non trouvé' })
+    // Récupérer l'utilisateur en base
+    const result = await pool.query('SELECT * FROM users WHERE username = $1', [username.trim()])
+    if (result.rows.length === 0) {
+      console.log(`Login échoué: utilisateur "${username}" non trouvé`)
+      return res.status(401).json({ message: 'Utilisateur non trouvé' })
     }
 
-    const user = userResult.rows[0]
+    const user = result.rows[0]
 
-    const match = await bcrypt.compare(password, user.password)
-    if (!match) {
-      return res.status(401).json({ error: 'Mot de passe incorrect' })
+    // Vérifier le mot de passe
+    const validPassword = await bcrypt.compare(password, user.password)
+    if (!validPassword) {
+      console.log(`Login échoué: mot de passe incorrect pour "${username}"`)
+      return res.status(401).json({ message: 'Mot de passe incorrect' })
     }
 
-    // Générer un token avec payload minimal (id, username, role)
+    // Générer le token JWT
     const token = jwt.sign(
       { id: user.id, username: user.username, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '8h' },
     )
 
+    console.log(`Login réussi: ${username}`)
+
+    // Retourner le token et l'utilisateur
     res.json({
       token,
-      user: {
-        id: user.id,
-        username: user.username,
-        role: user.role,
-      },
+      user: { id: user.id, username: user.username, role: user.role },
     })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: 'Erreur serveur' })
+  } catch (err) {
+    console.error('Erreur serveur login:', err)
+    res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 
-// Middleware pour vérifier token JWT
-function authenticateToken(req, res, next) {
-  const authHeader = req.headers['authorization']
-  const token = authHeader && authHeader.split(' ')[1] // Bearer TOKEN
-
-  if (!token) return res.status(401).json({ error: 'Token manquant' })
-
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Token invalide' })
-    req.user = user
-    next()
-  })
-}
-
-// GET toutes les classes
-app.get('/classes', async (req, res) => {
+// Récupérer toutes les classes (admin seulement)
+app.get('/classes', authenticateToken, authorizeRoles('admin'), async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM classes ORDER BY id')
+    const result = await pool.query('SELECT * FROM classes')
     res.json(result.rows)
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: 'Erreur serveur' })
-  }
-})
-
-// POST création classe
-app.post('/classes', async (req, res) => {
-  try {
-    const { nom, description, user_id } = req.body
-    if (!nom || !user_id) {
-      return res.status(400).json({ error: 'Nom et user_id obligatoires' })
-    }
-    await pool.query('INSERT INTO classes (nom, description, user_id) VALUES ($1, $2, $3)', [
-      nom,
-      description || null,
-      user_id,
-    ])
-    res.status(201).json({ message: 'Classe créée avec succès' })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: 'Erreur serveur' })
-  }
-})
-
-app.get('/classes/:id', async (req, res) => {
-  const classId = req.params.id
-
-  try {
-    const result = await pool.query('SELECT * FROM classes WHERE id = $1', [classId])
-
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Classe non trouvée' })
-    }
-
-    res.status(200).json(result.rows[0])
   } catch (err) {
     console.error(err)
-    res.status(500).json({ error: 'Erreur serveur' })
+    res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 
-// Modifier une classe
-app.put('/classes/:id', async (req, res) => {
-  const id = req.params.id
-  const { nom, description } = req.body
-
-  if (!nom) {
-    return res.status(400).json({ error: 'Nom requis' })
-  }
-
+// Récupérer les classes d’un professeur
+app.get('/my-classes', authenticateToken, authorizeRoles('prof', 'admin'), async (req, res) => {
   try {
     const result = await pool.query(
-      'UPDATE classes SET nom = $1, description = $2 WHERE id = $3 RETURNING *',
-      [nom, description, id],
+      `SELECT c.*
+       FROM classes c
+       JOIN classes_users cu ON cu.class_id = c.id
+       WHERE cu.user_id = $1`,
+      [req.user.id],
     )
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Classe non trouvée' })
-    }
-
-    res.json(result.rows[0])
-  } catch (err) {
-    console.error('Erreur PUT /classes/:id', err)
-    res.status(500).json({ error: 'Erreur serveur' })
-  }
-})
-
-// Supprimer une classe
-app.delete('/classes/:id', async (req, res) => {
-  const id = req.params.id
-
-  try {
-    const result = await pool.query('DELETE FROM classes WHERE id = $1 RETURNING *', [id])
-
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: 'Classe non trouvée' })
-    }
-
-    res.json({ message: 'Classe supprimée', deleted: result.rows[0] })
-  } catch (err) {
-    console.error('Erreur DELETE /classes/:id', err)
-    res.status(500).json({ error: 'Erreur serveur' })
-  }
-})
-
-// Exemple d’une route protégée
-app.get('/profile', authenticateToken, (req, res) => {
-  res.json({ message: 'Accès autorisé', user: req.user })
-})
-
-// Récupérer toutes les classes
-app.get('/classes', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM classes ORDER BY nom')
     res.json(result.rows)
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: 'Erreur serveur' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 
-// Ajouter une nouvelle classe
-app.post('/classes', async (req, res) => {
+// Récupérer les élèves d’une classe
+app.get(
+  '/classes/:id/students',
+  authenticateToken,
+  authorizeRoles('prof', 'admin'),
+  async (req, res) => {
+    try {
+      const result = await pool.query('SELECT * FROM students WHERE class_id = $1', [req.params.id])
+      res.json(result.rows)
+    } catch (err) {
+      console.error(err)
+      res.status(500).json({ message: 'Erreur serveur' })
+    }
+  },
+)
+
+// Marquer une présence
+app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), async (req, res) => {
+  const { student_id, session_id, status } = req.body
   try {
-    const { name, description } = req.body
-    if (!name) return res.status(400).json({ error: 'Nom requis' })
-
-    await pool.query('INSERT INTO classes (nom, description) VALUES ($1, $2)', [
-      name,
-      description || '',
-    ])
-    res.status(201).json({ message: 'Classe créée' })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({ error: 'Erreur serveur' })
+    await pool.query(
+      'INSERT INTO attendance (student_id, session_id, status) VALUES ($1, $2, $3)',
+      [student_id, session_id, status],
+    )
+    res.json({ message: 'Présence enregistrée' })
+  } catch (err) {
+    console.error(err)
+    res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 
-app.listen(port, () => {
-  console.log(`Serveur lancé sur http://localhost:${port}`)
+// =======================
+//   LANCEMENT SERVEUR
+// =======================
+app.listen(PORT, () => {
+  console.log(`✅ Serveur démarré sur http://localhost:${PORT}`)
 })

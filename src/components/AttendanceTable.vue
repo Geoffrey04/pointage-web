@@ -45,13 +45,19 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { useStudentsStore } from '@/stores/Students'
 import { useAttendanceStore } from '@/stores/Attendance'
 
-const studentsStore = useStudentsStore()
+// Props
+defineProps({
+  students: {
+    type: Array,
+    required: true,
+  },
+})
+
 const attendanceStore = useAttendanceStore()
 
-const students = computed(() => studentsStore.students)
+// Pour trier les dates (issues du store)
 const sortedDates = computed(() => [...attendanceStore.dates].sort())
 
 function getAttendance(studentId, date) {

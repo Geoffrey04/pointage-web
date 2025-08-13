@@ -7,24 +7,21 @@ export const useUserStore = defineStore('user', {
     token: null,
   }),
   getters: {
-    isLoggedIn: (state) => !!state.token,
+    isLoggedIn: (state) => !!state.user && !!state.token,
     isAdmin: (state) => state.user?.role === 'admin',
   },
   actions: {
     async login(username, password) {
       try {
-        const response = await axios.post('http://localhost:3000/login', { username, password })
-        this.token = response.data.token
-        this.user = response.data.user
-
-        localStorage.setItem('token', this.token)
+        const res = await axios.post('http://localhost:3000/login', { username, password })
+        this.user = res.data.user
+        this.token = res.data.token
         localStorage.setItem('user', JSON.stringify(this.user))
-
+        localStorage.setItem('token', this.token)
         axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
-
         return true
-      } catch (error) {
-        console.error('Login error:', error)
+      } catch (err) {
+        console.error('Login error:', err.response?.data || err.message)
         return false
       }
     },
@@ -32,8 +29,8 @@ export const useUserStore = defineStore('user', {
     logout() {
       this.user = null
       this.token = null
-      localStorage.removeItem('token')
       localStorage.removeItem('user')
+      localStorage.removeItem('token')
       delete axios.defaults.headers.common['Authorization']
     },
 
@@ -41,9 +38,14 @@ export const useUserStore = defineStore('user', {
       const token = localStorage.getItem('token')
       const user = localStorage.getItem('user')
       if (token && user) {
-        this.token = token
-        this.user = JSON.parse(user)
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        try {
+          this.user = JSON.parse(user)
+          this.token = token
+          axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+        } catch (err) {
+          console.error('Erreur parsing user depuis localStorage :', err)
+          this.logout()
+        }
       }
     },
   },
