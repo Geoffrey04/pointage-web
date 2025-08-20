@@ -6,25 +6,28 @@
 
       <v-form @submit.prevent="submitForm" ref="formRef" v-model="formValid">
         <v-text-field
-          v-model="prenom"
+          v-model="firstname"
           label="Prénom"
           :rules="[rules.required, rules.onlyLetters]"
           required
         />
         <v-text-field
-          v-model="nom"
+          v-model="lastname"
           label="Nom"
           :rules="[rules.required, rules.onlyLetters]"
           required
         />
         <v-select
-          v-model="classe"
-          :items="['flûte', 'initial', 'trompette']"
+          v-model="class_id"
+          :items="classes"
+          item-title="nom"
+          item-value="id"
           label="Classe"
           required
         />
+
         <v-text-field
-          v-model="telephone"
+          v-model="phone"
           label="Téléphone"
           placeholder="06 12 34 56 78"
           :rules="[rules.required, rules.phoneLength]"
@@ -46,19 +49,33 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useStudentsStore } from '@/stores/Students'
+import axios from 'axios'
 
 const studentStore = useStudentsStore()
 
-const prenom = ref('')
-const nom = ref('')
-const telephone = ref('')
-const classe = ref('')
+// Champs cohérents avec la DB
+const firstname = ref('')
+const lastname = ref('')
+const phone = ref('')
+const class_id = ref(null)
+
+const classes = ref([])
+/*[
+  { id: 5, label: 'Flûte' },
+  { id: 6, label: 'Initial' },
+  { id: 7, label: 'Eveil 1' },
+  { id: 8, label: 'Eveil 2' },
+  { id: 10, label: 'Cuivre' },
+  { id: 11, label: 'Trompette' },
+  { id: 12, label: 'Saxophone' },
+  { id: 13, label: 'Percussions' },
+  { id: 14, label: 'Orchestre des jeunes EMM' },
+] */
+
 const formRef = ref(null)
 const formValid = ref(false)
-
-const generateId = () => Date.now().toString(36) + Math.random().toString(36).substring(2, 8)
 
 const rules = {
   required: (v) => !!v || 'Champ requis',
@@ -72,23 +89,33 @@ const rules = {
 function formatPhone(e) {
   let digits = e.target.value.replace(/\D/g, '').slice(0, 10)
   const parts = digits.match(/.{1,2}/g) || []
-  telephone.value = parts.join(' ')
+  phone.value = parts.join(' ')
 }
 
-function submitForm() {
+// Charger les classes au montage
+onMounted(async () => {
+  try {
+    const response = await axios.get('http://localhost:3000/api/classes')
+    classes.value = response.data
+  } catch (err) {
+    console.error('Erreur chargement classes :', err)
+  }
+})
+
+async function submitForm() {
   if (!formRef.value.validate()) return
 
-  studentStore.addStudent({
-    id: generateId(),
-    prenom: prenom.value.trim(),
-    nom: nom.value.trim(),
-    telephone: telephone.value.trim(),
-    classe: classe.value.trim(),
+  await studentStore.addStudent({
+    firstname: firstname.value.trim(),
+    lastname: lastname.value.trim(),
+    phone: phone.value.trim(),
+    class_id: class_id.value,
   })
 
-  prenom.value = ''
-  nom.value = ''
-  telephone.value = ''
-  classe.value = ''
+  // reset form
+  firstname.value = ''
+  lastname.value = ''
+  phone.value = ''
+  class_id.value = null
 }
 </script>

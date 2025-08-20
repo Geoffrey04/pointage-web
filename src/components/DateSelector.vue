@@ -30,12 +30,10 @@
 
 <script setup>
 import { ref } from 'vue'
-import { useAttendanceStore } from '@/stores/Attendance'
-
-const attendanceStore = useAttendanceStore()
 
 const selectedYear = ref(new Date().getFullYear())
 const selectedWeekday = ref(null)
+const emit = defineEmits(['dates-selected'])
 
 const weekdays = [
   { label: 'Dimanche', value: 0 },
@@ -59,19 +57,23 @@ function isHoliday(date) {
   return fixed.includes(mmdd)
 }
 
-// Génère les dates récurrentes
+// Génère les dates récurrentes et les émet vers le parent
 function generateRecurringDates() {
   if (!selectedYear.value || selectedWeekday.value === null) return
 
   const start = new Date(`${selectedYear.value}-09-01`)
   const end = new Date(`${selectedYear.value + 1}-06-30`)
   const current = new Date(start)
+  const dates = []
 
   while (current <= end) {
     if (current.getDay() === selectedWeekday.value && !isHoliday(current)) {
-      attendanceStore.addDate(current.toISOString().split('T')[0])
+      dates.push(current.toISOString().split('T')[0])
     }
     current.setDate(current.getDate() + 1)
   }
+
+  // Émission des dates vers le parent
+  emit('dates-selected', dates)
 }
 </script>

@@ -115,9 +115,9 @@ app.get('/my-classes', authenticateToken, authorizeRoles('prof', 'admin'), async
   try {
     const result = await pool.query(
       `SELECT c.*
-       FROM classes c
-       JOIN class_users cu ON cu.class_id = c.id
-       WHERE cu.user_id = $1`,
+        FROM classes c
+        JOIN class_users cu ON cu.class_id = c.id
+        WHERE cu.user_id = $1`,
       [req.user.id],
     )
     res.json(result.rows)
@@ -142,6 +142,53 @@ app.get(
     }
   },
 )
+const router = express.Router()
+
+// Récupérer toutes les classes
+app.get('/api/classes', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT id, nom FROM classes ORDER BY nom')
+    res.json(result.rows)
+  } catch (err) {
+    console.error('Erreur lors de la récupération des classes :', err)
+    res.status(500).json({ error: 'Erreur serveur' })
+  }
+})
+
+// Ajouter un élève
+router.post('/', async (req, res) => {
+  try {
+    const { firstname, lastname, class_id, phone } = req.body
+
+    const result = await pool.query(
+      'INSERT INTO students (firstname, lastname, class_id, phone) VALUES ($1, $2, $3, $4) RETURNING *',
+      [firstname, lastname, class_id, phone],
+    )
+
+    res.json(result.rows[0]) // on renvoie l'élève ajouté
+  } catch (err) {
+    console.error(err.message)
+    res.status(500).send('Erreur serveur')
+  }
+})
+
+// Récupérer tous les élèves
+router.get('/:class_id', async (req, res) => {
+  try {
+    const { class_id } = req.params
+    const result = await pool.query(
+      'SELECT * FROM students WHERE class_id = $1 ORDER BY lastname ASC',
+      [class_id],
+    )
+    res.json(result.rows)
+  } catch (err) {
+    console.error(err.message)
+    res.status(500).send('Erreur serveur')
+  }
+})
+
+// Montage du router
+app.use('/api/students', router)
 
 // Marquer une présence
 app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), async (req, res) => {
