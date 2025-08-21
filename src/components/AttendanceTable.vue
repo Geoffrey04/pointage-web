@@ -1,94 +1,93 @@
 <template>
-  <v-container>
-    <v-card>
-      <v-card-title>Tableau de présence</v-card-title>
-      <v-divider />
+  <v-card class="rounded-xl elevation-2">
+    <v-card-title class="text-h6">Tableau de présence</v-card-title>
+    <v-divider />
 
-      <!-- Scroll horizontal -->
-      <div class="table-scroll-wrapper">
-        <v-simple-table>
-          <thead>
-            <tr>
-              <th>Élève</th>
-              <th v-for="date in paginatedDates" :key="date" class="text-center">
-                {{ formatDate(date) }}
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="student in students" :key="student.id">
-              <td>{{ student.prenom }} {{ student.nom }}</td>
-              <td v-for="date in paginatedDates" :key="date" class="text-center">
-                <v-radio-group
-                  :model-value="getAttendance(student.id, date)"
-                  @update:modelValue="(val) => setAttendance(student.id, date, val)"
-                  row
-                  dense
-                >
-                  <v-radio label="Présent" value="present" />
-                  <v-radio label="Retard" value="retard" />
-                  <v-radio label="Absent" value="absent" />
-                </v-radio-group>
-              </td>
-            </tr>
-          </tbody>
-        </v-simple-table>
-      </div>
+    <v-card-text>
+      <!-- Chargement -->
+      <v-skeleton-loader v-if="loading" type="table" class="my-2" />
 
-      <!-- Pagination dates uniquement -->
-      <v-card-actions class="justify-center">
-        <v-pagination v-model="currentDatePage" :length="datePageCount" total-visible="5" />
-      </v-card-actions>
-    </v-card>
-  </v-container>
+      <!-- Erreur -->
+      <v-alert v-else-if="error" type="error" variant="tonal" class="my-2">
+        {{ error }}
+      </v-alert>
+
+      <!-- Tableau -->
+      <v-data-table
+        v-else
+        :headers="headers"
+        :items="students"
+        :items-per-page="10"
+        density="comfortable"
+        class="rounded-lg"
+      >
+        <template #item.fullname="{ item }"> {{ item.lastname }} {{ item.firstname }} </template>
+
+        <template #item.phone="{ item }">
+          <code>{{ item.phone || '—' }}</code>
+        </template>
+
+        <!-- Placeholder actions présence (à brancher plus tard) -->
+        <template #item.actions="{ item }">
+          <v-btn size="small" variant="tonal" @click="markPresent(item)">Marquer présent</v-btn>
+        </template>
+
+        <template #no-data>
+          <v-alert type="info" variant="tonal" class="my-2">
+            Aucun élève dans cette classe.
+          </v-alert>
+        </template>
+      </v-data-table>
+    </v-card-text>
+  </v-card>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useAttendanceStore } from '@/stores/Attendance'
+import { ref, onMounted, watch } from 'vue'
+import axios from 'axios'
 
-// Props
-defineProps({
-  students: {
-    type: Array,
+const props = defineProps({
+  classId: {
+    type: [Number, String],
     required: true,
   },
 })
 
-const attendanceStore = useAttendanceStore()
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
-// Pour trier les dates (issues du store)
-const sortedDates = computed(() => [...attendanceStore.dates].sort())
+const headers = [
+  { title: 'Élève', key: 'fullname', sortable: true },
+  { title: 'Téléphone', key: 'phone', sortable: false, align: 'start' },
+  { title: 'Actions', key: 'actions', sortable: false, align: 'end' },
+]
 
-function getAttendance(studentId, date) {
-  return attendanceStore.attendance[studentId]?.[date] || null
+const students = ref([])
+const loading = ref(true)
+const error = ref(null)
+
+async function fetchStudents() {
+  if (!props.classId) return
+  loading.value = true
+  error.value = null
+  try {
+    const { data } = await axios.get(`${API}/api/students/${props.classId}`)
+    // Attendu: [{ id, firstname, lastname, phone, class_id }, ...]
+    students.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    console.error('Erreur chargement élèves :', e)
+    error.value = 'Impossible de charger les élèves.'
+    students.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
-function setAttendance(studentId, date, status) {
-  attendanceStore.setAttendance(studentId, date, status)
+// dummy action pour plus tard
+function markPresent(student) {
+  // Ici tu brancheras /attendance avec session_id + student_id + status
+  console.log('Présent ->', student.id, student.lastname, student.firstname)
 }
 
-function formatDate(dateStr) {
-  const [y, m, d] = dateStr.split('-')
-  return `${d}-${m}-${y}`
-}
-
-// --- Pagination des dates uniquement ---
-const currentDatePage = ref(1)
-const datesPerPage = 5
-
-const datePageCount = computed(() => Math.ceil(sortedDates.value.length / datesPerPage))
-
-const paginatedDates = computed(() => {
-  const start = (currentDatePage.value - 1) * datesPerPage
-  return sortedDates.value.slice(start, start + datesPerPage)
-})
+onMounted(fetchStudents)
+watch(() => props.classId, fetchStudents)
 </script>
-
-<style scoped>
-.table-scroll-wrapper {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  max-width: 100%;
-}
-</style>

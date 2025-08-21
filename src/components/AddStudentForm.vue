@@ -22,8 +22,10 @@
           :items="classes"
           item-title="nom"
           item-value="id"
+          :loading="classesLoading"
+          :error-messages="classesError ? [classesError] : []"
           label="Classe"
-          required
+          variant="outlined"
         />
 
         <v-text-field
@@ -50,72 +52,105 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useStudentsStore } from '@/stores/Students'
 import axios from 'axios'
+import { useStudentsStore } from '@/stores/Students'
 
 const studentStore = useStudentsStore()
 
-// Champs cohérents avec la DB
+// ── Champs du formulaire (cohérents DB)
 const firstname = ref('')
 const lastname = ref('')
 const phone = ref('')
 const class_id = ref(null)
 
+// ── Liste des classes pour le v-select
+// ⚠️ Dans le template : item-title="name" item-value="id"
 const classes = ref([])
-/*[
-  { id: 5, label: 'Flûte' },
-  { id: 6, label: 'Initial' },
-  { id: 7, label: 'Eveil 1' },
-  { id: 8, label: 'Eveil 2' },
-  { id: 10, label: 'Cuivre' },
-  { id: 11, label: 'Trompette' },
-  { id: 12, label: 'Saxophone' },
-  { id: 13, label: 'Percussions' },
-  { id: 14, label: 'Orchestre des jeunes EMM' },
-] */
+const classesLoading = ref(false)
+const classesError = ref(null)
 
+// ── Référence et validation du formulaire (Vuetify 3 retourne une Promise)
 const formRef = ref(null)
 const formValid = ref(false)
 
+// ── Règles de validation
 const rules = {
   required: (v) => !!v || 'Champ requis',
   onlyLetters: (v) => /^[a-zA-ZÀ-ÿ\s\-']+$/.test(v) || 'Lettres uniquement',
   phoneLength: (v) => {
-    const digits = v.replace(/\D/g, '')
+    const digits = (v || '').toString().replace(/\D/g, '')
     return digits.length === 10 || '10 chiffres requis'
   },
 }
 
+// ── Formatage téléphone (XX XX XX XX XX)
 function formatPhone(e) {
   let digits = e.target.value.replace(/\D/g, '').slice(0, 10)
   const parts = digits.match(/.{1,2}/g) || []
   phone.value = parts.join(' ')
 }
 
-// Charger les classes au montage
+// ── Base URL API (env ou fallback localhost)
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+
+// ── Chargement des classes au montage (protégé par JWT)
 onMounted(async () => {
+  classesLoading.value = true
+  classesError.value = null
   try {
-    const response = await axios.get('http://localhost:3000/api/classes')
-    classes.value = response.data
+    const token = localStorage.getItem('token')
+    if (!token) {
+      classes.value = []
+      classesError.value = 'Token manquant : connectez-vous.'
+      return
+    }
+
+    // Route unique côté serveur (admin => toutes, prof => ses classes)
+    const { data } = await axios.get(`${API}/api/classes`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    // Normalisation pour le v-select
+    classes.value = (Array.isArray(data) ? data : []).map((c) => ({
+      id: c.id,
+      nom: c.nom ?? c.label ?? c.title ?? `Classe ${c.id}`,
+    }))
   } catch (err) {
-    console.error('Erreur chargement classes :', err)
+    console.error(
+      'Erreur chargement classes :',
+      err?.response?.status,
+      err?.response?.data || err.message,
+    )
+    classes.value = []
+    classesError.value = 'Impossible de charger les classes.'
+  } finally {
+    classesLoading.value = false
   }
 })
 
+// ── Soumission du formulaire
 async function submitForm() {
-  if (!formRef.value.validate()) return
+  // Vuetify 3 : validate() => Promise<{ valid: boolean }>
+  const result = await formRef.value?.validate()
+  const valid = typeof result === 'object' ? result.valid : !!result
+  if (!valid) return
 
-  await studentStore.addStudent({
-    firstname: firstname.value.trim(),
-    lastname: lastname.value.trim(),
-    phone: phone.value.trim(),
-    class_id: class_id.value,
-  })
+  try {
+    await studentStore.addStudent({
+      firstname: firstname.value.trim(),
+      lastname: lastname.value.trim(),
+      phone: phone.value.trim(),
+      class_id: class_id.value,
+    })
 
-  // reset form
-  firstname.value = ''
-  lastname.value = ''
-  phone.value = ''
-  class_id.value = null
+    // Reset du formulaire
+    firstname.value = ''
+    lastname.value = ''
+    phone.value = ''
+    class_id.value = null
+    formRef.value?.resetValidation?.()
+  } catch (err) {
+    console.error('Erreur ajout élève :', err)
+  }
 }
 </script>

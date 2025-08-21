@@ -1,12 +1,25 @@
 <template>
   <v-container>
     <h2>Mes Classes</h2>
-    <v-row>
+
+    <!-- État vide -->
+    <v-alert v-if="!classes || classes.length === 0" type="info" variant="tonal" class="mt-2">
+      Aucune classe disponible.
+    </v-alert>
+
+    <!-- Liste des classes -->
+    <v-row v-else>
       <v-col cols="12" sm="6" md="4" v-for="classe in classes" :key="classe.id">
-        <v-card @click="goToDashboard(classe.id)" class="hoverable" color="blue-lighten-5">
-          <v-card-title>{{ classe.nom }}</v-card-title>
+        <v-card
+          @click="goToDashboard(classe.id)"
+          class="hoverable cursor-pointer"
+          color="blue-lighten-5"
+        >
+          <v-card-title class="font-weight-medium">
+            {{ classe.name }}
+          </v-card-title>
           <v-card-subtitle>
-            {{ classe.description || 'Aucun élève' }}
+            {{ classe.description || 'Aucune description' }}
           </v-card-subtitle>
         </v-card>
       </v-col>
