@@ -6,7 +6,7 @@ import LoginView from '@/views/LoginView.vue'
 import DashboardView from '@/views/DashboardView.vue'
 import AdminView from '@/views/AdminView.vue'
 import NotFound from '@/views/NotFound.vue'
-import HomeView from '@/views/HomeView.vue'
+// import HomeView from '@/views/HomeView.vue'
 import ClassesView from '@/views/ClassesView.vue'
 
 const routes = [
@@ -61,6 +61,12 @@ const routes = [
     name: 'ClassesList',
     component: () => import('@/views/ClassesView.vue'),
     meta: { requiresAuth: true, role: 'prof' },
+  },
+  {
+    path: '/presence/:id',
+    name: 'Attendance',
+    component: () => import('@/views/DashboardView.vue'),
+    meta: { requiresAuth: true }, // pas de role:'prof' => l’admin a accès
   },
 ]
 

@@ -1,5 +1,4 @@
 // server.js
-
 require('dotenv').config()
 const express = require('express')
 const bodyParser = require('body-parser')
@@ -30,14 +29,15 @@ const pool = new Pool({
 })
 
 // ─────────────────────────────────────────────────────────────
-/** Middlewares d’authentification / autorisation */
+// Middlewares d’authentification / autorisation
 // ─────────────────────────────────────────────────────────────
 function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1]
-  if (!token) return res.sendStatus(401)
+  if (!token) return res.sendStatus(401) // unauthorized
+
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403)
+    if (err) return res.sendStatus(403) // forbidden
     req.user = user
     next()
   })
@@ -51,7 +51,7 @@ function authorizeRoles(...roles) {
 }
 
 // ─────────────────────────────────────────────────────────────
-/** AUTH */
+// AUTH
 // ─────────────────────────────────────────────────────────────
 app.post('/login', async (req, res) => {
   try {
@@ -72,10 +72,7 @@ app.post('/login', async (req, res) => {
       { expiresIn: '8h' },
     )
 
-    res.json({
-      token,
-      user: { id: user.id, username: user.username, role: user.role },
-    })
+    res.json({ token, user: { id: user.id, username: user.username, role: user.role } })
   } catch (err) {
     console.error('Erreur serveur login:', err)
     res.status(500).json({ message: 'Erreur serveur' })
@@ -83,7 +80,187 @@ app.post('/login', async (req, res) => {
 })
 
 // ─────────────────────────────────────────────────────────────
-/** CLASSES (legacy + nouvelle /api/classes) */
+// ADMIN API
+// ─────────────────────────────────────────────────────────────
+const admin = express.Router()
+admin.use(authenticateToken, authorizeRoles('admin'))
+
+// Liste des profs (pour le select)
+admin.get('/profs', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      "SELECT id, username FROM users WHERE role = 'prof' ORDER BY username ASC",
+    )
+    res.json(rows)
+  } catch (e) {
+    console.error('admin/profs', e)
+    res.status(500).json({ message: 'Erreur chargement profs' })
+  }
+})
+
+// KPIs
+admin.get('/stats', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT
+        (SELECT COUNT(*) FROM users)    AS users,
+        (SELECT COUNT(*) FROM students) AS students,
+        (SELECT COUNT(*) FROM classes)  AS classes,
+        (SELECT COUNT(*) FROM sessions) AS sessions
+    `)
+    res.json(rows[0])
+  } catch (e) {
+    console.error('admin/stats', e)
+    res.status(500).json({ message: 'Erreur stats' })
+  }
+})
+
+// Taux de présence par classe
+admin.get('/attendance-rate', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT c.id, c.nom AS name,
+             COUNT(a.*) AS marked,
+             SUM(CASE WHEN a.status = 'present' THEN 1 ELSE 0 END) AS presents,
+             ROUND(
+               CASE WHEN COUNT(a.*)=0 THEN 0
+                    ELSE 100.0*SUM(CASE WHEN a.status='present' THEN 1 ELSE 0 END)/COUNT(a.*)
+               END, 1
+             ) AS rate
+      FROM classes c
+      LEFT JOIN sessions s ON s.class_id = c.id
+      LEFT JOIN attendances a ON a.session_id = s.id
+      GROUP BY c.id, c.nom
+      ORDER BY c.nom ASC;
+    `)
+    res.json(rows)
+  } catch (e) {
+    console.error('admin/attendance-rate', e)
+    res.status(500).json({ message: 'Erreur stats présence' })
+  }
+})
+
+// Classes - lecture
+admin.get('/classes', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT id, nom AS name, description, user_id AS owner_id FROM classes ORDER BY nom ASC',
+    )
+    res.json(rows)
+  } catch (e) {
+    console.error('admin/classes', e)
+    res.status(500).json({ message: 'Erreur chargement classes' })
+  }
+})
+
+// Helpers pour synchroniser class_users avec owner_id
+async function upsertOwnerLink(classId, ownerId) {
+  if (!ownerId) return
+  await pool.query(
+    `INSERT INTO class_users (class_id, user_id)
+     VALUES ($1, $2)
+     ON CONFLICT DO NOTHING`,
+    [classId, ownerId],
+  )
+}
+
+// Classes - création
+admin.post('/classes', async (req, res) => {
+  try {
+    const { name, description, owner_id } = req.body
+    if (!name || !name.trim()) return res.status(400).json({ message: 'Nom requis' })
+
+    const { rows } = await pool.query(
+      `INSERT INTO classes (nom, description, user_id)
+       VALUES ($1, $2, $3)
+       RETURNING id, nom AS name, description, user_id AS owner_id`,
+      [name.trim(), description ?? null, owner_id ?? null],
+    )
+
+    // sync class_users pour que le prof voie direct la classe
+    await upsertOwnerLink(rows[0].id, owner_id)
+
+    res.json(rows[0])
+  } catch (e) {
+    console.error('admin POST /classes', e)
+    res.status(500).json({ message: 'Erreur création' })
+  }
+})
+
+// Classes - édition
+admin.patch('/classes/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { name, description, owner_id } = req.body
+
+    const { rows } = await pool.query(
+      `UPDATE classes
+         SET nom = COALESCE($1, nom),
+             description = COALESCE($2, description),
+             user_id = $3
+       WHERE id = $4
+       RETURNING id, nom AS name, description, user_id AS owner_id`,
+      [name ?? null, description ?? null, owner_id ?? null, id],
+    )
+    if (!rows[0]) return res.status(404).json({ message: 'Classe introuvable' })
+
+    await upsertOwnerLink(id, owner_id)
+
+    res.json(rows[0])
+  } catch (e) {
+    console.error('admin PATCH /classes/:id', e)
+    res.status(500).json({ message: 'Erreur mise à jour' })
+  }
+})
+
+// Classes - suppression
+admin.delete('/classes/:id', async (req, res) => {
+  try {
+    const { id } = req.params
+    await pool.query('DELETE FROM classes WHERE id = $1', [id])
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('admin DELETE /classes/:id', e)
+    res.status(500).json({ message: 'Erreur suppression' })
+  }
+})
+
+// Multi-prof (optionnel)
+admin.post('/class-users', async (req, res) => {
+  try {
+    const { class_id, user_id } = req.body
+    if (!class_id || !user_id) return res.status(400).json({ message: 'Paramètres manquants' })
+    await pool.query(
+      `INSERT INTO class_users (class_id, user_id)
+       VALUES ($1, $2)
+       ON CONFLICT DO NOTHING`,
+      [class_id, user_id],
+    )
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('admin POST /class-users', e)
+    res.status(500).json({ message: 'Erreur liaison' })
+  }
+})
+
+admin.delete('/class-users', async (req, res) => {
+  try {
+    const { class_id, user_id } = req.body
+    await pool.query('DELETE FROM class_users WHERE class_id = $1 AND user_id = $2', [
+      class_id,
+      user_id,
+    ])
+    res.json({ ok: true })
+  } catch (e) {
+    console.error('admin DELETE /class-users', e)
+    res.status(500).json({ message: 'Erreur délier' })
+  }
+})
+
+app.use('/api/admin', admin)
+
+// ─────────────────────────────────────────────────────────────
+// CLASSES (legacy + endpoint unifié /api/classes)
 // ─────────────────────────────────────────────────────────────
 
 // Legacy : Admin → toutes les classes
@@ -97,27 +274,36 @@ app.get('/classes', authenticateToken, authorizeRoles('admin'), async (req, res)
   }
 })
 
-// Legacy : Prof/Admin → classes de l’utilisateur
+// Legacy : Prof/Admin → classes de l’utilisateur (tolérant owner OR class_users)
 app.get('/my-classes', authenticateToken, authorizeRoles('prof', 'admin'), async (req, res) => {
   try {
-    const result = await pool.query(
-      `SELECT c.id, c.nom AS name
-       FROM classes c
-       JOIN class_users cu ON cu.class_id = c.id
-       WHERE cu.user_id = $1
-       ORDER BY c.nom ASC`,
+    if (req.user.role === 'admin') {
+      const { rows } = await pool.query(
+        'SELECT id, nom AS name, description, user_id AS owner_id FROM classes ORDER BY nom ASC',
+      )
+      return res.json(rows)
+    }
+
+    const { rows } = await pool.query(
+      `
+      SELECT DISTINCT c.id, c.nom AS name, c.description, c.user_id AS owner_id
+      FROM classes c
+      LEFT JOIN class_users cu ON cu.class_id = c.id
+      WHERE c.user_id = $1 OR cu.user_id = $1
+      ORDER BY c.nom ASC
+    `,
       [req.user.id],
     )
-    res.json(result.rows)
+
+    res.json(rows)
   } catch (err) {
-    console.error(err)
+    console.error('Erreur route /my-classes :', err)
     res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 
-// Nouveau : /api/classes → point unique pour le front
+// Nouveau : /api/classes → point unique utilisé par le front
 const classesRouter = express.Router()
-
 classesRouter.get('/', authenticateToken, async (req, res) => {
   try {
     if (req.user.role === 'admin') {
@@ -126,11 +312,13 @@ classesRouter.get('/', authenticateToken, async (req, res) => {
     }
     if (req.user.role === 'prof') {
       const result = await pool.query(
-        `SELECT c.id, c.nom AS name
-         FROM classes c
-         JOIN class_users cu ON cu.class_id = c.id
-         WHERE cu.user_id = $1
-         ORDER BY c.nom ASC`,
+        `
+        SELECT DISTINCT c.id, c.nom AS name
+        FROM classes c
+        LEFT JOIN class_users cu ON cu.class_id = c.id
+        WHERE c.user_id = $1 OR cu.user_id = $1
+        ORDER BY c.nom ASC
+      `,
         [req.user.id],
       )
       return res.json(result.rows)
@@ -141,11 +329,10 @@ classesRouter.get('/', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur' })
   }
 })
-
 app.use('/api/classes', classesRouter)
 
 // ─────────────────────────────────────────────────────────────
-/** STUDENTS (/api/students) */
+// STUDENTS (/api/students)
 // ─────────────────────────────────────────────────────────────
 const studentsRouter = express.Router()
 
@@ -182,7 +369,7 @@ studentsRouter.get('/:class_id', async (req, res) => {
 app.use('/api/students', studentsRouter)
 
 // ─────────────────────────────────────────────────────────────
-/** SESSIONS (/sessions) */
+// SESSIONS (/sessions)
 // ─────────────────────────────────────────────────────────────
 const sessionsRouter = express.Router()
 
@@ -241,9 +428,8 @@ sessionsRouter.post('/', async (req, res) => {
 app.use('/sessions', sessionsRouter)
 
 // ─────────────────────────────────────────────────────────────
-/** ATTENDANCE */
+// ATTENDANCE
 // ─────────────────────────────────────────────────────────────
-
 app.get(
   '/attendance/:classId',
   authenticateToken,
@@ -253,12 +439,12 @@ app.get(
       const { classId } = req.params
       const { rows } = await pool.query(
         `SELECT a.student_id, a.session_id, a.status
-       FROM attendances a
-       JOIN sessions s ON s.id = a.session_id
-       WHERE s.class_id = $1`,
+         FROM attendances a
+         JOIN sessions s ON s.id = a.session_id
+         WHERE s.class_id = $1`,
         [classId],
       )
-      res.json(rows) // [{ student_id, session_id, status }]
+      res.json(rows)
     } catch (err) {
       console.error('GET /attendance/:classId', err)
       res.status(500).json({ message: 'Erreur serveur' })
@@ -276,14 +462,12 @@ app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), asyn
       return res.status(400).json({ message: 'Paramètres manquants' })
     }
 
-    // normalisation + validation
     const allowed = new Set(['present', 'late', 'absent'])
     if (status === 'excused') status = 'absent'
     if (!allowed.has(status)) {
       return res.status(400).json({ message: 'Statut invalide' })
     }
 
-    // vérifier existences pour erreurs lisibles
     const fk = await pool.query(
       `SELECT
          (SELECT 1 FROM students WHERE id = $1) AS has_student,
@@ -293,7 +477,6 @@ app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), asyn
     if (!fk.rows[0].has_student) return res.status(400).json({ message: 'Élève introuvable' })
     if (!fk.rows[0].has_session) return res.status(400).json({ message: 'Session introuvable' })
 
-    // UPSERT dans attendances
     await pool.query(
       `INSERT INTO attendances (student_id, session_id, status)
        VALUES ($1, $2, $3)
@@ -304,13 +487,10 @@ app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), asyn
 
     res.json({ message: 'Présence enregistrée' })
   } catch (err) {
-    // codes fréquents PG : 42P10 (pas d’unique), 23503 (FK), 23514 (CHECK)
     if (err.code === '42P10') {
-      return res
-        .status(500)
-        .json({
-          message: "Ajoute l'index unique sur attendances(student_id, session_id) pour ON CONFLICT",
-        })
+      return res.status(500).json({
+        message: "Ajoute l'index unique sur attendances(student_id, session_id) pour ON CONFLICT",
+      })
     }
     if (err.code === '23503') {
       return res.status(400).json({ message: 'Clé étrangère invalide (élève ou session)' })
@@ -323,6 +503,8 @@ app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), asyn
   }
 })
 
+// ─────────────────────────────────────────────────────────────
+// Démarrage serveur
 // ─────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`✅ Serveur démarré sur http://localhost:${PORT}`)

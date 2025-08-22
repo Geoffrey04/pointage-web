@@ -8,30 +8,37 @@ const drawer = ref(false)
 const userStore = useUserStore()
 const router = useRouter()
 
-// Initialisation du store pour récupérer token et user depuis localStorage
 userStore.initialize()
+
+const isAuthed = computed(() => userStore.isLoggedIn)
 
 const logout = () => {
   userStore.logout()
-  router.push('/login')
+  router.replace('/login') // replace pour éviter back sur une page privée
 }
 
-// Menu dynamique selon user connecté, avec protections sur user null
+// Menu dynamique
 const menuItems = computed(() => {
-  const items = [{ title: 'Accueil', route: '/', icon: 'mdi-home' }]
+  const items = []
 
-  if (userStore.isLoggedIn && userStore.user?.role === 'prof') {
-    items.push({ title: 'Mes Classes', route: '/classes', icon: 'mdi-account-music' })
+  // Accueil dépend de l'état d'auth
+  items.push({
+    title: 'Accueil',
+    to: isAuthed.value ? '/classes' : '/login',
+    icon: 'mdi-home',
+  })
+
+  if (isAuthed.value && userStore.user?.role === 'prof') {
+    items.push({ title: 'Mes Classes', to: '/classes', icon: 'mdi-account-music' })
   }
 
-  if (userStore.isLoggedIn && userStore.user?.role === 'admin') {
-    items.push({ title: 'Admin', route: '/admin', icon: 'mdi-shield-account' })
+  if (isAuthed.value && userStore.user?.role === 'admin') {
+    items.push({ title: 'Admin', to: '/admin', icon: 'mdi-shield-account' })
   }
 
   return items
 })
 
-// Optionnel : on peut aussi réagir au changement du token/user pour forcer mise à jour
 watchEffect(() => {
   axios.defaults.headers.common['Authorization'] = userStore.token
     ? `Bearer ${userStore.token}`
@@ -63,14 +70,13 @@ watchEffect(() => {
         <v-list-item
           v-for="item in menuItems"
           :key="item.title"
-          :to="item.route"
-          router
+          :to="item.to"
+          link
           @click="drawer = false"
         >
           <v-list-item-icon>
             <v-icon>{{ item.icon }}</v-icon>
           </v-list-item-icon>
-
           <v-list-item-content>
             <v-list-item-title>{{ item.title }}</v-list-item-title>
           </v-list-item-content>

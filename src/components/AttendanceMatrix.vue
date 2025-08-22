@@ -3,7 +3,7 @@
     <v-card-title class="text-h6 d-flex justify-space-between align-center">
       <span>Présences</span>
       <div class="text-caption text-medium-emphasis">
-        {{ totalStudents }} élèves • {{ sessions.length }} cours
+        {{ students.length }} élèves • {{ sessions.length }} cours
       </div>
     </v-card-title>
     <v-divider />
@@ -24,37 +24,26 @@
         </div>
       </div>
 
-      <div class="table-scroll">
-        <v-table fixed-header density="comfortable" class="attendance-table">
-          <thead>
-            <tr>
-              <th class="sticky-left name-col z-20 bg-surface font-medium top-sticky">Élève</th>
-              <th v-for="s in sessions" :key="s.id" class="text-center date-col top-sticky">
-                {{ formatDate(s.date) }}
-              </th>
-            </tr>
-          </thead>
+      <!-- ====== MOBILE (smAndDown) : Cartes par élève ====== -->
+      <div v-if="smAndDown" class="d-flex flex-column ga-3">
+        <v-skeleton-loader v-if="loading" type="card@3" />
 
-          <tbody v-if="!loading">
-            <tr v-for="st in pagedStudents" :key="st.id" class="row-strip">
-              <!-- Colonne Élève -->
-              <td class="sticky-left name-col bg-surface z-10">
-                <div class="d-flex align-center justify-space-between">
-                  <div class="font-medium truncate">{{ st.lastname }} {{ st.firstname }}</div>
-                  <v-btn
-                    size="x-small"
-                    icon
-                    variant="text"
-                    @click="openStudentInfo(st)"
-                    :aria-label="`Infos ${st.lastname} ${st.firstname}`"
-                  >
-                    <v-icon>mdi-information-outline</v-icon>
-                  </v-btn>
+        <v-card v-else v-for="st in students" :key="st.id" class="rounded-xl border-thin">
+          <v-card-text>
+            <div class="d-flex align-center justify-space-between mb-2">
+              <div class="font-weight-medium">{{ st.lastname }} {{ st.firstname }}</div>
+              <v-btn size="x-small" icon variant="text" @click="openStudentInfo(st)">
+                <v-icon>mdi-information-outline</v-icon>
+              </v-btn>
+            </div>
+
+            <!-- Ruban horizontal de dates -->
+            <div class="dates-ribbon">
+              <div v-for="s in sessions" :key="s.id" class="date-cell">
+                <div class="date-label text-caption text-medium-emphasis">
+                  {{ formatDate(s.date) }}
                 </div>
-              </td>
 
-              <!-- Cellules (élève × session) -->
-              <td v-for="s in sessions" :key="s.id + '-' + st.id" class="text-center cell">
                 <!-- État choisi : une seule icône -->
                 <template v-if="getStatus(st.id, s.id)">
                   <v-btn
@@ -68,9 +57,104 @@
                   >
                     <v-icon :icon="iconOf(getStatus(st.id, s.id))" />
                   </v-btn>
+                  <v-btn
+                    size="x-small"
+                    variant="text"
+                    class="mt-1"
+                    @click="resetCell(st.id, s.id)"
+                    title="Changer"
+                  >
+                    ↺
+                  </v-btn>
                 </template>
 
-                <!-- Pas encore choisi OU mode édition : 3 icônes -->
+                <!-- Choix (3 icônes) — version compacte soft -->
+                <template v-else>
+                  <div class="status-inline">
+                    <v-btn
+                      class="icon-btn status-present"
+                      variant="text"
+                      @click="onSetStatus(st.id, s.id, 'present')"
+                      title="Présent"
+                      aria-label="Présent"
+                    >
+                      <v-icon>mdi-check</v-icon>
+                    </v-btn>
+
+                    <v-btn
+                      class="icon-btn status-late"
+                      variant="text"
+                      @click="onSetStatus(st.id, s.id, 'late')"
+                      title="En retard"
+                      aria-label="En retard"
+                    >
+                      <v-icon>mdi-clock-time-four-outline</v-icon>
+                    </v-btn>
+
+                    <v-btn
+                      class="icon-btn status-absent"
+                      variant="text"
+                      @click="onSetStatus(st.id, s.id, 'absent')"
+                      title="Absent"
+                      aria-label="Absent"
+                    >
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </v-card-text>
+        </v-card>
+      </div>
+
+      <!-- ====== DESKTOP (mdAndUp) : Table ====== -->
+      <div v-else class="table-scroll">
+        <v-table fixed-header density="comfortable" class="attendance-table">
+          <thead>
+            <tr>
+              <th class="sticky-left name-col z-20 bg-surface top-sticky">Élève</th>
+              <th v-for="s in sessions" :key="s.id" class="text-center date-col top-sticky">
+                {{ formatDate(s.date) }}
+              </th>
+            </tr>
+          </thead>
+
+          <tbody v-if="!loading">
+            <tr v-for="st in students" :key="st.id" class="row-strip">
+              <!-- Colonne Élève -->
+              <td class="sticky-left name-col bg-surface z-10">
+                <div class="d-flex align-center justify-space-between">
+                  <div class="font-medium truncate">{{ st.lastname }} {{ st.firstname }}</div>
+                  <v-btn size="x-small" icon variant="text" @click="openStudentInfo(st)">
+                    <v-icon>mdi-information-outline</v-icon>
+                  </v-btn>
+                </div>
+              </td>
+
+              <!-- Cellules (élève × session) -->
+              <td v-for="s in sessions" :key="s.id + '-' + st.id" class="text-center cell">
+                <template v-if="getStatus(st.id, s.id)">
+                  <v-btn
+                    size="small"
+                    icon
+                    :color="colorOf(getStatus(st.id, s.id))"
+                    variant="flat"
+                    class="chosen-btn"
+                    @click="toggleEdit(st.id, s.id)"
+                    :title="labelOf(getStatus(st.id, s.id)) + ' — cliquer pour changer'"
+                  >
+                    <v-icon :icon="iconOf(getStatus(st.id, s.id))" />
+                  </v-btn>
+                  <v-btn
+                    size="x-small"
+                    variant="text"
+                    class="mt-1"
+                    @click="resetCell(st.id, s.id)"
+                    title="Changer"
+                    >↺</v-btn
+                  >
+                </template>
                 <template v-else>
                   <div class="d-flex justify-center ga-1">
                     <v-btn
@@ -79,72 +163,47 @@
                       color="green"
                       variant="tonal"
                       @click="onSetStatus(st.id, s.id, 'present')"
-                      title="Présent"
+                      ><v-icon>mdi-check-circle</v-icon></v-btn
                     >
-                      <v-icon>mdi-check-circle</v-icon>
-                    </v-btn>
                     <v-btn
                       size="small"
                       icon
                       color="orange"
                       variant="tonal"
                       @click="onSetStatus(st.id, s.id, 'late')"
-                      title="En retard"
+                      ><v-icon>mdi-clock-time-four-outline</v-icon></v-btn
                     >
-                      <v-icon>mdi-clock-time-four-outline</v-icon>
-                    </v-btn>
                     <v-btn
                       size="small"
                       icon
                       color="red"
                       variant="tonal"
                       @click="onSetStatus(st.id, s.id, 'absent')"
-                      title="Absent"
+                      ><v-icon>mdi-close-circle</v-icon></v-btn
                     >
-                      <v-icon>mdi-close-circle</v-icon>
-                    </v-btn>
                   </div>
                 </template>
-
-                <!-- Bouton “↺ changer” (mobile friendly) : apparaît quand une valeur est choisie -->
-                <v-btn
-                  v-if="getStatus(st.id, s.id)"
-                  size="x-small"
-                  variant="text"
-                  class="mt-1"
-                  @click="resetCell(st.id, s.id)"
-                  title="Changer le statut"
-                >
-                  ↺
-                </v-btn>
               </td>
             </tr>
 
-            <tr v-if="pagedStudents.length === 0">
+            <tr v-if="students.length === 0">
               <td :colspan="1 + sessions.length">
-                <v-alert type="info" variant="tonal">Aucun élève dans cette page.</v-alert>
+                <v-alert type="info" variant="tonal">Aucun élève.</v-alert>
               </td>
             </tr>
           </tbody>
 
           <tbody v-else>
             <tr>
-              <td :colspan="1 + sessions.length">
-                <v-skeleton-loader type="table-row" />
-              </td>
+              <td :colspan="1 + sessions.length"><v-skeleton-loader type="table-row" /></td>
             </tr>
           </tbody>
         </v-table>
       </div>
-
-      <!-- Pagination -->
-      <div class="d-flex justify-end mt-3">
-        <v-pagination v-model="page" :length="pages" total-visible="5" density="comfortable" />
-      </div>
     </v-card-text>
   </v-card>
 
-  <!-- Popup infos élève (sans ID) -->
+  <!-- Popup infos élève -->
   <v-dialog v-model="studentDialog" max-width="420">
     <v-card>
       <v-card-title class="text-h6">Infos élève</v-card-title>
@@ -160,14 +219,17 @@
     </v-card>
   </v-dialog>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1800">
+  <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
     {{ snackbar.text }}
   </v-snackbar>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch } from 'vue'
+import { useDisplay } from 'vuetify'
 import axios from 'axios'
+
+const { smAndDown } = useDisplay()
 
 const props = defineProps({
   classId: { type: [Number, String], required: true },
@@ -183,17 +245,7 @@ const loading = ref(true)
 const error = ref(null)
 const snackbar = ref({ show: false, text: '', color: 'success' })
 
-// Pagination
-const rowsPerPage = ref(10)
-const page = ref(1)
-const totalStudents = computed(() => students.value.length)
-const pages = computed(() => Math.max(1, Math.ceil(totalStudents.value / rowsPerPage.value)))
-const pagedStudents = computed(() => {
-  const start = (page.value - 1) * rowsPerPage.value
-  return students.value.slice(start, start + rowsPerPage.value)
-})
-
-// Popup infos élève
+// Dialog infos élève
 const studentDialog = ref(false)
 const selectedStudent = ref(null)
 function openStudentInfo(st) {
@@ -202,7 +254,6 @@ function openStudentInfo(st) {
 }
 
 const formatDate = (d) => {
-  // d attendu: 'YYYY-MM-DD'
   if (!d) return '—'
   const [y, m, dd] = d.split('-')
   return y && m && dd ? `${dd}-${m}-${y}` : '—'
@@ -221,6 +272,11 @@ function getStatus(studentId, sessionId) {
 function resetCell(studentId, sessionId) {
   ensureKey(studentId, sessionId)
   attendanceMap[studentId][sessionId] = null
+}
+
+function toggleEdit(studentId, sessionId) {
+  // ici on affiche simplement le bouton ↺ qui remet à null
+  resetCell(studentId, sessionId)
 }
 
 function colorOf(status) {
@@ -257,17 +313,15 @@ async function fetchAll() {
   loading.value = true
   error.value = null
   try {
-    // élèves
     const studentsRes = await axios.get(`${API}/api/students/${props.classId}`)
     students.value = Array.isArray(studentsRes.data) ? studentsRes.data : []
 
-    // sessions (avec id + date strict)
     const sessionsRes = await axios.get(`${API}/sessions/${props.classId}`)
     sessions.value = (Array.isArray(sessionsRes.data) ? sessionsRes.data : []).filter(
       (s) => s && typeof s.id === 'number' && s.date,
     )
 
-    // attendance existante (optionnelle)
+    // prehydrate
     try {
       const token = localStorage.getItem('token')
       const attRes = await axios.get(`${API}/attendance/${props.classId}`, {
@@ -279,20 +333,11 @@ async function fetchAll() {
         attendanceMap[row.student_id][row.session_id] = status
       }
     } catch (e) {
-      if (e?.response?.status !== 404) {
+      if (e?.response?.status !== 404)
         console.warn('Préchargement attendance ignoré :', e?.message || e)
-      }
     }
 
-    // s’assurer que toutes les clés existent
-    for (const st of students.value) {
-      for (const s of sessions.value) {
-        ensureKey(st.id, s.id)
-      }
-    }
-
-    // sécurité: si page > pages (après chargement), reviens à la dernière
-    if (page.value > pages.value) page.value = pages.value
+    for (const st of students.value) for (const s of sessions.value) ensureKey(st.id, s.id)
   } catch (e) {
     console.error(e)
     error.value = 'Impossible de charger élèves/sessions.'
@@ -305,20 +350,16 @@ async function onSetStatus(studentId, sessionId, status) {
   try {
     ensureKey(studentId, sessionId)
     attendanceMap[studentId][sessionId] = status // MAJ optimiste
-
     const token = localStorage.getItem('token')
     await axios.post(
       `${API}/attendance`,
       {
         student_id: studentId,
         session_id: sessionId,
-        status, // 'present' | 'late' | 'absent'
+        status,
       },
-      {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      },
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
     )
-
     snackbar.value = { show: true, text: '✅ Enregistré', color: 'success' }
   } catch (e) {
     console.error('Erreur sauvegarde présence :', e)
@@ -331,12 +372,18 @@ watch(() => props.classId, fetchAll)
 </script>
 
 <style scoped>
+/* ===== Desktop table fixes ===== */
 .table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
-
-/* Sticky header + sticky première colonne */
+.attendance-table {
+  table-layout: fixed;
+}
+.attendance-table th,
+.attendance-table td {
+  white-space: nowrap;
+}
 .top-sticky {
   position: sticky;
   top: 0;
@@ -346,19 +393,17 @@ watch(() => props.classId, fetchAll)
 .sticky-left {
   position: sticky;
   left: 0;
+  background: var(--v-theme-surface);
 }
-
-/* Colonne nom : largeur fixe, pour éviter qu'elle “glisse” sur le scroll horizontal */
 .name-col {
   min-width: 180px;
   max-width: 240px;
+  z-index: 12;
 }
 .date-col {
-  min-width: 96px;
+  min-width: 90px;
 }
-
-/* Mobile affinage */
-@media (max-width: 600px) {
+@media (max-width: 960px) {
   .name-col {
     min-width: 160px;
     max-width: 200px;
@@ -366,21 +411,112 @@ watch(() => props.classId, fetchAll)
   .date-col {
     min-width: 80px;
   }
-  .attendance-table :is(th, td) {
-    padding: 6px 8px;
-  }
 }
-
-/* Zebra rows light */
 .row-strip:nth-child(odd) > td:not(.sticky-left) {
   background: rgba(0, 0, 0, 0.02);
 }
-
-/* Cellules */
 .cell {
   vertical-align: middle;
 }
 .chosen-btn {
   transform: translateZ(0);
-} /* évite scintillement sur iOS */
+} /* évite scintillement iOS */
+
+/* ===== Mobile cards ===== */
+.dates-ribbon {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(88px, 1fr);
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  padding-bottom: 2px;
+}
+.date-cell {
+  scroll-snap-align: start;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  padding: 8px 6px;
+  text-align: center;
+  background: var(--v-theme-surface);
+}
+.date-label {
+  margin-bottom: 4px;
+}
+
+/* --- Boutons compacts “soft” pour mobile --- */
+.status-inline {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.icon-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 9999px;
+  padding: 0;
+  transform: translateZ(0); /* évite le scintillement iOS */
+}
+.icon-btn .v-icon {
+  font-size: 18px;
+  line-height: 36px;
+}
+
+/* fonds doux + couleurs d’icône */
+.status-present {
+  background: rgba(76, 175, 80, 0.12);
+}
+.status-present .v-icon {
+  color: #2e7d32;
+}
+
+.status-late {
+  background: rgba(255, 152, 0, 0.14);
+}
+.status-late .v-icon {
+  color: #ef6c00;
+}
+
+.status-absent {
+  background: rgba(244, 67, 54, 0.14);
+}
+.status-absent .v-icon {
+  color: #c62828;
+}
+
+/* Icône “choisie” (quand une valeur est sélectionnée) */
+.chosen-btn {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  border-radius: 9999px;
+}
+.chosen-btn .v-icon {
+  font-size: 20px;
+}
+
+/* Ajuste un peu les cartes date pour laisser respirer la ligne d’icônes */
+.date-cell {
+  padding: 8px 6px;
+}
+.date-label {
+  margin-bottom: 6px;
+}
+
+/* Tu peux resserrer encore sur iPhone si besoin */
+@media (max-width: 600px) {
+  .icon-btn {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+  }
+  .chosen-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+  }
+}
 </style>
