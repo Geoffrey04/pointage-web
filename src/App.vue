@@ -19,23 +19,20 @@ const logout = () => {
 
 // Menu dynamique
 const menuItems = computed(() => {
-  const items = []
+  const homeRoute = userStore.isLoggedIn
+    ? userStore.user?.role === 'admin'
+      ? '/admin'
+      : '/classes'
+    : '/login'
 
-  // Accueil dépend de l'état d'auth
-  items.push({
-    title: 'Accueil',
-    to: isAuthed.value ? '/classes' : '/login',
-    icon: 'mdi-home',
-  })
+  const items = [{ title: 'Accueil', route: homeRoute, icon: 'mdi-home' }]
 
-  if (isAuthed.value && userStore.user?.role === 'prof') {
-    items.push({ title: 'Mes Classes', to: '/classes', icon: 'mdi-account-music' })
+  if (userStore.isLoggedIn && userStore.user?.role === 'prof') {
+    items.push({ title: 'Mes Classes', route: '/classes', icon: 'mdi-account-music' })
   }
-
-  if (isAuthed.value && userStore.user?.role === 'admin') {
-    items.push({ title: 'Admin', to: '/admin', icon: 'mdi-shield-account' })
+  if (userStore.isLoggedIn && userStore.user?.role === 'admin') {
+    items.push({ title: 'Admin', route: '/admin', icon: 'mdi-shield-account' })
   }
-
   return items
 })
 

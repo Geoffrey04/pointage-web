@@ -9,7 +9,9 @@
     <v-divider />
 
     <v-card-text>
-      <v-alert v-if="error" type="error" variant="tonal" class="mb-3">{{ error }}</v-alert>
+      <v-alert v-if="error" type="error" variant="tonal" class="mb-3">
+        {{ error }}
+      </v-alert>
 
       <!-- Légende -->
       <div class="mb-3 d-flex align-center flex-wrap gap-4 text-body-2">
@@ -24,7 +26,7 @@
         </div>
       </div>
 
-      <!-- ====== MOBILE (smAndDown) : Cartes par élève ====== -->
+      <!-- ====== MOBILE : Cartes par élève ====== -->
       <div v-if="smAndDown" class="d-flex flex-column ga-3">
         <v-skeleton-loader v-if="loading" type="card@3" />
 
@@ -44,14 +46,12 @@
                   {{ formatDate(s.date) }}
                 </div>
 
-                <!-- État choisi : une seule icône -->
+                <!-- État choisi -->
                 <template v-if="getStatus(st.id, s.id)">
                   <v-btn
-                    size="small"
-                    icon
-                    :color="colorOf(getStatus(st.id, s.id))"
-                    variant="flat"
-                    class="chosen-btn"
+                    class="icon-btn"
+                    :class="statusClass(getStatus(st.id, s.id))"
+                    variant="text"
                     @click="toggleEdit(st.id, s.id)"
                     :title="labelOf(getStatus(st.id, s.id)) + ' — appuyer pour changer'"
                   >
@@ -63,12 +63,11 @@
                     class="mt-1"
                     @click="resetCell(st.id, s.id)"
                     title="Changer"
+                    >↺</v-btn
                   >
-                    ↺
-                  </v-btn>
                 </template>
 
-                <!-- Choix (3 icônes) — version compacte soft -->
+                <!-- Choix -->
                 <template v-else>
                   <div class="status-inline">
                     <v-btn
@@ -80,7 +79,6 @@
                     >
                       <v-icon>mdi-check</v-icon>
                     </v-btn>
-
                     <v-btn
                       class="icon-btn status-late"
                       variant="text"
@@ -90,7 +88,6 @@
                     >
                       <v-icon>mdi-clock-time-four-outline</v-icon>
                     </v-btn>
-
                     <v-btn
                       class="icon-btn status-absent"
                       variant="text"
@@ -108,7 +105,7 @@
         </v-card>
       </div>
 
-      <!-- ====== DESKTOP (mdAndUp) : Table ====== -->
+      <!-- ====== DESKTOP : Table ====== -->
       <div v-else class="table-scroll">
         <v-table fixed-header density="comfortable" class="attendance-table">
           <thead>
@@ -122,7 +119,6 @@
 
           <tbody v-if="!loading">
             <tr v-for="st in students" :key="st.id" class="row-strip">
-              <!-- Colonne Élève -->
               <td class="sticky-left name-col bg-surface z-10">
                 <div class="d-flex align-center justify-space-between">
                   <div class="font-medium truncate">{{ st.lastname }} {{ st.firstname }}</div>
@@ -132,15 +128,12 @@
                 </div>
               </td>
 
-              <!-- Cellules (élève × session) -->
               <td v-for="s in sessions" :key="s.id + '-' + st.id" class="text-center cell">
                 <template v-if="getStatus(st.id, s.id)">
                   <v-btn
-                    size="small"
-                    icon
-                    :color="colorOf(getStatus(st.id, s.id))"
-                    variant="flat"
-                    class="chosen-btn"
+                    class="icon-btn"
+                    :class="statusClass(getStatus(st.id, s.id))"
+                    variant="text"
                     @click="toggleEdit(st.id, s.id)"
                     :title="labelOf(getStatus(st.id, s.id)) + ' — cliquer pour changer'"
                   >
@@ -155,32 +148,33 @@
                     >↺</v-btn
                   >
                 </template>
+
                 <template v-else>
-                  <div class="d-flex justify-center ga-1">
+                  <div class="status-inline">
                     <v-btn
-                      size="small"
-                      icon
-                      color="green"
-                      variant="tonal"
+                      class="icon-btn status-present"
+                      variant="text"
                       @click="onSetStatus(st.id, s.id, 'present')"
-                      ><v-icon>mdi-check-circle</v-icon></v-btn
+                      title="Présent"
                     >
+                      <v-icon>mdi-check</v-icon>
+                    </v-btn>
                     <v-btn
-                      size="small"
-                      icon
-                      color="orange"
-                      variant="tonal"
+                      class="icon-btn status-late"
+                      variant="text"
                       @click="onSetStatus(st.id, s.id, 'late')"
-                      ><v-icon>mdi-clock-time-four-outline</v-icon></v-btn
+                      title="En retard"
                     >
+                      <v-icon>mdi-clock-time-four-outline</v-icon>
+                    </v-btn>
                     <v-btn
-                      size="small"
-                      icon
-                      color="red"
-                      variant="tonal"
+                      class="icon-btn status-absent"
+                      variant="text"
                       @click="onSetStatus(st.id, s.id, 'absent')"
-                      ><v-icon>mdi-close-circle</v-icon></v-btn
+                      title="Absent"
                     >
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
                   </div>
                 </template>
               </td>
@@ -253,10 +247,18 @@ function openStudentInfo(st) {
   studentDialog.value = true
 }
 
+// Utils
+function authHeaders() {
+  const token = localStorage.getItem('token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 const formatDate = (d) => {
   if (!d) return '—'
-  const [y, m, dd] = d.split('-')
-  return y && m && dd ? `${dd}-${m}-${y}` : '—'
+  const parts = String(d).split('-')
+  if (parts.length !== 3) return d
+  const [y, m, dd] = parts
+  return `${dd}-${m}-${y}`
 }
 
 function ensureKey(studentId, sessionId) {
@@ -275,18 +277,7 @@ function resetCell(studentId, sessionId) {
 }
 
 function toggleEdit(studentId, sessionId) {
-  // ici on affiche simplement le bouton ↺ qui remet à null
   resetCell(studentId, sessionId)
-}
-
-function colorOf(status) {
-  return status === 'present'
-    ? 'green'
-    : status === 'late'
-      ? 'orange'
-      : status === 'absent'
-        ? 'red'
-        : undefined
 }
 
 function iconOf(status) {
@@ -298,7 +289,6 @@ function iconOf(status) {
         ? 'mdi-close-circle'
         : 'mdi-help-circle-outline'
 }
-
 function labelOf(status) {
   return status === 'present'
     ? 'Présent'
@@ -308,49 +298,67 @@ function labelOf(status) {
         ? 'Absent'
         : ''
 }
+function statusClass(status) {
+  return status === 'present'
+    ? 'status-present'
+    : status === 'late'
+      ? 'status-late'
+      : status === 'absent'
+        ? 'status-absent'
+        : ''
+}
 
+// Charger élèves + sessions + présences
 async function fetchAll() {
   loading.value = true
   error.value = null
   try {
-    const studentsRes = await axios.get(`${API}/api/students/${props.classId}`)
-    students.value = Array.isArray(studentsRes.data) ? studentsRes.data : []
+    const auth = authHeaders()
 
-    const sessionsRes = await axios.get(`${API}/sessions/${props.classId}`)
-    sessions.value = (Array.isArray(sessionsRes.data) ? sessionsRes.data : []).filter(
+    // 1) élèves
+    const stRes = await axios.get(`${API}/api/students/${props.classId}`, { headers: auth })
+    students.value = Array.isArray(stRes.data) ? stRes.data : []
+
+    // 2) sessions (dates)
+    const sesRes = await axios.get(`${API}/sessions/${props.classId}`, { headers: auth })
+    sessions.value = (Array.isArray(sesRes.data) ? sesRes.data : []).filter(
       (s) => s && typeof s.id === 'number' && s.date,
     )
 
-    // prehydrate
-    try {
-      const token = localStorage.getItem('token')
-      const attRes = await axios.get(`${API}/attendance/${props.classId}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      for (const row of attRes.data || []) {
-        const status = row.status === 'excused' ? 'absent' : row.status
-        ensureKey(row.student_id, row.session_id)
-        attendanceMap[row.student_id][row.session_id] = status
-      }
-    } catch (e) {
-      if (e?.response?.status !== 404)
-        console.warn('Préchargement attendance ignoré :', e?.message || e)
+    // 3) présences existantes
+    const attRes = await axios.get(`${API}/attendance/${props.classId}`, { headers: auth })
+
+    // reset propre
+    for (const k in attendanceMap) delete attendanceMap[k]
+
+    for (const row of attRes.data || []) {
+      ensureKey(row.student_id, row.session_id)
+      attendanceMap[row.student_id][row.session_id] =
+        row.status === 'excused' ? 'absent' : row.status
     }
 
-    for (const st of students.value) for (const s of sessions.value) ensureKey(st.id, s.id)
+    // pré-hydrate cellules nulles
+    for (const st of students.value) {
+      for (const s of sessions.value) ensureKey(st.id, s.id)
+    }
   } catch (e) {
-    console.error(e)
+    console.error('fetchAll error', e)
     error.value = 'Impossible de charger élèves/sessions.'
   } finally {
     loading.value = false
   }
 }
 
+// API publique pour le parent
+function reload() {
+  fetchAll()
+}
+defineExpose({ reload })
+
 async function onSetStatus(studentId, sessionId, status) {
   try {
     ensureKey(studentId, sessionId)
     attendanceMap[studentId][sessionId] = status // MAJ optimiste
-    const token = localStorage.getItem('token')
     await axios.post(
       `${API}/attendance`,
       {
@@ -358,7 +366,7 @@ async function onSetStatus(studentId, sessionId, status) {
         session_id: sessionId,
         status,
       },
-      { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      { headers: authHeaders() },
     )
     snackbar.value = { show: true, text: '✅ Enregistré', color: 'success' }
   } catch (e) {
@@ -418,15 +426,12 @@ watch(() => props.classId, fetchAll)
 .cell {
   vertical-align: middle;
 }
-.chosen-btn {
-  transform: translateZ(0);
-} /* évite scintillement iOS */
 
 /* ===== Mobile cards ===== */
 .dates-ribbon {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(88px, 1fr);
+  grid-auto-columns: minmax(96px, 1fr);
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -442,10 +447,10 @@ watch(() => props.classId, fetchAll)
   background: var(--v-theme-surface);
 }
 .date-label {
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-/* --- Boutons compacts “soft” pour mobile --- */
+/* --- Boutons compacts “soft” --- */
 .status-inline {
   display: flex;
   justify-content: center;
@@ -458,7 +463,7 @@ watch(() => props.classId, fetchAll)
   min-width: 36px;
   border-radius: 9999px;
   padding: 0;
-  transform: translateZ(0); /* évite le scintillement iOS */
+  transform: translateZ(0);
 }
 .icon-btn .v-icon {
   font-size: 18px;
@@ -487,36 +492,12 @@ watch(() => props.classId, fetchAll)
   color: #c62828;
 }
 
-/* Icône “choisie” (quand une valeur est sélectionnée) */
-.chosen-btn {
-  width: 40px;
-  height: 40px;
-  min-width: 40px;
-  border-radius: 9999px;
-}
-.chosen-btn .v-icon {
-  font-size: 20px;
-}
-
 /* Ajuste un peu les cartes date pour laisser respirer la ligne d’icônes */
-.date-cell {
-  padding: 8px 6px;
-}
-.date-label {
-  margin-bottom: 6px;
-}
-
-/* Tu peux resserrer encore sur iPhone si besoin */
 @media (max-width: 600px) {
   .icon-btn {
     width: 34px;
     height: 34px;
     min-width: 34px;
-  }
-  .chosen-btn {
-    width: 38px;
-    height: 38px;
-    min-width: 38px;
   }
 }
 </style>

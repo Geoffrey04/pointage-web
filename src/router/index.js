@@ -78,13 +78,26 @@ const router = createRouter({
 // Garde de navigation
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore()
+  const isAuthed = userStore.isLoggedIn
+  const isAdmin = userStore.user?.role === 'admin'
+  const landing = isAdmin ? '/admin' : '/classes'
 
-  if (to.meta.requiresAuth && !userStore.isLoggedIn) {
-    return next('/login')
+  // si on va sur /login alors qu'on est déjà connecté → page d'accueil selon rôle
+  if (to.path === '/login' && isAuthed) {
+    return next(landing)
   }
 
-  if (to.meta.adminOnly && !userStore.isAdmin) {
-    return next('/dashboard')
+  // si on va sur la racine "/" → redirige dynamiquement
+  if (to.path === '/') {
+    return next(isAuthed ? landing : '/login')
+  }
+
+  // protections existantes
+  if (to.meta?.requiresAuth && !isAuthed) {
+    return next('/login')
+  }
+  if (to.meta?.adminOnly && !isAdmin) {
+    return next(landing)
   }
 
   next()

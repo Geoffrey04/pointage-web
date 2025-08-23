@@ -259,6 +259,96 @@ admin.delete('/class-users', async (req, res) => {
 
 app.use('/api/admin', admin)
 
+// Helper: année scolaire active (Aug 1 -> Jul 31)
+function getActiveSchoolYear() {
+  const today = new Date()
+  const y = today.getMonth() >= 7 ? today.getFullYear() : today.getFullYear() - 1
+  const start = new Date(Date.UTC(y, 7, 1)) // 1 Aug y
+  const end = new Date(Date.UTC(y + 1, 6, 31)) // 31 Jul y+1
+  return { start, end, label: `${y}-${y + 1}` }
+}
+
+// Convertit ISO dow (1..7, Lundi..Dimanche) -> JS dow (0..6, Dim..Sam)
+function jsDowFromIso(iso) {
+  return iso % 7
+}
+
+// Génère toutes les dates yyyy-mm-dd pour un jour donné dans un intervalle
+function enumerateDatesByWeekday(start, end, isoDow) {
+  const jsTarget = jsDowFromIso(isoDow)
+  const dates = []
+  // Trouver le premier jour demandé >= start
+  const d = new Date(start)
+  while (d.getUTCDay() !== jsTarget) d.setUTCDate(d.getUTCDate() + 1)
+  // Ajouter semaine par semaine
+  while (d <= end) {
+    const y = d.getUTCFullYear()
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(d.getUTCDate()).padStart(2, '0')
+    dates.push(`${y}-${m}-${day}`)
+    d.setUTCDate(d.getUTCDate() + 7)
+  }
+  return dates
+}
+
+// POST /classes/:id/generate-sessions
+app.post(
+  '/classes/:id/generate-sessions',
+  authenticateToken,
+  authorizeRoles('prof', 'admin'),
+  async (req, res) => {
+    try {
+      const classId = Number(req.params.id)
+      let { weekday } = req.body // attendu: 1..7 (Lundi..Dimanche)
+
+      // Charger la classe
+      const cl = await pool.query('SELECT id, weekday FROM classes WHERE id = $1', [classId])
+      if (!cl.rows[0]) return res.status(404).json({ message: 'Classe introuvable' })
+
+      // Si aucun weekday fourni, utiliser celui mémorisé
+      if (!weekday) weekday = cl.rows[0].weekday
+      if (!weekday) return res.status(400).json({ message: 'Jour de cours requis (weekday 1..7)' })
+      weekday = Number(weekday)
+      if (weekday < 1 || weekday > 7)
+        return res.status(400).json({ message: 'weekday invalide (1..7)' })
+
+      // Mémoriser le weekday sur la classe s’il a changé
+      if (cl.rows[0].weekday !== weekday) {
+        await pool.query('UPDATE classes SET weekday = $1 WHERE id = $2', [weekday, classId])
+      }
+
+      // Calcul de l’année scolaire active
+      const { start, end } = getActiveSchoolYear()
+      const allDates = enumerateDatesByWeekday(start, end, weekday)
+
+      // Écarter les dates déjà présentes
+      const existing = await pool.query('SELECT date FROM sessions WHERE class_id = $1', [classId])
+      const existingSet = new Set(existing.rows.map((r) => r.date.toISOString().split('T')[0]))
+      const toInsert = allDates.filter((d) => !existingSet.has(d))
+
+      // Insertion bulk (si nécessaire)
+      if (toInsert.length > 0) {
+        const values = toInsert.map((_, i) => `($1, $${i + 2})`).join(',')
+        await pool.query(
+          `INSERT INTO sessions (class_id, date) VALUES ${values} ON CONFLICT DO NOTHING`,
+          [classId, ...toInsert],
+        )
+      }
+
+      // Retourner la liste des sessions (id + date)
+      const { rows } = await pool.query(
+        'SELECT id, date FROM sessions WHERE class_id = $1 ORDER BY date ASC',
+        [classId],
+      )
+      const sessions = rows.map((r) => ({ id: r.id, date: r.date.toISOString().split('T')[0] }))
+      res.json({ ok: true, inserted: toInsert.length, total: sessions.length, sessions })
+    } catch (e) {
+      console.error('generate-sessions', e)
+      res.status(500).json({ message: 'Erreur génération sessions' })
+    }
+  },
+)
+
 // ─────────────────────────────────────────────────────────────
 // CLASSES (legacy + endpoint unifié /api/classes)
 // ─────────────────────────────────────────────────────────────
