@@ -17,6 +17,12 @@ const logout = () => {
   router.replace('/login') // replace pour éviter back sur une page privée
 }
 
+function go(path) {
+  drawer.value = false
+  if (!path) return
+  router.push(path).catch(() => {}) // évite l'erreur NavigationDuplicated
+}
+
 // Menu dynamique
 const menuItems = computed(() => {
   const homeRoute = userStore.isLoggedIn
@@ -63,20 +69,12 @@ watchEffect(() => {
 
     <!-- Menu latéral -->
     <v-navigation-drawer app v-model="drawer" temporary :width="300">
-      <v-list nav dense>
-        <v-list-item
-          v-for="item in menuItems"
-          :key="item.title"
-          :to="item.to"
-          link
-          @click="drawer = false"
-        >
-          <v-list-item-icon>
+      <v-list nav density="comfortable">
+        <v-list-item v-for="item in menuItems" :key="item.title" @click="go(item.route)">
+          <template #prepend>
             <v-icon>{{ item.icon }}</v-icon>
-          </v-list-item-icon>
-          <v-list-item-content>
-            <v-list-item-title>{{ item.title }}</v-list-item-title>
-          </v-list-item-content>
+          </template>
+          <v-list-item-title>{{ item.title }}</v-list-item-title>
         </v-list-item>
       </v-list>
     </v-navigation-drawer>

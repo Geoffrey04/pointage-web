@@ -6,9 +6,6 @@
         Ajouter un élève
       </v-btn>
 
-      <!-- Optionnel : si tu gardes le DateSelector -->
-      <v-btn color="secondary" class="ma-2" @click="dialogAddDate = true"> Ajouter une date </v-btn>
-
       <v-btn color="info" class="ma-2" @click="dialogStudentList = true"> Liste des élèves </v-btn>
     </v-row>
 
@@ -17,25 +14,11 @@
       <v-card>
         <v-card-title>Ajouter un élève</v-card-title>
         <v-card-text>
-          <AddStudentForm @student-added="onStudentAdded" @sessions-changed="onSessionsChanged" />
+          <AddStudentForm @student-added="onStudentAdded" />
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="dialogAddStudent = false">Fermer</v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- Pop-up Ajouter une date (optionnel si tu le conserves) -->
-    <v-dialog v-model="dialogAddDate" max-width="520px">
-      <v-card>
-        <v-card-title>Ajouter une date</v-card-title>
-        <v-card-text>
-          <DateSelector @dates-generated="refreshMatrix" />
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn variant="text" @click="dialogAddDate = false">Fermer</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -72,21 +55,19 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import AttendanceMatrix from '@/components/AttendanceMatrix.vue'
 import AddStudentForm from '@/components/AddStudentForm.vue'
-import DateSelector from '@/components/DateSelector.vue' // si tu l’utilises encore quelque part
 import StudentList from '@/components/StudentList.vue'
 
 const route = useRoute()
 
 // dialogs
 const dialogAddStudent = ref(false)
-const dialogAddDate = ref(false)
 const dialogStudentList = ref(false)
 
-// ID de la classe depuis l’URL (fonctionne avec /presence/:id ou /dashboard/:id)
+// ID de la classe depuis l’URL
 const currentClassId = computed(() => Number(route.params.id))
 
 // Ref vers la matrice pour déclencher reload()
@@ -97,14 +78,6 @@ function refreshMatrix() {
 
 // évènements du formulaire
 function onStudentAdded() {
-  // si tu as un store des élèves, tu peux recharger ici aussi
   refreshMatrix()
 }
-function onSessionsChanged() {
-  refreshMatrix()
-}
-
-onMounted(() => {
-  // première charge assurée par AttendanceMatrix.onMounted(fetchAll)
-})
 </script>

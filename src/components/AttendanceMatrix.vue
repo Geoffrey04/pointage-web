@@ -9,6 +9,7 @@
     <v-divider />
 
     <v-card-text>
+      <!-- Erreur globale -->
       <v-alert v-if="error" type="error" variant="tonal" class="mb-3">
         {{ error }}
       </v-alert>
@@ -19,7 +20,7 @@
           <v-icon color="green">mdi-check-circle</v-icon> Présent
         </div>
         <div class="d-flex align-center ga-1">
-          <v-icon color="orange">mdi-clock-time-four-outline</v-icon> En retard
+          <v-icon color="blue">mdi-file-check-outline</v-icon> Excusé(e)
         </div>
         <div class="d-flex align-center ga-1">
           <v-icon color="red">mdi-close-circle</v-icon> Absent
@@ -48,6 +49,25 @@
 
                 <!-- État choisi -->
                 <template v-if="getStatus(st.id, s.id)">
+                  <!-- Si excusé et commentaire, icône note avec tooltip -->
+                  <v-tooltip
+                    v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
+                    :text="getComment(st.id, s.id)"
+                  >
+                    <template #activator="{ props }">
+                      <v-btn
+                        v-bind="props"
+                        size="x-small"
+                        icon
+                        variant="text"
+                        class="mr-1"
+                        title="Commentaire"
+                      >
+                        <v-icon>mdi-note-text-outline</v-icon>
+                      </v-btn>
+                    </template>
+                  </v-tooltip>
+
                   <v-btn
                     class="icon-btn"
                     :class="statusClass(getStatus(st.id, s.id))"
@@ -80,13 +100,13 @@
                       <v-icon>mdi-check</v-icon>
                     </v-btn>
                     <v-btn
-                      class="icon-btn status-late"
+                      class="icon-btn status-excused"
                       variant="text"
-                      @click="onSetStatus(st.id, s.id, 'late')"
-                      title="En retard"
-                      aria-label="En retard"
+                      @click="openExcuseDialog(st.id, s.id)"
+                      title="Excusé(e)"
+                      aria-label="Excusé(e)"
                     >
-                      <v-icon>mdi-clock-time-four-outline</v-icon>
+                      <v-icon>mdi-file-check-outline</v-icon>
                     </v-btn>
                     <v-btn
                       class="icon-btn status-absent"
@@ -128,8 +148,27 @@
                 </div>
               </td>
 
-              <td v-for="s in sessions" :key="s.id + '-' + st.id" class="text-center cell">
+              <td v-for="s in sessions" :key="`${s.id}-${st.id}`" class="text-center cell">
+                <!-- État choisi -->
                 <template v-if="getStatus(st.id, s.id)">
+                  <v-tooltip
+                    v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
+                    :text="getComment(st.id, s.id)"
+                  >
+                    <template #activator="{ props }">
+                      <v-btn
+                        v-bind="props"
+                        size="x-small"
+                        icon
+                        variant="text"
+                        class="mr-1"
+                        title="Commentaire"
+                      >
+                        <v-icon>mdi-note-text-outline</v-icon>
+                      </v-btn>
+                    </template>
+                  </v-tooltip>
+
                   <v-btn
                     class="icon-btn"
                     :class="statusClass(getStatus(st.id, s.id))"
@@ -149,6 +188,7 @@
                   >
                 </template>
 
+                <!-- Choix -->
                 <template v-else>
                   <div class="status-inline">
                     <v-btn
@@ -160,12 +200,12 @@
                       <v-icon>mdi-check</v-icon>
                     </v-btn>
                     <v-btn
-                      class="icon-btn status-late"
+                      class="icon-btn status-excused"
                       variant="text"
-                      @click="onSetStatus(st.id, s.id, 'late')"
-                      title="En retard"
+                      @click="openExcuseDialog(st.id, s.id)"
+                      title="Excusé(e)"
                     >
-                      <v-icon>mdi-clock-time-four-outline</v-icon>
+                      <v-icon>mdi-file-check-outline</v-icon>
                     </v-btn>
                     <v-btn
                       class="icon-btn status-absent"
@@ -213,161 +253,252 @@
     </v-card>
   </v-dialog>
 
+  <!-- Dialog commentaire Excusé(e) -->
+  <v-dialog v-model="excuseDialog.show" max-width="520">
+    <v-card>
+      <v-card-title class="text-h6">Motif d'absence (excusé·e)</v-card-title>
+      <v-card-text>
+        <v-textarea
+          v-model="excuseDialog.text"
+          label="Commentaire / Justificatif"
+          auto-grow
+          rows="3"
+          counter="300"
+          :rules="[(v) => !!(v && v.trim()) || 'Commentaire requis']"
+        />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="closeExcuseDialog">Annuler</v-btn>
+        <v-btn color="primary" @click="confirmExcuse">Enregistrer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!-- Snackbar -->
   <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
     {{ snackbar.text }}
   </v-snackbar>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useDisplay } from 'vuetify'
 import axios from 'axios'
 
-const { smAndDown } = useDisplay()
+type Student = { id: number; firstname: string; lastname: string; phone?: string | null }
+type Session = { id: number; date: string } // yyyy-mm-dd
+type AttendanceRow = {
+  student_id: number
+  session_id: number
+  status: 'present' | 'absent' | 'excused'
+  comment?: string | null
+}
 
-const props = defineProps({
-  classId: { type: [Number, String], required: true },
-})
+const props = defineProps<{
+  classId: number | string
+}>()
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const { smAndDown } = useDisplay()
 
-const students = ref([])
-const sessions = ref([]) // [{id,date}]
-const attendanceMap = reactive({}) // { [studentId]: { [sessionId]: 'present'|'late'|'absent' | null } }
+/* ─────────────── State ─────────────── */
+const students = ref<Student[]>([])
+const sessions = ref<Session[]>([])
+/** Map: studentId -> sessionId -> {status, comment} */
+const attendanceMap = reactive<
+  Record<
+    number,
+    Record<number, { status: 'present' | 'absent' | 'excused' | null; comment: string | null }>
+  >
+>({})
 
 const loading = ref(true)
-const error = ref(null)
-const snackbar = ref({ show: false, text: '', color: 'success' })
+const error = ref<string | null>(null)
+const snackbar = ref<{ show: boolean; text: string; color: string }>({
+  show: false,
+  text: '',
+  color: 'success',
+})
 
-// Dialog infos élève
+/* Dialog infos élève */
 const studentDialog = ref(false)
-const selectedStudent = ref(null)
-function openStudentInfo(st) {
+const selectedStudent = ref<Student | null>(null)
+function openStudentInfo(st: Student) {
   selectedStudent.value = st
   studentDialog.value = true
 }
 
-// Utils
+/* Dialog Excusé(e) (commentaire obligatoire) */
+const excuseDialog = ref<{
+  show: boolean
+  studentId: number | null
+  sessionId: number | null
+  text: string
+}>({ show: false, studentId: null, sessionId: null, text: '' })
+function openExcuseDialog(studentId: number, sessionId: number) {
+  ensureKey(studentId, sessionId)
+  excuseDialog.value = {
+    show: true,
+    studentId,
+    sessionId,
+    text: attendanceMap[studentId][sessionId].comment ?? '',
+  }
+}
+function closeExcuseDialog() {
+  excuseDialog.value = { show: false, studentId: null, sessionId: null, text: '' }
+}
+async function confirmExcuse() {
+  const text = excuseDialog.value.text?.trim()
+  if (!text) return
+  const stId = excuseDialog.value.studentId!
+  const seId = excuseDialog.value.sessionId!
+  await onSetStatus(stId, seId, 'excused', text)
+  closeExcuseDialog()
+}
+
+/* ─────────────── Utils ─────────────── */
 function authHeaders() {
   const token = localStorage.getItem('token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-const formatDate = (d) => {
+function formatDate(d?: string) {
   if (!d) return '—'
-  const parts = String(d).split('-')
-  if (parts.length !== 3) return d
-  const [y, m, dd] = parts
+  const [y, m, dd] = d.split('-')
   return `${dd}-${m}-${y}`
 }
 
-function ensureKey(studentId, sessionId) {
+function ensureKey(studentId: number, sessionId: number) {
   if (!attendanceMap[studentId]) attendanceMap[studentId] = {}
-  if (!(sessionId in attendanceMap[studentId])) attendanceMap[studentId][sessionId] = null
+  if (!attendanceMap[studentId][sessionId]) {
+    attendanceMap[studentId][sessionId] = { status: null, comment: null }
+  }
 }
-
-function getStatus(studentId, sessionId) {
+function getStatus(studentId: number, sessionId: number) {
   ensureKey(studentId, sessionId)
-  return attendanceMap[studentId][sessionId]
+  return attendanceMap[studentId][sessionId].status
 }
-
-function resetCell(studentId, sessionId) {
+function getComment(studentId: number, sessionId: number) {
   ensureKey(studentId, sessionId)
-  attendanceMap[studentId][sessionId] = null
+  return attendanceMap[studentId][sessionId].comment
 }
-
-function toggleEdit(studentId, sessionId) {
+function resetCell(studentId: number, sessionId: number) {
+  ensureKey(studentId, sessionId)
+  attendanceMap[studentId][sessionId] = { status: null, comment: null }
+}
+function toggleEdit(studentId: number, sessionId: number) {
   resetCell(studentId, sessionId)
 }
 
-function iconOf(status) {
+function iconOf(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
     ? 'mdi-check-circle'
-    : status === 'late'
-      ? 'mdi-clock-time-four-outline'
+    : status === 'excused'
+      ? 'mdi-file-check-outline'
       : status === 'absent'
         ? 'mdi-close-circle'
         : 'mdi-help-circle-outline'
 }
-function labelOf(status) {
+function labelOf(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
     ? 'Présent'
-    : status === 'late'
-      ? 'En retard'
+    : status === 'excused'
+      ? 'Excusé(e)'
       : status === 'absent'
         ? 'Absent'
         : ''
 }
-function statusClass(status) {
+function statusClass(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
     ? 'status-present'
-    : status === 'late'
-      ? 'status-late'
+    : status === 'excused'
+      ? 'status-excused'
       : status === 'absent'
         ? 'status-absent'
         : ''
 }
 
-// Charger élèves + sessions + présences
+/* ─────────────── Fetch ─────────────── */
 async function fetchAll() {
   loading.value = true
   error.value = null
   try {
     const auth = authHeaders()
+    const classIdNum = Number(props.classId)
 
     // 1) élèves
-    const stRes = await axios.get(`${API}/api/students/${props.classId}`, { headers: auth })
+    const stRes = await axios.get<Student[]>(`${API}/api/students/${classIdNum}`, { headers: auth })
     students.value = Array.isArray(stRes.data) ? stRes.data : []
 
-    // 2) sessions (dates)
-    const sesRes = await axios.get(`${API}/sessions/${props.classId}`, { headers: auth })
-    sessions.value = (Array.isArray(sesRes.data) ? sesRes.data : []).filter(
+    // 2) sessions
+    const seRes = await axios.get<{ id: number; date: string }[]>(`${API}/sessions/${classIdNum}`, {
+      headers: auth,
+    })
+    sessions.value = (Array.isArray(seRes.data) ? seRes.data : []).filter(
       (s) => s && typeof s.id === 'number' && s.date,
     )
 
-    // 3) présences existantes
-    const attRes = await axios.get(`${API}/attendance/${props.classId}`, { headers: auth })
+    // 3) présences
+    const atRes = await axios.get<AttendanceRow[]>(`${API}/attendance/${classIdNum}`, {
+      headers: auth,
+    })
 
-    // reset propre
-    for (const k in attendanceMap) delete attendanceMap[k]
+    // reset map
+    for (const sid in attendanceMap) delete attendanceMap[+sid]
 
-    for (const row of attRes.data || []) {
+    // hydrate
+    for (const row of atRes.data || []) {
       ensureKey(row.student_id, row.session_id)
-      attendanceMap[row.student_id][row.session_id] =
-        row.status === 'excused' ? 'absent' : row.status
+      attendanceMap[row.student_id][row.session_id] = {
+        status: row.status, // 'present' | 'absent' | 'excused'
+        comment: row.comment ?? null,
+      }
     }
 
-    // pré-hydrate cellules nulles
+    // pre-create empty cells
     for (const st of students.value) {
       for (const s of sessions.value) ensureKey(st.id, s.id)
     }
   } catch (e) {
-    console.error('fetchAll error', e)
-    error.value = 'Impossible de charger élèves/sessions.'
+    console.error('[AttendanceMatrix] fetchAll error', e)
+    error.value = 'Impossible de charger élèves / sessions.'
   } finally {
     loading.value = false
   }
 }
 
-// API publique pour le parent
-function reload() {
-  fetchAll()
-}
-defineExpose({ reload })
-
-async function onSetStatus(studentId, sessionId, status) {
+/* ─────────────── Save ─────────────── */
+async function onSetStatus(
+  studentId: number,
+  sessionId: number,
+  status: 'present' | 'absent' | 'excused',
+  comment: string | null = null,
+) {
   try {
     ensureKey(studentId, sessionId)
-    attendanceMap[studentId][sessionId] = status // MAJ optimiste
+    if (status === 'excused' && (!comment || !comment.trim())) {
+      // si appelé à la main sans commentaire → ouvre le dialog
+      return openExcuseDialog(studentId, sessionId)
+    }
+
+    // MAJ optimiste
+    attendanceMap[studentId][sessionId] = {
+      status,
+      comment: status === 'excused' ? (comment?.trim() ?? '') : null,
+    }
+
     await axios.post(
       `${API}/attendance`,
       {
         student_id: studentId,
         session_id: sessionId,
         status,
+        comment: status === 'excused' ? (comment?.trim() ?? '') : null,
       },
       { headers: authHeaders() },
     )
+
     snackbar.value = { show: true, text: '✅ Enregistré', color: 'success' }
   } catch (e) {
     console.error('Erreur sauvegarde présence :', e)
@@ -375,129 +506,49 @@ async function onSetStatus(studentId, sessionId, status) {
   }
 }
 
+/* ───────── expose API au parent ───────── */
+function reload() {
+  return fetchAll()
+}
+defineExpose({ reload })
+
+/* ───────── lifecycle ───────── */
 onMounted(fetchAll)
 watch(() => props.classId, fetchAll)
 </script>
 
 <style scoped>
-/* ===== Desktop table fixes ===== */
-.table-scroll {
+.table-wrapper {
   overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  border-radius: 16px;
+  border: 1px solid rgb(var(--v-theme-surface-variant));
+  background: rgb(var(--v-theme-surface));
 }
-.attendance-table {
-  table-layout: fixed;
-}
-.attendance-table th,
-.attendance-table td {
-  white-space: nowrap;
-}
-.top-sticky {
+.attendance-table thead th.sticky-th {
   position: sticky;
   top: 0;
-  z-index: 15;
-  background: var(--v-theme-surface);
+  z-index: 2;
+  background: rgb(var(--v-theme-surface));
 }
-.sticky-left {
+.sticky-col {
   position: sticky;
   left: 0;
-  background: var(--v-theme-surface);
+  z-index: 3;
+  background: rgb(var(--v-theme-surface));
+  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06);
 }
-.name-col {
-  min-width: 180px;
-  max-width: 240px;
-  z-index: 12;
+.left-col {
+  min-width: 220px;
 }
-.date-col {
-  min-width: 90px;
-}
-@media (max-width: 960px) {
-  .name-col {
-    min-width: 160px;
-    max-width: 200px;
-  }
-  .date-col {
-    min-width: 80px;
-  }
-}
-.row-strip:nth-child(odd) > td:not(.sticky-left) {
-  background: rgba(0, 0, 0, 0.02);
-}
-.cell {
-  vertical-align: middle;
-}
-
-/* ===== Mobile cards ===== */
-.dates-ribbon {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(96px, 1fr);
-  gap: 8px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scroll-snap-type: x proximity;
-  padding-bottom: 2px;
-}
-.date-cell {
-  scroll-snap-align: start;
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  padding: 8px 6px;
+.cell-status {
+  min-width: 160px;
   text-align: center;
-  background: var(--v-theme-surface);
 }
-.date-label {
-  margin-bottom: 6px;
+.status-select {
+  width: 140px;
 }
-
-/* --- Boutons compacts “soft” --- */
-.status-inline {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-.icon-btn {
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 9999px;
-  padding: 0;
-  transform: translateZ(0);
-}
-.icon-btn .v-icon {
-  font-size: 18px;
-  line-height: 36px;
-}
-
-/* fonds doux + couleurs d’icône */
-.status-present {
-  background: rgba(76, 175, 80, 0.12);
-}
-.status-present .v-icon {
-  color: #2e7d32;
-}
-
-.status-late {
-  background: rgba(255, 152, 0, 0.14);
-}
-.status-late .v-icon {
-  color: #ef6c00;
-}
-
-.status-absent {
-  background: rgba(244, 67, 54, 0.14);
-}
-.status-absent .v-icon {
-  color: #c62828;
-}
-
-/* Ajuste un peu les cartes date pour laisser respirer la ligne d’icônes */
-@media (max-width: 600px) {
-  .icon-btn {
-    width: 34px;
-    height: 34px;
-    min-width: 34px;
-  }
+.card-session {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(0, 0, 0, 0.06);
 }
 </style>

@@ -528,13 +528,13 @@ app.get(
     try {
       const { classId } = req.params
       const { rows } = await pool.query(
-        `SELECT a.student_id, a.session_id, a.status
+        `SELECT a.student_id, a.session_id, a.status, a.comment
          FROM attendances a
          JOIN sessions s ON s.id = a.session_id
          WHERE s.class_id = $1`,
         [classId],
       )
-      res.json(rows)
+      res.json(rows) // [{ student_id, session_id, status, comment }]
     } catch (err) {
       console.error('GET /attendance/:classId', err)
       res.status(500).json({ message: 'Erreur serveur' })
@@ -544,7 +544,7 @@ app.get(
 
 app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), async (req, res) => {
   try {
-    let { student_id, session_id, status } = req.body
+    let { student_id, session_id, status, comment } = req.body
 
     student_id = Number(student_id)
     session_id = Number(session_id)
@@ -552,41 +552,46 @@ app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), asyn
       return res.status(400).json({ message: 'Paramètres manquants' })
     }
 
-    const allowed = new Set(['present', 'late', 'absent'])
-    if (status === 'excused') status = 'absent'
+    // statuts autorisés
+    const allowed = new Set(['present', 'absent', 'excused'])
     if (!allowed.has(status)) {
       return res.status(400).json({ message: 'Statut invalide' })
     }
 
+    // commentaire requis si excused
+    if (status === 'excused') {
+      if (!comment || !String(comment).trim()) {
+        return res.status(400).json({ message: 'Commentaire requis pour "excusé(e)"' })
+      }
+      comment = String(comment).trim()
+    } else {
+      // pour les autres statuts, on remet le commentaire à NULL
+      comment = null
+    }
+
+    // vérifier existences pour erreurs lisibles
     const fk = await pool.query(
       `SELECT
          (SELECT 1 FROM students WHERE id = $1) AS has_student,
-         (SELECT 1 FROM sessions WHERE id = $2) AS has_session`,
+         (SELECT 1 FROM sessions  WHERE id = $2) AS has_session`,
       [student_id, session_id],
     )
     if (!fk.rows[0].has_student) return res.status(400).json({ message: 'Élève introuvable' })
     if (!fk.rows[0].has_session) return res.status(400).json({ message: 'Session introuvable' })
 
+    // UPSERT
     await pool.query(
-      `INSERT INTO attendances (student_id, session_id, status)
-       VALUES ($1, $2, $3)
+      `INSERT INTO attendances (student_id, session_id, status, comment)
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (student_id, session_id)
-       DO UPDATE SET status = EXCLUDED.status`,
-      [student_id, session_id, status],
+       DO UPDATE SET status = EXCLUDED.status, comment = EXCLUDED.comment`,
+      [student_id, session_id, status, comment],
     )
 
     res.json({ message: 'Présence enregistrée' })
   } catch (err) {
-    if (err.code === '42P10') {
-      return res.status(500).json({
-        message: "Ajoute l'index unique sur attendances(student_id, session_id) pour ON CONFLICT",
-      })
-    }
-    if (err.code === '23503') {
-      return res.status(400).json({ message: 'Clé étrangère invalide (élève ou session)' })
-    }
     if (err.code === '23514') {
-      return res.status(400).json({ message: 'Statut non autorisé par le CHECK' })
+      return res.status(400).json({ message: 'Commentaire requis pour "excusé(e)"' })
     }
     console.error('POST /attendance error:', err)
     res.status(500).json({ message: 'Erreur serveur' })
