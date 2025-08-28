@@ -3,7 +3,7 @@
     <v-card-title class="text-h6 d-flex justify-space-between align-center">
       <span>Présences</span>
       <div class="text-caption text-medium-emphasis">
-        {{ students.length }} élèves • {{ sessions.length }} cours
+        {{ students.length }} élèves • {{ sortedSessions.length }} cours
       </div>
     </v-card-title>
     <v-divider />
@@ -73,7 +73,7 @@
               mandatory
             >
               <v-slide-group-item
-                v-for="s in sessions"
+                v-for="s in sortedSessions"
                 :key="s.id"
                 :value="s.id"
                 class="slide-item"
@@ -85,6 +85,14 @@
                   >
                     <div class="text-caption text-medium-emphasis mb-2">
                       {{ formatDate(s.date) }}
+                      <v-chip
+                        v-if="!isSessionFullyValidated(s.id)"
+                        size="x-small"
+                        class="ml-1"
+                        variant="tonal"
+                      >
+                        À valider
+                      </v-chip>
                     </div>
 
                     <!-- ====== tout ton contenu inchangé (statuts, boutons, etc.) ====== -->
@@ -188,8 +196,16 @@
           <thead>
             <tr>
               <th class="sticky-left name-col z-20 bg-surface top-sticky">Élève</th>
-              <th v-for="s in sessions" :key="s.id" class="text-center date-col top-sticky">
+              <th v-for="s in sortedSessions" :key="s.id" class="text-center date-col top-sticky">
                 {{ formatDate(s.date) }}
+                <v-chip
+                  v-if="!isSessionFullyValidated(s.id)"
+                  size="x-small"
+                  class="ml-1"
+                  variant="tonal"
+                >
+                  À valider
+                </v-chip>
               </th>
             </tr>
           </thead>
@@ -205,7 +221,7 @@
                 </div>
               </td>
 
-              <td v-for="s in sessions" :key="`${s.id}-${st.id}`" class="text-center cell">
+              <td v-for="s in sortedSessions" :key="`${s.id}-${st.id}`" class="text-center cell">
                 <!-- État choisi -->
                 <template v-if="getStatus(st.id, s.id)">
                   <v-tooltip
@@ -296,7 +312,7 @@
             </tr>
 
             <tr v-if="students.length === 0">
-              <td :colspan="1 + sessions.length">
+              <td :colspan="1 + sortedSessions.length">
                 <v-alert type="info" variant="tonal">Aucun élève.</v-alert>
               </td>
             </tr>
@@ -304,7 +320,7 @@
 
           <tbody v-else>
             <tr>
-              <td :colspan="1 + sessions.length"><v-skeleton-loader type="table-row" /></td>
+              <td :colspan="1 + sortedSessions.length"><v-skeleton-loader type="table-row" /></td>
             </tr>
           </tbody>
         </v-table>
@@ -363,7 +379,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useDisplay } from 'vuetify'
 import axios from 'axios'
 
@@ -376,17 +392,14 @@ type AttendanceRow = {
   comment?: string | null
 }
 
-const props = defineProps<{
-  classId: number | string
-}>()
-
+const props = defineProps<{ classId: number | string }>()
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
-
 const { smAndDown } = useDisplay()
 
 /* ─────────────── State ─────────────── */
 const students = ref<Student[]>([])
 const sessions = ref<Session[]>([])
+
 /** Map: studentId -> sessionId -> {status, comment} */
 const attendanceMap = reactive<
   Record<
@@ -403,22 +416,12 @@ const snackbar = ref<{ show: boolean; text: string; color: string }>({
   color: 'success',
 })
 
-const activeSlide = ref<Record<number, number>>({}) // st.id -> session.id active
+/**
+ * Mobile : session active PAR élève (valeur = sessionId)
+ */
+const activeSlide = ref<Record<number, number>>({}) // st.id -> sessionId actif
 
-watch(
-  [students, sessions],
-  () => {
-    if (!sessions.value?.length || !students.value?.length) return
-    for (const st of students.value) {
-      if (activeSlide.value[st.id] == null) {
-        activeSlide.value[st.id] = sessions.value[0].id // 1ère date centrée par défaut
-      }
-    }
-  },
-  { immediate: true },
-)
-
-/* Dialog infos élève */
+/* ─────────────── Dialogs ─────────────── */
 const studentDialog = ref(false)
 const selectedStudent = ref<Student | null>(null)
 function openStudentInfo(st: Student) {
@@ -426,13 +429,13 @@ function openStudentInfo(st: Student) {
   studentDialog.value = true
 }
 
-/* Dialog Excusé(e) (commentaire obligatoire) */
 const excuseDialog = ref<{
   show: boolean
   studentId: number | null
   sessionId: number | null
   text: string
 }>({ show: false, studentId: null, sessionId: null, text: '' })
+
 function openExcuseDialog(studentId: number, sessionId: number) {
   ensureKey(studentId, sessionId)
   excuseDialog.value = {
@@ -450,7 +453,7 @@ async function confirmExcuse() {
   if (!text) return
   const stId = excuseDialog.value.studentId!
   const seId = excuseDialog.value.sessionId!
-  await onSetStatus(stId, seId, 'excused', text)
+  await onSetStatus(stId, seId, 'excused', text) // avance par élève (mobile) dans onSetStatus
   closeExcuseDialog()
 }
 
@@ -469,7 +472,7 @@ function formatDate(d?: string) {
 function ensureKey(studentId: number, sessionId: number) {
   if (!attendanceMap[studentId]) attendanceMap[studentId] = {}
   if (!attendanceMap[studentId][sessionId]) {
-    attendanceMap[studentId][sessionId] = { status: null, comment: null }
+    attendanceMap[studentId][sessionId] = { status: null, comment: null } // ← non validé
   }
 }
 function getStatus(studentId: number, sessionId: number) {
@@ -488,16 +491,16 @@ function toggleEdit(studentId: number, sessionId: number) {
   resetCell(studentId, sessionId)
 }
 
+/* Couleurs / labels / icônes */
 function colorOf(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
     ? 'green'
     : status === 'excused'
-      ? 'orange' // ← orange demandé
+      ? 'orange'
       : status === 'absent'
         ? 'red'
         : undefined
 }
-
 function shortLabel(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
     ? 'Présent'
@@ -507,7 +510,6 @@ function shortLabel(status: 'present' | 'absent' | 'excused' | null) {
         ? 'Absent'
         : ''
 }
-
 function iconOf(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
     ? 'mdi-check-circle'
@@ -517,24 +519,97 @@ function iconOf(status: 'present' | 'absent' | 'excused' | null) {
         ? 'mdi-close-circle'
         : 'mdi-help-circle-outline'
 }
-function labelOf(status: 'present' | 'absent' | 'excused' | null) {
-  return status === 'present'
-    ? 'Présent'
-    : status === 'excused'
-      ? 'Excusé(e)'
-      : status === 'absent'
-        ? 'Absent'
-        : ''
+
+/* ─────────────── Validation & Tri ─────────────── */
+
+/** Une session est “pleinement validée” si TOUS les élèves ont un statut non null */
+function isSessionFullyValidated(sessionId: number) {
+  if (!students.value.length) return false
+  return students.value.every((st) => !!getStatus(st.id, sessionId))
 }
-function statusClass(status: 'present' | 'absent' | 'excused' | null) {
-  return status === 'present'
-    ? 'status-present'
-    : status === 'excused'
-      ? 'status-excused'
-      : status === 'absent'
-        ? 'status-absent'
-        : ''
+
+/** Sessions triées :
+ * - Desktop : strictement chronologique (stable)
+ * - Mobile : non validées d’abord (optionnel) puis chronologique
+ */
+const sortedSessions = computed<Session[]>(() => {
+  return [...sessions.value].sort((a, b) => a.date.localeCompare(b.date))
+})
+
+/* ─────────────── Avance & Restauration — PAR ÉLÈVE (mobile) ─────────────── */
+
+/** Validé pour un élève donné ? (cellule) */
+function isValidated(studentId: number, sessionId: number) {
+  return !!getStatus(studentId, sessionId)
 }
+
+const progressKeyForStudent = (studentId: number) =>
+  `attendance_progress_class_${String(props.classId)}_student_${studentId}`
+
+/** 1ʳᵉ date non validée pour UN élève */
+function firstUnvalidatedForStudent(studentId: number): number {
+  for (const s of sortedSessions.value) {
+    if (!isValidated(studentId, s.id)) return s.id
+  }
+  return sortedSessions.value[0]?.id ?? 0
+}
+
+/** Prochaine date non validée à partir d'une session pour UN élève */
+function nextUnvalidatedFromForStudent(studentId: number, sessionId: number): number {
+  if (!sortedSessions.value.length) return 0
+  const startIdx = Math.max(
+    0,
+    sortedSessions.value.findIndex((s) => s.id === sessionId),
+  )
+  for (let i = startIdx + 1; i < sortedSessions.value.length; i++) {
+    const s = sortedSessions.value[i]
+    if (!isValidated(studentId, s.id)) return s.id
+  }
+  // wrap sur la première non validée (de CET élève)
+  return firstUnvalidatedForStudent(studentId)
+}
+
+/** Fixe la session active pour UN élève + mémorise */
+function setActiveSessionForStudent(studentId: number, sessionId: number) {
+  activeSlide.value[studentId] = sessionId
+  localStorage.setItem(progressKeyForStudent(studentId), String(sessionId))
+}
+
+/** Restaure la session active pour TOUS les élèves (individuellement) */
+function restoreActiveSessionForAllStudents() {
+  if (!sortedSessions.value.length || !students.value.length) return
+  for (const st of students.value) {
+    const computedId = firstUnvalidatedForStudent(st.id)
+    const saved = Number(localStorage.getItem(progressKeyForStudent(st.id)))
+    const savedExists = sortedSessions.value.some((s) => s.id === saved)
+    const target = computedId || (savedExists ? saved : sortedSessions.value[0].id)
+    setActiveSessionForStudent(st.id, target)
+  }
+}
+
+/* ─────────────── Dédup sessions + init nouvel élève ─────────────── */
+
+// Déduplique les sessions (au cas où l'API renverrait des doublons)
+function dedupeSessions(list: { id: number; date: string }[]) {
+  const seen = new Set<number>()
+  return list.filter((s) => !seen.has(s.id) && seen.add(s.id))
+}
+
+// Quand un nouvel élève arrive dans la liste, on initialise ses cellules & sa slide
+watch(
+  students,
+  (newList, oldList) => {
+    const oldIds = new Set((oldList ?? []).map((s) => s.id))
+    for (const st of newList) {
+      if (!oldIds.has(st.id)) {
+        for (const s of sessions.value) ensureKey(st.id, s.id)
+        const target = firstUnvalidatedForStudent(st.id)
+        setActiveSessionForStudent(st.id, target)
+      }
+    }
+  },
+  { deep: false },
+)
 
 /* ─────────────── Fetch ─────────────── */
 async function fetchAll() {
@@ -552,8 +627,10 @@ async function fetchAll() {
     const seRes = await axios.get<{ id: number; date: string }[]>(`${API}/sessions/${classIdNum}`, {
       headers: auth,
     })
-    sessions.value = (Array.isArray(seRes.data) ? seRes.data : []).filter(
-      (s) => s && typeof s.id === 'number' && s.date,
+    sessions.value = dedupeSessions(
+      (Array.isArray(seRes.data) ? seRes.data : []).filter(
+        (s) => s && typeof s.id === 'number' && s.date,
+      ),
     )
 
     // 3) présences
@@ -573,10 +650,13 @@ async function fetchAll() {
       }
     }
 
-    // pre-create empty cells
+    // pre-create empty cells (status = null = non validé)
     for (const st of students.value) {
       for (const s of sessions.value) ensureKey(st.id, s.id)
     }
+
+    // positionner la session active — PAR ÉLÈVE
+    restoreActiveSessionForAllStudents()
   } catch (e) {
     console.error('[AttendanceMatrix] fetchAll error', e)
     error.value = 'Impossible de charger élèves / sessions.'
@@ -595,9 +675,11 @@ async function onSetStatus(
   try {
     ensureKey(studentId, sessionId)
     if (status === 'excused' && (!comment || !comment.trim())) {
-      // si appelé à la main sans commentaire → ouvre le dialog
       return openExcuseDialog(studentId, sessionId)
     }
+
+    // snapshot pour rollback
+    const prev = { ...attendanceMap[studentId][sessionId] }
 
     // MAJ optimiste
     attendanceMap[studentId][sessionId] = {
@@ -617,8 +699,16 @@ async function onSetStatus(
     )
 
     snackbar.value = { show: true, text: '✅ Enregistré', color: 'success' }
+
+    // auto-avance PAR ÉLÈVE uniquement en mobile
+    if (smAndDown.value) {
+      const next = nextUnvalidatedFromForStudent(studentId, sessionId)
+      setActiveSessionForStudent(studentId, next)
+    }
   } catch (e) {
     console.error('Erreur sauvegarde présence :', e)
+    // rollback (revient à non validé ; mets `prev` si tu veux rétablir l’état antérieur)
+    attendanceMap[studentId][sessionId] = { status: null, comment: null }
     snackbar.value = { show: true, text: '❌ Erreur enregistrement', color: 'error' }
   }
 }
@@ -631,7 +721,14 @@ defineExpose({ reload })
 
 /* ───────── lifecycle ───────── */
 onMounted(fetchAll)
+
+// Si la classe change → reload
 watch(() => props.classId, fetchAll)
+
+// Si les listes changent (après fetch/ajout) → restaurer par élève
+watch([students, sessions], () => {
+  if (students.value.length && sessions.value.length) restoreActiveSessionForAllStudents()
+})
 </script>
 
 <style scoped>
@@ -642,8 +739,6 @@ watch(() => props.classId, fetchAll)
   width: 100%;
   padding-inline: 8px;
 }
-
-/* Chaque slide occupe 100% de la largeur ; on centre la carte à l'intérieur */
 .slide-item {
   flex: 0 0 100% !important;
   display: flex !important;
@@ -653,16 +748,12 @@ watch(() => props.classId, fetchAll)
   justify-content: center;
   width: 100%;
 }
-
-/* Carte de date (taille confortable) */
 .date-slide {
-  width: 240px; /* ajuste 220–260 selon préférence */
+  width: 240px;
   max-width: 90vw;
-  margin: 0 !important; /* évite tout décalage résiduel */
+  margin: 0 !important;
   overflow: visible;
 }
-
-/* Swipe mobile : autoriser le geste horizontal */
 .attendance-slides :deep(.v-slide-group__content) {
   touch-action: pan-x !important;
   -ms-touch-action: pan-x;
@@ -672,8 +763,6 @@ watch(() => props.classId, fetchAll)
 .attendance-slides :deep(.v-slide-group__content:active) {
   cursor: grabbing;
 }
-
-/* Flèches au-dessus du contenu si présentes */
 .attendance-slides :deep(.v-slide-group__prev),
 .attendance-slides :deep(.v-slide-group__next) {
   z-index: 3;
@@ -693,22 +782,18 @@ watch(() => props.classId, fetchAll)
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 72px; /* empêche le wrap */
+  width: 72px;
 }
 .status-label {
   margin-top: 6px;
   font-size: 12px;
-  white-space: nowrap; /* “Excusé(e)” non coupé */
+  white-space: nowrap;
 }
-
-/* Bouton action (table desktop) */
 .action-btn {
   min-width: 36px;
   height: 36px;
   border-radius: 999px;
 }
-
-/* Pilules d’état (mobile + desktop) */
 .status-pill {
   border-radius: 999px;
   text-transform: none;
@@ -733,13 +818,11 @@ watch(() => props.classId, fetchAll)
 .table-scroll {
   overflow: auto;
 }
-
 .attendance-table {
   width: max(100%, 720px);
   border-collapse: separate;
   border-spacing: 0;
 }
-
 .top-sticky {
   position: sticky;
   top: 0;
@@ -761,13 +844,9 @@ watch(() => props.classId, fetchAll)
 .cell {
   padding: 8px;
 }
-
-/* Rayures légères */
 .row-strip:nth-child(odd) td {
   background: rgba(0, 0, 0, 0.015);
 }
-
-/* Responsif */
 @media (max-width: 600px) {
   .name-col {
     min-width: 160px;
@@ -776,8 +855,6 @@ watch(() => props.classId, fetchAll)
     min-width: 120px;
   }
 }
-
-/* Wrapper / sticky supplémentaires le cas échéant */
 .table-wrapper {
   overflow-x: auto;
   border-radius: 16px;

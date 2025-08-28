@@ -1,19 +1,67 @@
 <script setup>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 
-const attendance = ref([])
-
-async function loadAttendance() {
-  try {
-    const { data } = await axios.get('/api/admin/classes/attendance-rate')
-    attendance.value = data
-  } catch (e) {
-    console.error(e)
-  }
+const router = useRouter()
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+const headers = () => {
+  const token = localStorage.getItem('token')
+  return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-onMounted(loadAttendance)
+// KPIs
+const kpis = ref([
+  { label: 'Utilisateurs', value: 0, icon: 'mdi-account-group', color: 'primary' },
+  { label: 'Élèves', value: 0, icon: 'mdi-account-school', color: 'teal' },
+  { label: 'Classes', value: 0, icon: 'mdi-google-classroom', color: 'indigo' },
+  { label: 'Cours', value: 0, icon: 'mdi-calendar-multiple', color: 'orange' },
+])
+
+// Data
+const classes = ref([])
+const profs = ref([])
+const attendance = ref([])
+
+// Snackbar
+const snackbar = ref({ show: false, text: '', color: 'success' })
+
+// Form dialog
+const dialog = ref({ open: false, mode: 'create', id: null })
+const formRef = ref(null)
+const form = ref({ name: '', description: '', owner_id: null })
+
+const confirm = ref({ open: false, item: null })
+
+// Actions
+async function loadKPIs() {
+  const { data } = await axios.get(`${API}/api/admin/stats`, { headers: headers() })
+  kpis.value[0].value = Number(data.users || 0)
+  kpis.value[1].value = Number(data.students || 0)
+  kpis.value[2].value = Number(data.classes || 0)
+  kpis.value[3].value = Number(data.sessions || 0)
+}
+async function loadProfs() {
+  const { data } = await axios.get(`${API}/api/admin/profs`, { headers: headers() })
+  profs.value = Array.isArray(data) ? data : []
+}
+async function loadClasses() {
+  const { data } = await axios.get(`${API}/api/admin/classes`, { headers: headers() })
+  classes.value = Array.isArray(data) ? data : []
+}
+async function loadAttendance() {
+  const { data } = await axios.get(`${API}/api/admin/attendance-rate`, { headers: headers() })
+  attendance.value = Array.isArray(data) ? data : []
+}
+
+onMounted(async () => {
+  try {
+    await Promise.all([loadKPIs(), loadProfs(), loadClasses(), loadAttendance()])
+  } catch (e) {
+    console.error('Admin init', e)
+    snackbar.value = { show: true, text: 'Erreur de chargement', color: 'error' }
+  }
+})
 </script>
 
 <template>
