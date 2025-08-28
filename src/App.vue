@@ -79,6 +79,26 @@ watchEffect(() => {
       </v-list>
     </v-navigation-drawer>
 
+    <v-navigation-drawer v-model="drawer" app>
+      <!-- autres liens -->
+
+      <v-divider class="my-2" />
+
+      <v-list-subheader v-if="isAdmin">Admin</v-list-subheader>
+      <v-list-item
+        v-if="isAdmin"
+        :to="{ name: 'admin-attendance-rates' }"
+        prepend-icon="mdi-chart-bar"
+        title="Taux de présence par classe"
+      />
+      <v-list-item
+        v-if="isAdmin"
+        :to="{ name: 'admin-attendance-rates' }"
+        prepend-icon="mdi-chart-bar"
+        title="Taux de présence par classe"
+      />
+    </v-navigation-drawer>
+
     <!-- Contenu principal -->
     <v-main>
       <router-view />

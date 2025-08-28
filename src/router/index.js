@@ -8,6 +8,7 @@ import AdminView from '@/views/AdminView.vue'
 import NotFound from '@/views/NotFound.vue'
 // import HomeView from '@/views/HomeView.vue'
 import ClassesView from '@/views/ClassesView.vue'
+import AdminAttendanceRatesView from '@/views/AdminAttendanceRatesView.vue'
 
 const routes = [
   {
@@ -67,6 +68,12 @@ const routes = [
     name: 'Attendance',
     component: () => import('@/views/DashboardView.vue'),
     meta: { requiresAuth: true }, // pas de role:'prof' => l’admin a accès
+  },
+  {
+    path: '/admin/attendance-rates',
+    name: 'admin-attendance-rates',
+    component: AdminAttendanceRatesView,
+    meta: { requiresAuth: true, roles: ['admin'] }, // 🔒 admin uniquement
   },
 ]
 

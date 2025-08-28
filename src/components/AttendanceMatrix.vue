@@ -15,19 +15,43 @@
       </v-alert>
 
       <!-- Légende -->
-      <div class="mb-3 d-flex align-center flex-wrap gap-4 text-body-2">
-        <div class="d-flex align-center ga-1">
-          <v-icon color="green">mdi-check-circle</v-icon> Présent
+      <div class="legend mb-3 d-flex align-center flex-wrap gap-6 text-body-2">
+        <div class="legend-item">
+          <v-btn
+            size="small"
+            variant="flat"
+            color="green"
+            class="legend-chip"
+            prepend-icon="mdi-check-circle"
+          >
+            Présent
+          </v-btn>
         </div>
-        <div class="d-flex align-center ga-1">
-          <v-icon color="blue">mdi-file-check-outline</v-icon> Excusé(e)
+        <div class="legend-item">
+          <v-btn
+            size="small"
+            variant="flat"
+            color="orange"
+            class="legend-chip"
+            prepend-icon="mdi-file-check-outline"
+          >
+            Excusé(e)
+          </v-btn>
         </div>
-        <div class="d-flex align-center ga-1">
-          <v-icon color="red">mdi-close-circle</v-icon> Absent
+        <div class="legend-item">
+          <v-btn
+            size="small"
+            variant="flat"
+            color="red"
+            class="legend-chip"
+            prepend-icon="mdi-close-circle"
+          >
+            Absent
+          </v-btn>
         </div>
       </div>
 
-      <!-- ====== MOBILE : Cartes par élève ====== -->
+      <!-- ====== MOBILE : Carrousel par élève ====== -->
       <div v-if="smAndDown" class="d-flex flex-column ga-3">
         <v-skeleton-loader v-if="loading" type="card@3" />
 
@@ -40,87 +64,111 @@
               </v-btn>
             </div>
 
-            <!-- Ruban horizontal de dates -->
-            <div class="dates-ribbon">
-              <div v-for="s in sessions" :key="s.id" class="date-cell">
-                <div class="date-label text-caption text-medium-emphasis">
-                  {{ formatDate(s.date) }}
-                </div>
-
-                <!-- État choisi -->
-                <template v-if="getStatus(st.id, s.id)">
-                  <!-- Si excusé et commentaire, icône note avec tooltip -->
-                  <v-tooltip
-                    v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
-                    :text="getComment(st.id, s.id)"
-                  >
-                    <template #activator="{ props }">
-                      <v-btn
-                        v-bind="props"
-                        size="x-small"
-                        icon
-                        variant="text"
-                        class="mr-1"
-                        title="Commentaire"
-                      >
-                        <v-icon>mdi-note-text-outline</v-icon>
-                      </v-btn>
-                    </template>
-                  </v-tooltip>
-
-                  <v-btn
-                    class="icon-btn"
-                    :class="statusClass(getStatus(st.id, s.id))"
-                    variant="text"
-                    @click="toggleEdit(st.id, s.id)"
-                    :title="labelOf(getStatus(st.id, s.id)) + ' — appuyer pour changer'"
-                  >
-                    <v-icon :icon="iconOf(getStatus(st.id, s.id))" />
-                  </v-btn>
-                  <v-btn
-                    size="x-small"
-                    variant="text"
-                    class="mt-1"
-                    @click="resetCell(st.id, s.id)"
-                    title="Changer"
-                    >↺</v-btn
-                  >
-                </template>
-
-                <!-- Choix -->
-                <template v-else>
-                  <div class="status-inline">
-                    <v-btn
-                      class="icon-btn status-present"
-                      variant="text"
-                      @click="onSetStatus(st.id, s.id, 'present')"
-                      title="Présent"
-                      aria-label="Présent"
-                    >
-                      <v-icon>mdi-check</v-icon>
-                    </v-btn>
-                    <v-btn
-                      class="icon-btn status-excused"
-                      variant="text"
-                      @click="openExcuseDialog(st.id, s.id)"
-                      title="Excusé(e)"
-                      aria-label="Excusé(e)"
-                    >
-                      <v-icon>mdi-file-check-outline</v-icon>
-                    </v-btn>
-                    <v-btn
-                      class="icon-btn status-absent"
-                      variant="text"
-                      @click="onSetStatus(st.id, s.id, 'absent')"
-                      title="Absent"
-                      aria-label="Absent"
-                    >
-                      <v-icon>mdi-close</v-icon>
-                    </v-btn>
+            <!-- Carrousel des dates (1 date visible à la fois) -->
+            <v-slide-group class="mx-n2" center-active show-arrows>
+              <v-slide-group-item v-for="s in sessions" :key="s.id">
+                <v-card
+                  class="ma-2 px-4 py-3 d-flex flex-column align-center justify-center date-slide"
+                  width="220"
+                >
+                  <div class="text-caption text-medium-emphasis mb-2">
+                    {{ formatDate(s.date) }}
                   </div>
-                </template>
-              </div>
-            </div>
+
+                  <!-- Si un statut est déjà choisi -->
+                  <template v-if="getStatus(st.id, s.id)">
+                    <v-tooltip
+                      v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
+                      :text="getComment(st.id, s.id)"
+                    >
+                      <template #activator="{ props }">
+                        <v-btn
+                          v-bind="props"
+                          size="x-small"
+                          icon
+                          variant="text"
+                          class="mb-1"
+                          :color="colorOf(getStatus(st.id, s.id))"
+                          title="Commentaire"
+                        >
+                          <v-icon>mdi-note-text-outline</v-icon>
+                        </v-btn>
+                      </template>
+                    </v-tooltip>
+
+                    <v-btn
+                      size="large"
+                      :color="colorOf(getStatus(st.id, s.id))"
+                      variant="flat"
+                      class="status-pill mb-1"
+                      @click="toggleEdit(st.id, s.id)"
+                    >
+                      <v-icon :icon="iconOf(getStatus(st.id, s.id))" start />
+                      {{ shortLabel(getStatus(st.id, s.id)) }}
+                    </v-btn>
+
+                    <v-btn
+                      size="x-small"
+                      variant="text"
+                      @click="resetCell(st.id, s.id)"
+                      title="Changer"
+                    >
+                      ↺
+                    </v-btn>
+                  </template>
+
+                  <!-- Choix des statuts — Solution A (3 ronds + labels) -->
+                  <template v-else>
+                    <v-row class="d-flex justify-center align-center mt-2" dense>
+                      <!-- Présent -->
+                      <v-col cols="4" class="text-center">
+                        <v-btn
+                          icon
+                          size="large"
+                          color="green"
+                          class="rounded-circle"
+                          @click="onSetStatus(st.id, s.id, 'present')"
+                          aria-label="Présent"
+                        >
+                          <v-icon>mdi-check</v-icon>
+                        </v-btn>
+                        <div class="text-caption mt-1">Présent</div>
+                      </v-col>
+
+                      <!-- Excusé(e) -->
+                      <v-col cols="4" class="text-center">
+                        <v-btn
+                          icon
+                          size="large"
+                          color="orange"
+                          class="rounded-circle"
+                          @click="openExcuseDialog(st.id, s.id)"
+                          aria-label="Excusé(e)"
+                        >
+                          <v-icon>mdi-file-check-outline</v-icon>
+                        </v-btn>
+                        <div class="text-caption mt-1">Excusé(e)</div>
+                      </v-col>
+
+                      <!-- Absent -->
+                      <v-col cols="4" class="text-center">
+                        <v-btn
+                          icon
+                          size="large"
+                          color="red"
+                          class="rounded-circle"
+                          @click="onSetStatus(st.id, s.id, 'absent')"
+                          aria-label="Absent"
+                        >
+                          <v-icon>mdi-close</v-icon>
+                        </v-btn>
+                        <div class="text-caption mt-1">Absent</div>
+                      </v-col>
+                    </v-row>
+                  </template>
+                </v-card>
+              </v-slide-group-item>
+            </v-slide-group>
           </v-card-text>
         </v-card>
       </div>
@@ -162,6 +210,7 @@
                         icon
                         variant="text"
                         class="mr-1"
+                        :color="colorOf(getStatus(st.id, s.id))"
                         title="Commentaire"
                       >
                         <v-icon>mdi-note-text-outline</v-icon>
@@ -170,51 +219,68 @@
                   </v-tooltip>
 
                   <v-btn
-                    class="icon-btn"
-                    :class="statusClass(getStatus(st.id, s.id))"
-                    variant="text"
+                    size="small"
+                    :color="colorOf(getStatus(st.id, s.id))"
+                    variant="flat"
+                    class="status-pill"
                     @click="toggleEdit(st.id, s.id)"
-                    :title="labelOf(getStatus(st.id, s.id)) + ' — cliquer pour changer'"
                   >
-                    <v-icon :icon="iconOf(getStatus(st.id, s.id))" />
+                    <v-icon :icon="iconOf(getStatus(st.id, s.id))" start />
+                    {{ shortLabel(getStatus(st.id, s.id)) }}
                   </v-btn>
+
                   <v-btn
                     size="x-small"
                     variant="text"
-                    class="mt-1"
+                    class="ml-1"
                     @click="resetCell(st.id, s.id)"
                     title="Changer"
-                    >↺</v-btn
                   >
+                    ↺
+                  </v-btn>
                 </template>
 
-                <!-- Choix -->
                 <template v-else>
-                  <div class="status-inline">
-                    <v-btn
-                      class="icon-btn status-present"
-                      variant="text"
-                      @click="onSetStatus(st.id, s.id, 'present')"
-                      title="Présent"
-                    >
-                      <v-icon>mdi-check</v-icon>
-                    </v-btn>
-                    <v-btn
-                      class="icon-btn status-excused"
-                      variant="text"
-                      @click="openExcuseDialog(st.id, s.id)"
-                      title="Excusé(e)"
-                    >
-                      <v-icon>mdi-file-check-outline</v-icon>
-                    </v-btn>
-                    <v-btn
-                      class="icon-btn status-absent"
-                      variant="text"
-                      @click="onSetStatus(st.id, s.id, 'absent')"
-                      title="Absent"
-                    >
-                      <v-icon>mdi-close</v-icon>
-                    </v-btn>
+                  <!-- Choix des statuts — Solution A compact (3 ronds + labels) -->
+                  <div class="status-row">
+                    <div class="status-item">
+                      <v-btn
+                        class="action-btn"
+                        color="green"
+                        variant="flat"
+                        @click="onSetStatus(st.id, s.id, 'present')"
+                        aria-label="Présent"
+                      >
+                        <v-icon>mdi-check</v-icon>
+                      </v-btn>
+                      <div class="status-label">Présent</div>
+                    </div>
+
+                    <div class="status-item">
+                      <v-btn
+                        class="action-btn"
+                        color="orange"
+                        variant="flat"
+                        @click="openExcuseDialog(st.id, s.id)"
+                        aria-label="Excusé(e)"
+                      >
+                        <v-icon>mdi-file-check-outline</v-icon>
+                      </v-btn>
+                      <div class="status-label">Excusé(e)</div>
+                    </div>
+
+                    <div class="status-item">
+                      <v-btn
+                        class="action-btn"
+                        color="red"
+                        variant="flat"
+                        @click="onSetStatus(st.id, s.id, 'absent')"
+                        aria-label="Absent"
+                      >
+                        <v-icon>mdi-close</v-icon>
+                      </v-btn>
+                      <div class="status-label">Absent</div>
+                    </div>
                   </div>
                 </template>
               </td>
@@ -270,7 +336,13 @@
       <v-card-actions>
         <v-spacer />
         <v-btn variant="text" @click="closeExcuseDialog">Annuler</v-btn>
-        <v-btn color="primary" @click="confirmExcuse">Enregistrer</v-btn>
+        <v-btn
+          color="primary"
+          :disabled="!excuseDialog.text || !excuseDialog.text.trim()"
+          @click="confirmExcuse"
+        >
+          Enregistrer
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -300,6 +372,7 @@ const props = defineProps<{
 }>()
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+
 const { smAndDown } = useDisplay()
 
 /* ─────────────── State ─────────────── */
@@ -389,6 +462,26 @@ function resetCell(studentId: number, sessionId: number) {
 }
 function toggleEdit(studentId: number, sessionId: number) {
   resetCell(studentId, sessionId)
+}
+
+function colorOf(status: 'present' | 'absent' | 'excused' | null) {
+  return status === 'present'
+    ? 'green'
+    : status === 'excused'
+      ? 'orange' // ← orange demandé
+      : status === 'absent'
+        ? 'red'
+        : undefined
+}
+
+function shortLabel(status: 'present' | 'absent' | 'excused' | null) {
+  return status === 'present'
+    ? 'Présent'
+    : status === 'excused'
+      ? 'Excusé(e)'
+      : status === 'absent'
+        ? 'Absent'
+        : ''
 }
 
 function iconOf(status: 'present' | 'absent' | 'excused' | null) {
@@ -518,6 +611,166 @@ watch(() => props.classId, fetchAll)
 </script>
 
 <style scoped>
+/* largeur confortable + anti-chevauchement des flèches */
+.date-slide {
+  width: 260px; /* ↑ plus large qu'avant (200/220) */
+  padding-inline: 18px; /* espace pour les flèches du slide-group */
+  overflow: visible; /* évite le “bouton coupé” */
+}
+
+/* le conteneur du slide-group ne coupe pas non plus */
+.v-slide-group,
+.v-slide-group__content {
+  overflow: visible;
+}
+
+/* rangée des 3 actions, centrée et aérée */
+.status-row {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 14px; /* espace entre les boutons */
+  margin-top: 8px;
+}
+
+/* un item = un bouton rond + un label dessous */
+.status-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 72px; /* largeur fixe pour éviter le wrap */
+}
+
+/* gros bouton tactile */
+.action-btn {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+}
+
+/* labels toujours sur une ligne (pas de coupure) */
+.status-label {
+  margin-top: 6px;
+  font-size: 12px;
+  white-space: nowrap; /* empêche “Excusé(e)” de se couper */
+}
+
+.date-slide {
+  width: 200px;
+  overflow: visible;
+} /* largeur confortable */
+
+.status-inline {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.icon-btn {
+  border-radius: 999px;
+  min-width: 44px;
+  height: 44px;
+} /* tap-friendly */
+.status-pill {
+  border-radius: 999px;
+  text-transform: none;
+  font-weight: 600;
+  padding-inline: 12px;
+}
+
+.legend {
+  gap: 1rem;
+}
+.legend-chip {
+  border-radius: 999px;
+  padding-inline: 12px;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.status-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-btn {
+  border-radius: 999px;
+  min-width: 40px;
+  height: 36px;
+}
+
+.status-pill {
+  border-radius: 999px;
+  text-transform: none;
+  font-weight: 600;
+  padding-inline: 12px;
+}
+
+/* Ruban mobile: scroll horizontal fluide */
+.dates-ribbon {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(140px, 1fr);
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scroll-snap-type: x mandatory;
+}
+.dates-ribbon .date-cell {
+  scroll-snap-align: start;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
+  padding: 8px;
+}
+.date-label {
+  margin-bottom: 6px;
+}
+
+/* Table desktop améliorée */
+.table-scroll {
+  overflow: auto;
+}
+.attendance-table {
+  width: max(100%, 720px);
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.top-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: rgb(var(--v-theme-surface));
+}
+.sticky-left {
+  position: sticky;
+  left: 0;
+  z-index: 6;
+}
+.name-col {
+  min-width: 220px;
+  max-width: 280px;
+}
+.date-col {
+  min-width: 140px;
+}
+.cell {
+  padding: 8px;
+}
+
+/* Row striping léger */
+.row-strip:nth-child(odd) td {
+  background: rgba(0, 0, 0, 0.015);
+}
+
+@media (max-width: 600px) {
+  .name-col {
+    min-width: 160px;
+  }
+  .date-col {
+    min-width: 120px;
+  }
+}
+
 .table-wrapper {
   overflow-x: auto;
   border-radius: 16px;
