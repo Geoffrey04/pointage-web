@@ -42,19 +42,18 @@
           </v-card>
         </v-col>
       </v-row>
-
-      <v-snackbar v-model="snack.show" :color="snack.color" timeout="2500">
-        {{ snack.text }}
-      </v-snackbar>
     </v-container>
+    <v-snackbar v-model="snack.show" :color="snack.color" timeout="2500">
+      {{ snack.text }}
+    </v-snackbar>
   </v-main>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
-import logo from '@/assets/logo-master.png' // ou ton SVG
+import logo from '@/assets/logo-master.png'
 
 const router = useRouter()
 const userStore = useUserStore()
@@ -65,20 +64,33 @@ const password = ref('')
 const showPwd = ref(false)
 const loading = ref(false)
 
-const snack = ref({ show: false, text: '', color: 'error' })
+// ✅ reactive au lieu de ref({...})
+const snack = reactive({ show: false, text: '', color: 'error' })
+
 const rules = { required: (v) => !!v || 'Champ requis' }
 
 async function handleLogin() {
   const { valid } = await formRef.value.validate()
   if (!valid) return
+
   loading.value = true
   try {
-    await userStore.login({ username: username.value.trim(), password: password.value })
+    const res = await userStore.login({
+      username: username.value.trim(),
+      password: password.value,
+    })
+
+    // ✅ Si ton store ne throw pas en cas d'erreur, on force une erreur
+    if (res === false || res?.error) throw new Error(res?.error || 'BAD_CREDENTIALS')
+
     const isAdmin = userStore.user?.role === 'admin'
     router.push(isAdmin ? '/admin' : '/classes')
   } catch (e) {
     console.error('Erreur login:', e)
-    snack.value = { show: true, text: 'Identifiants invalides', color: 'error' }
+    // ✅ on met à jour les champs sans réassigner l'objet
+    snack.text = 'Identifiants invalides'
+    snack.color = 'error'
+    snack.show = true
   } finally {
     loading.value = false
   }

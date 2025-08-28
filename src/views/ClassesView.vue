@@ -10,15 +10,11 @@
     <!-- Liste des classes -->
     <v-row v-else>
       <v-col cols="12" sm="6" md="4" v-for="classe in classes" :key="classe.id">
-        <v-card
-          @click="goToDashboard(classe.id)"
-          class="hoverable cursor-pointer"
-          color="blue-lighten-5"
-        >
-          <v-card-title class="font-weight-medium">
+        <v-card @click="goToDashboard(classe.id)" class="hoverable cursor-pointer" color="#C41E3A">
+          <v-card-title class="font-weight-medium text-center ma-0 pa-1">
             {{ classe.name }}
           </v-card-title>
-          <v-card-subtitle>
+          <v-card-subtitle class="text-center ma-0 pa-1">
             {{ classe.description || 'Aucune description' }}
           </v-card-subtitle>
         </v-card>
