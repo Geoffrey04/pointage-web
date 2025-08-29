@@ -456,7 +456,33 @@
       </v-card-text>
       <v-card-actions>
         <v-spacer />
+        <v-btn color="error" variant="tonal" @click="askDeleteStudent(selectedStudent!)">
+          Supprimer
+        </v-btn>
         <v-btn variant="text" @click="studentDialog = false">Fermer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
+  <!--Dialog suppression d'un eleve -->
+
+  <v-dialog v-model="deleteDialog.show" max-width="460">
+    <v-card>
+      <v-card-title class="text-h6">Supprimer l'élève ?</v-card-title>
+      <v-card-text>
+        Cette action supprimera aussi ses présences associées.
+        <div class="mt-2 text-medium-emphasis">
+          {{ deleteDialog.student?.lastname }} {{ deleteDialog.student?.firstname }}
+        </div>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="deleteDialog.show = false" :disabled="deleteDialog.loading">
+          Annuler
+        </v-btn>
+        <v-btn color="error" :loading="deleteDialog.loading" @click="doDeleteStudent">
+          Supprimer
+        </v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -590,6 +616,42 @@ async function confirmExcuse() {
   const seId = excuseDialog.value.sessionId!
   await onSetStatus(stId, seId, 'excused', text) // avance par élève (mobile) dans onSetStatus
   closeExcuseDialog()
+}
+
+const deleteDialog = ref<{ show: boolean; loading: boolean; student: Student | null }>({
+  show: false,
+  loading: false,
+  student: null,
+})
+
+function askDeleteStudent(st: Student) {
+  deleteDialog.value = { show: true, loading: false, student: st }
+}
+
+async function doDeleteStudent() {
+  const st = deleteDialog.value.student
+  if (!st) return
+  deleteDialog.value.loading = true
+  try {
+    await axios.delete(`${API}/api/students/${st.id}`, { headers: authHeaders() })
+
+    // Retirer l'élève du state (UI instantanée)
+    students.value = students.value.filter((x) => x.id !== st.id)
+    // Nettoyer ses cellules et sa slide
+    delete attendanceMap[st.id]
+    delete activeSlide.value[st.id]
+
+    // Repositionner les slides si besoin
+    restoreActiveSessionForAllStudents()
+
+    deleteDialog.value = { show: false, loading: false, student: null }
+    studentDialog.value = false
+    snackbar.value = { show: true, text: '🗑️ Élève supprimé', color: 'success' }
+  } catch (e) {
+    console.error('Suppression élève échouée', e)
+    deleteDialog.value.loading = false
+    snackbar.value = { show: true, text: '❌ Échec suppression', color: 'error' }
+  }
 }
 
 /* ─────────────── Utils ─────────────── */

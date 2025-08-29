@@ -456,6 +456,21 @@ studentsRouter.get('/:class_id', async (req, res) => {
   }
 })
 
+// DELETE /api/students/:id
+app.delete('/api/students/:id', async (req, res) => {
+  const id = Number(req.params.id)
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'id invalide' })
+  try {
+    const q = 'DELETE FROM students WHERE id=$1'
+    const { rowCount } = await pool.query(q, [id])
+    if (rowCount === 0) return res.status(404).json({ error: 'élève introuvable' })
+    return res.status(204).end()
+  } catch (err) {
+    console.error('delete student', err)
+    return res.status(500).json({ error: 'server_error' })
+  }
+})
+
 app.use('/api/students', studentsRouter)
 
 // ─────────────────────────────────────────────────────────────
