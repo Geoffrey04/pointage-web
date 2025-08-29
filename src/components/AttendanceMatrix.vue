@@ -96,26 +96,45 @@
                     </div>
 
                     <!-- ====== tout ton contenu inchangé (statuts, boutons, etc.) ====== -->
-                    <template v-if="getStatus(st.id, s.id)">
-                      <v-tooltip
+                    <!-- Icône commentaire : tooltip sur desktop / dialog au tap sur mobile -->
+                    <!-- ====== SI UN STATUT EST DÉJÀ CHOISI ====== -->
+                    <template v-if="hasStatus(st.id, s.id)">
+                      <!-- Icône commentaire, visible uniquement si Excusé + commentaire -->
+                      <template
                         v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
-                        :text="getComment(st.id, s.id)"
                       >
-                        <template #activator="{ props }">
-                          <v-btn
-                            v-bind="props"
-                            size="x-small"
-                            icon
-                            variant="text"
-                            class="mb-1"
-                            :color="colorOf(getStatus(st.id, s.id))"
-                            title="Commentaire"
-                          >
-                            <v-icon>mdi-note-text-outline</v-icon>
-                          </v-btn>
-                        </template>
-                      </v-tooltip>
+                        <!-- Desktop : tooltip -->
+                        <v-tooltip v-if="!smAndDown" :text="getComment(st.id, s.id)" location="top">
+                          <template #activator="{ props }">
+                            <v-btn
+                              v-bind="props"
+                              size="x-small"
+                              icon
+                              variant="text"
+                              class="mb-1"
+                              :color="colorOf(getStatus(st.id, s.id))"
+                              aria-label="Voir le motif"
+                            >
+                              <v-icon>mdi-note-text-outline</v-icon>
+                            </v-btn>
+                          </template>
+                        </v-tooltip>
+                        <!-- Mobile : tap = dialog -->
+                        <v-btn
+                          v-else
+                          size="x-small"
+                          icon
+                          variant="text"
+                          class="mb-1"
+                          :color="colorOf(getStatus(st.id, s.id))"
+                          aria-label="Voir le motif"
+                          @click="openCommentViewer(getComment(st.id, s.id)!)"
+                        >
+                          <v-icon>mdi-note-text-outline</v-icon>
+                        </v-btn>
+                      </template>
 
+                      <!-- Pilule du statut -->
                       <v-btn
                         size="large"
                         :color="colorOf(getStatus(st.id, s.id))"
@@ -127,16 +146,17 @@
                         {{ shortLabel(getStatus(st.id, s.id)) }}
                       </v-btn>
 
+                      <!-- Remettre à “À valider” -->
                       <v-btn
                         size="x-small"
                         variant="text"
                         @click="resetCell(st.id, s.id)"
                         title="Changer"
+                        >↺</v-btn
                       >
-                        ↺
-                      </v-btn>
                     </template>
 
+                    <!-- ====== SINON : CHOIX DES 3 STATUTS (À VALIDER) ====== -->
                     <template v-else>
                       <v-row class="d-flex justify-center align-center mt-2" dense>
                         <v-col cols="4" class="text-center">
@@ -152,7 +172,6 @@
                           </v-btn>
                           <div class="text-caption mt-1">Présent</div>
                         </v-col>
-
                         <v-col cols="4" class="text-center">
                           <v-btn
                             icon
@@ -166,7 +185,6 @@
                           </v-btn>
                           <div class="text-caption mt-1">Excusé(e)</div>
                         </v-col>
-
                         <v-col cols="4" class="text-center">
                           <v-btn
                             icon
@@ -223,26 +241,39 @@
 
               <td v-for="s in sortedSessions" :key="`${s.id}-${st.id}`" class="text-center cell">
                 <!-- État choisi -->
-                <template v-if="getStatus(st.id, s.id)">
-                  <v-tooltip
-                    v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
-                    :text="getComment(st.id, s.id)"
-                  >
-                    <template #activator="{ props }">
-                      <v-btn
-                        v-bind="props"
-                        size="x-small"
-                        icon
-                        variant="text"
-                        class="mr-1"
-                        :color="colorOf(getStatus(st.id, s.id))"
-                        title="Commentaire"
-                      >
-                        <v-icon>mdi-note-text-outline</v-icon>
-                      </v-btn>
-                    </template>
-                  </v-tooltip>
+                <template v-if="hasStatus(st.id, s.id)">
+                  <!-- Icône commentaire si Excusé + commentaire -->
+                  <template v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)">
+                    <v-tooltip v-if="!smAndDown" :text="getComment(st.id, s.id)" location="top">
+                      <template #activator="{ props }">
+                        <v-btn
+                          v-bind="props"
+                          size="x-small"
+                          icon
+                          variant="text"
+                          class="mr-1"
+                          :color="colorOf(getStatus(st.id, s.id))"
+                          aria-label="Voir le motif"
+                        >
+                          <v-icon>mdi-note-text-outline</v-icon>
+                        </v-btn>
+                      </template>
+                    </v-tooltip>
+                    <v-btn
+                      v-else
+                      size="x-small"
+                      icon
+                      variant="text"
+                      class="mr-1"
+                      :color="colorOf(getStatus(st.id, s.id))"
+                      aria-label="Voir le motif"
+                      @click="openCommentViewer(getComment(st.id, s.id)!)"
+                    >
+                      <v-icon>mdi-note-text-outline</v-icon>
+                    </v-btn>
+                  </template>
 
+                  <!-- Pilule du statut -->
                   <v-btn
                     size="small"
                     :color="colorOf(getStatus(st.id, s.id))"
@@ -260,9 +291,95 @@
                     class="ml-1"
                     @click="resetCell(st.id, s.id)"
                     title="Changer"
+                    >↺</v-btn
                   >
-                    ↺
-                  </v-btn>
+                </template>
+
+                <!-- Sinon : 3 boutons -->
+                <template v-else>
+                  <div class="status-row">
+                    <div class="status-item">
+                      <v-btn
+                        class="action-btn"
+                        color="green"
+                        variant="flat"
+                        @click="onSetStatus(st.id, s.id, 'present')"
+                        aria-label="Présent"
+                      >
+                        <v-icon>mdi-check</v-icon>
+                      </v-btn>
+                      <div class="status-label">Présent</div>
+                    </div>
+                    <div class="status-item">
+                      <v-btn
+                        class="action-btn"
+                        color="orange"
+                        variant="flat"
+                        @click="openExcuseDialog(st.id, s.id)"
+                        aria-label="Excusé(e)"
+                      >
+                        <v-icon>mdi-file-check-outline</v-icon>
+                      </v-btn>
+                      <div class="status-label">Excusé(e)</div>
+                    </div>
+                    <div class="status-item">
+                      <v-btn
+                        class="action-btn"
+                        color="red"
+                        variant="flat"
+                        @click="onSetStatus(st.id, s.id, 'absent')"
+                        aria-label="Absent"
+                      >
+                        <v-icon>mdi-close</v-icon>
+                      </v-btn>
+                      <div class="status-label">Absent</div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- ====== SINON : CHOIX DES 3 STATUTS (À VALIDER) ====== -->
+                <template v-else>
+                  <v-row class="d-flex justify-center align-center mt-2" dense>
+                    <v-col cols="4" class="text-center">
+                      <v-btn
+                        icon
+                        size="large"
+                        color="green"
+                        class="rounded-circle"
+                        @click="onSetStatus(st.id, s.id, 'present')"
+                        aria-label="Présent"
+                      >
+                        <v-icon>mdi-check</v-icon>
+                      </v-btn>
+                      <div class="text-caption mt-1">Présent</div>
+                    </v-col>
+                    <v-col cols="4" class="text-center">
+                      <v-btn
+                        icon
+                        size="large"
+                        color="orange"
+                        class="rounded-circle"
+                        @click="openExcuseDialog(st.id, s.id)"
+                        aria-label="Excusé(e)"
+                      >
+                        <v-icon>mdi-file-check-outline</v-icon>
+                      </v-btn>
+                      <div class="text-caption mt-1">Excusé(e)</div>
+                    </v-col>
+                    <v-col cols="4" class="text-center">
+                      <v-btn
+                        icon
+                        size="large"
+                        color="red"
+                        class="rounded-circle"
+                        @click="onSetStatus(st.id, s.id, 'absent')"
+                        aria-label="Absent"
+                      >
+                        <v-icon>mdi-close</v-icon>
+                      </v-btn>
+                      <div class="text-caption mt-1">Absent</div>
+                    </v-col>
+                  </v-row>
                 </template>
 
                 <template v-else>
@@ -372,6 +489,20 @@
     </v-card>
   </v-dialog>
 
+  <!-- Dialog lecture du motif (mobile & desktop click) -->
+  <v-dialog v-model="commentViewer.show" max-width="420">
+    <v-card>
+      <v-card-title class="text-h6">Motif d'absence</v-card-title>
+      <v-card-text class="text-body-2" style="white-space: pre-line">
+        {{ commentViewer.text }}
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="commentViewer.show = false">Fermer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
   <!-- Snackbar -->
   <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
     {{ snackbar.text }}
@@ -428,6 +559,10 @@ function openStudentInfo(st: Student) {
   selectedStudent.value = st
   studentDialog.value = true
 }
+const commentViewer = ref<{ show: boolean; text: string }>({ show: false, text: '' })
+function openCommentViewer(text: string) {
+  commentViewer.value = { show: true, text: text ?? '' }
+}
 
 const excuseDialog = ref<{
   show: boolean
@@ -476,12 +611,10 @@ function ensureKey(studentId: number, sessionId: number) {
   }
 }
 function getStatus(studentId: number, sessionId: number) {
-  ensureKey(studentId, sessionId)
-  return attendanceMap[studentId][sessionId].status
+  return attendanceMap[studentId]?.[sessionId]?.status ?? null
 }
 function getComment(studentId: number, sessionId: number) {
-  ensureKey(studentId, sessionId)
-  return attendanceMap[studentId][sessionId].comment
+  return attendanceMap[studentId]?.[sessionId]?.comment ?? null
 }
 function resetCell(studentId: number, sessionId: number) {
   ensureKey(studentId, sessionId)
@@ -489,6 +622,10 @@ function resetCell(studentId: number, sessionId: number) {
 }
 function toggleEdit(studentId: number, sessionId: number) {
   resetCell(studentId, sessionId)
+}
+function hasStatus(studentId: number, sessionId: number) {
+  const s = getStatus(studentId, sessionId)
+  return s === 'present' || s === 'absent' || s === 'excused'
 }
 
 /* Couleurs / labels / icônes */
@@ -673,42 +810,57 @@ async function onSetStatus(
   comment: string | null = null,
 ) {
   try {
+    // on crée la cellule si besoin, mais hors rendu
     ensureKey(studentId, sessionId)
+
+    // Si excusé sans motif -> ouvrir le dialog
     if (status === 'excused' && (!comment || !comment.trim())) {
       return openExcuseDialog(studentId, sessionId)
     }
 
     // snapshot pour rollback
-    const prev = { ...attendanceMap[studentId][sessionId] }
+    const prevStatus = attendanceMap[studentId][sessionId].status
+    const prevComment = attendanceMap[studentId][sessionId].comment
 
-    // MAJ optimiste
-    attendanceMap[studentId][sessionId] = {
-      status,
-      comment: status === 'excused' ? (comment?.trim() ?? '') : null,
+    // ✅ MAJ optimiste **champ par champ** (réactivité fiable)
+    if (status === 'present') {
+      attendanceMap[studentId][sessionId].status = 'present'
+      attendanceMap[studentId][sessionId].comment = null
+    } else if (status === 'absent') {
+      attendanceMap[studentId][sessionId].status = 'absent'
+      attendanceMap[studentId][sessionId].comment = null
+    } else {
+      // 'excused'
+      attendanceMap[studentId][sessionId].status = 'excused'
+      attendanceMap[studentId][sessionId].comment = (comment ?? '').trim()
     }
 
+    console.log('after set', studentId, sessionId, attendanceMap[studentId][sessionId])
+
+    // API
     await axios.post(
       `${API}/attendance`,
       {
         student_id: studentId,
         session_id: sessionId,
         status,
-        comment: status === 'excused' ? (comment?.trim() ?? '') : null,
+        comment: status === 'excused' ? (comment ?? '').trim() : null,
       },
       { headers: authHeaders() },
     )
 
     snackbar.value = { show: true, text: '✅ Enregistré', color: 'success' }
 
-    // auto-avance PAR ÉLÈVE uniquement en mobile
+    // auto-avance par élève (mobile uniquement)
     if (smAndDown.value) {
       const next = nextUnvalidatedFromForStudent(studentId, sessionId)
       setActiveSessionForStudent(studentId, next)
     }
   } catch (e) {
     console.error('Erreur sauvegarde présence :', e)
-    // rollback (revient à non validé ; mets `prev` si tu veux rétablir l’état antérieur)
-    attendanceMap[studentId][sessionId] = { status: null, comment: null }
+    // rollback
+    attendanceMap[studentId][sessionId].status = prevStatus ?? null
+    attendanceMap[studentId][sessionId].comment = prevComment ?? null
     snackbar.value = { show: true, text: '❌ Erreur enregistrement', color: 'error' }
   }
 }
@@ -733,8 +885,8 @@ watch([students, sessions], () => {
 
 <style scoped>
 /* =========================
-   MOBILE – carrousel centré
-   ========================= */
+    MOBILE – carrousel centré
+    ========================= */
 .attendance-slides {
   width: 100%;
   padding-inline: 8px;
@@ -769,8 +921,8 @@ watch([students, sessions], () => {
 }
 
 /* =========================
-   BOUTONS / ÉTIQUETTES
-   ========================= */
+    BOUTONS / ÉTIQUETTES
+    ========================= */
 .status-row {
   display: flex;
   justify-content: center;
@@ -813,8 +965,8 @@ watch([students, sessions], () => {
 }
 
 /* =========================
-   TABLE DESKTOP
-   ========================= */
+    TABLE DESKTOP
+    ========================= */
 .table-scroll {
   overflow: auto;
 }
