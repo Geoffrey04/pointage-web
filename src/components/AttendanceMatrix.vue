@@ -731,8 +731,27 @@ function isSessionFullyValidated(sessionId: number) {
  * - Desktop : strictement chronologique (stable)
  * - Mobile : non validées d’abord (optionnel) puis chronologique
  */
+
+// Calcule l'année scolaire de référence pour une date YYYY-MM-DD
+function schoolStartYear(dateStr: string) {
+  const y = Number(dateStr.slice(0, 4))
+  const m = Number(dateStr.slice(5, 7))
+  return m >= 9 ? y : y - 1 // Septembre (09) démarre une nouvelle année scolaire
+}
+
+// Vrai si la date est entre 01/09/<Y> et 14/07/<Y+1> (inclus)
+function inSchoolWindow(dateStr: string) {
+  if (!dateStr) return false
+  const y0 = schoolStartYear(dateStr)
+  const lower = `${y0}-09-01`
+  const upper = `${y0 + 1}-07-14`
+  return dateStr >= lower && dateStr <= upper // comparaison lexicographique OK en YYYY-MM-DD
+}
+
 const sortedSessions = computed<Session[]>(() => {
-  return [...sessions.value].sort((a, b) => a.date.localeCompare(b.date))
+  return sessions.value
+    .filter((s) => s && s.date && inSchoolWindow(s.date)) // ⬅️ on coupe août / fin juillet
+    .sort((a, b) => a.date.localeCompare(b.date))
 })
 
 /* ─────────────── Avance & Restauration — PAR ÉLÈVE (mobile) ─────────────── */

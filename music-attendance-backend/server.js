@@ -259,37 +259,124 @@ admin.delete('/class-users', async (req, res) => {
 
 app.use('/api/admin', admin)
 
-// Helper: année scolaire active (Aug 1 -> Jul 31)
-function getActiveSchoolYear() {
-  const today = new Date()
-  const y = today.getMonth() >= 7 ? today.getFullYear() : today.getFullYear() - 1
-  const start = new Date(Date.UTC(y, 7, 1)) // 1 Aug y
-  const end = new Date(Date.UTC(y + 1, 6, 31)) // 31 Jul y+1
-  return { start, end, label: `${y}-${y + 1}` }
+// ---- Mapping & conversions ----
+// utils déjà vus (UTC midi, année scolaire, normalisation weekday…)
+function utcNoon(y, m0, d) {
+  return new Date(Date.UTC(y, m0, d, 12))
 }
-
-// Convertit ISO dow (1..7, Lundi..Dimanche) -> JS dow (0..6, Dim..Sam)
+function schoolStartYear(now = new Date()) {
+  const y = now.getUTCFullYear(),
+    m = now.getUTCMonth() + 1
+  return m >= 9 ? y : y - 1
+}
+function getActiveSchoolYear(now = new Date()) {
+  const sy = schoolStartYear(now)
+  return { start: utcNoon(sy, 8, 1), end: utcNoon(sy + 1, 6, 14) }
+}
+const ISO_FROM_FR = {
+  dimanche: 7,
+  lundi: 1,
+  mardi: 2,
+  mercredi: 3,
+  jeudi: 4,
+  vendredi: 5,
+  samedi: 6,
+}
+function normalizeToIsoWeekday(input) {
+  if (typeof input === 'string') {
+    return ISO_FROM_FR[input.toLowerCase()] ?? null
+  }
+  if (typeof input === 'number') {
+    if (input >= 1 && input <= 7) return input
+    if (input >= 0 && input <= 6) return input + 1
+  }
+  return null
+}
 function jsDowFromIso(iso) {
   return iso % 7
 }
-
-// Génère toutes les dates yyyy-mm-dd pour un jour donné dans un intervalle
-function enumerateDatesByWeekday(start, end, isoDow) {
-  const jsTarget = jsDowFromIso(isoDow)
-  const dates = []
-  // Trouver le premier jour demandé >= start
-  const d = new Date(start)
-  while (d.getUTCDay() !== jsTarget) d.setUTCDate(d.getUTCDate() + 1)
-  // Ajouter semaine par semaine
-  while (d <= end) {
-    const y = d.getUTCFullYear()
-    const m = String(d.getUTCMonth() + 1).padStart(2, '0')
-    const day = String(d.getUTCDate()).padStart(2, '0')
-    dates.push(`${y}-${m}-${day}`)
-    d.setUTCDate(d.getUTCDate() + 7)
-  }
-  return dates
+function firstOnOrAfter(startUtc, jsTarget) {
+  const d = new Date(startUtc.getTime())
+  const delta = (jsTarget - d.getUTCDay() + 7) % 7
+  d.setUTCDate(d.getUTCDate() + delta)
+  return d
 }
+function enumerateDatesByWeekday(startUtc, endUtc, isoDow) {
+  const jsTarget = jsDowFromIso(isoDow)
+  const s = utcNoon(startUtc.getUTCFullYear(), startUtc.getUTCMonth(), startUtc.getUTCDate())
+  const e = utcNoon(endUtc.getUTCFullYear(), endUtc.getUTCMonth(), endUtc.getUTCDate())
+  let d = firstOnOrAfter(s, jsTarget)
+  const out = []
+  while (d <= e) {
+    out.push(d.toISOString().slice(0, 10))
+    d = new Date(d.getTime() + 7 * 86400000)
+  }
+  return out
+}
+
+// PATCH /classes/:id/weekday  { weekday: 1..7 | 'lundi' ... , startYear? }
+// même middlewares qu'avant
+const patchClassWeekdayHandler = async (req, res) => {
+  try {
+    const classId = Number(req.params.id)
+    const iso = normalizeToIsoWeekday(req.body.weekday)
+    if (!iso) return res.status(400).json({ message: 'weekday invalide' })
+
+    await pool.query('UPDATE classes SET weekday=$1 WHERE id=$2', [iso, classId])
+
+    const sy = Number.isInteger(req.body.startYear) ? req.body.startYear : schoolStartYear()
+    const start = utcNoon(sy, 8, 1)
+    const end = utcNoon(sy + 1, 6, 14)
+
+    // nettoyer sessions d’un autre DOW (sans présence)
+    await pool.query(
+      `
+      WITH cls AS (
+        SELECT id, CASE WHEN weekday=7 THEN 0 ELSE weekday END AS js_dow
+        FROM classes WHERE id=$1
+      )
+      DELETE FROM sessions s
+      USING cls
+      WHERE s.class_id = cls.id
+        AND EXTRACT(DOW FROM s.date) <> cls.js_dow
+        AND NOT EXISTS (SELECT 1 FROM attendances a WHERE a.session_id = s.id);
+    `,
+      [classId],
+    )
+
+    // régénérer les dates (01/09 -> 14/07)
+    const dates = enumerateDatesByWeekday(start, end, iso)
+    await pool.query(
+      `
+      INSERT INTO sessions (class_id, date)
+      SELECT $1, unnest($2::date[])
+      ON CONFLICT (class_id, date) DO NOTHING
+    `,
+      [classId, dates],
+    )
+
+    // renvoyer les sessions
+    const { rows } = await pool.query(
+      'SELECT id, date FROM sessions WHERE class_id=$1 ORDER BY date',
+      [classId],
+    )
+    res.json({
+      ok: true,
+      sessions: rows.map((r) => ({ id: r.id, date: r.date.toISOString().slice(0, 10) })),
+    })
+  } catch (e) {
+    console.error('PATCH weekday', e)
+    res.status(500).json({ message: 'Erreur mise à jour du jour de classe' })
+  }
+}
+
+// ✅ expose les deux chemins pour éviter les 404
+app.patch(
+  ['/api/classes/:id/weekday', '/classes/:id/weekday'],
+  authenticateToken,
+  authorizeRoles('prof', 'admin'),
+  patchClassWeekdayHandler,
+)
 
 // POST /classes/:id/generate-sessions
 app.post(
@@ -299,49 +386,50 @@ app.post(
   async (req, res) => {
     try {
       const classId = Number(req.params.id)
-      let { weekday } = req.body // attendu: 1..7 (Lundi..Dimanche)
+      if (!Number.isInteger(classId)) {
+        return res.status(400).json({ message: 'classId invalide' })
+      }
 
-      // Charger la classe
+      // Charger la classe (pour récupérer un weekday éventuellement déjà stocké)
       const cl = await pool.query('SELECT id, weekday FROM classes WHERE id = $1', [classId])
       if (!cl.rows[0]) return res.status(404).json({ message: 'Classe introuvable' })
 
-      // Si aucun weekday fourni, utiliser celui mémorisé
-      if (!weekday) weekday = cl.rows[0].weekday
-      if (!weekday) return res.status(400).json({ message: 'Jour de cours requis (weekday 1..7)' })
-      weekday = Number(weekday)
-      if (weekday < 1 || weekday > 7)
-        return res.status(400).json({ message: 'weekday invalide (1..7)' })
-
-      // Mémoriser le weekday sur la classe s’il a changé
-      if (cl.rows[0].weekday !== weekday) {
-        await pool.query('UPDATE classes SET weekday = $1 WHERE id = $2', [weekday, classId])
+      // 1) Normaliser le weekday venant du body ou de la classe (vers ISO 1..7)
+      let isoWeekday = normalizeToIsoWeekday(req.body?.weekday)
+      if (isoWeekday == null) isoWeekday = normalizeToIsoWeekday(cl.rows[0].weekday)
+      if (isoWeekday == null) {
+        return res.status(400).json({ message: 'Jour de cours requis (weekday)' })
       }
 
-      // Calcul de l’année scolaire active
+      // 2) Mémoriser l’ISO weekday (1..7) sur la classe si différent
+      if (cl.rows[0].weekday !== isoWeekday) {
+        await pool.query('UPDATE classes SET weekday = $1 WHERE id = $2', [isoWeekday, classId])
+      }
+
+      // 3) Fenêtre année scolaire active (01/09 -> 14/07) en UTC
       const { start, end } = getActiveSchoolYear()
-      const allDates = enumerateDatesByWeekday(start, end, weekday)
 
-      // Écarter les dates déjà présentes
-      const existing = await pool.query('SELECT date FROM sessions WHERE class_id = $1', [classId])
-      const existingSet = new Set(existing.rows.map((r) => r.date.toISOString().split('T')[0]))
-      const toInsert = allDates.filter((d) => !existingSet.has(d))
+      // 4) Génération des dates (sans doublon côté DB via ON CONFLICT)
+      const allDates = enumerateDatesByWeekday(start, end, isoWeekday)
 
-      // Insertion bulk (si nécessaire)
-      if (toInsert.length > 0) {
-        const values = toInsert.map((_, i) => `($1, $${i + 2})`).join(',')
-        await pool.query(
-          `INSERT INTO sessions (class_id, date) VALUES ${values} ON CONFLICT DO NOTHING`,
-          [classId, ...toInsert],
-        )
-      }
+      // 5) Insertion en masse + comptage des lignes réellement insérées
+      const insertSql = `
+        INSERT INTO sessions (class_id, date)
+        SELECT $1, unnest($2::date[])
+        ON CONFLICT (class_id, date) DO NOTHING
+        RETURNING id
+      `
+      const insRes = await pool.query(insertSql, [classId, allDates])
+      const inserted = insRes.rowCount
 
-      // Retourner la liste des sessions (id + date)
+      // 6) Retourner la liste complète (id + YYYY-MM-DD)
       const { rows } = await pool.query(
         'SELECT id, date FROM sessions WHERE class_id = $1 ORDER BY date ASC',
         [classId],
       )
-      const sessions = rows.map((r) => ({ id: r.id, date: r.date.toISOString().split('T')[0] }))
-      res.json({ ok: true, inserted: toInsert.length, total: sessions.length, sessions })
+      const sessions = rows.map((r) => ({ id: r.id, date: r.date.toISOString().slice(0, 10) }))
+
+      res.json({ ok: true, inserted, total: sessions.length, sessions })
     } catch (e) {
       console.error('generate-sessions', e)
       res.status(500).json({ message: 'Erreur génération sessions' })
