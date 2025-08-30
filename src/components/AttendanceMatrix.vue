@@ -579,7 +579,12 @@ import axios from 'axios'
 
 type Student = { id: number; firstname: string; lastname: string; phone?: string | null }
 type SessionStatus = 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra'
-type Session = { id: number; date: string; status?: SessionStatus | null; note?: string | null }
+type Session = {
+  id: number
+  date: string // "YYYY-MM-DD"
+  status?: 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra' | null
+  note?: string | null
+}
 type AttendanceRow = {
   student_id: number
   session_id: number
@@ -757,19 +762,30 @@ function iconOf(status: 'present' | 'absent' | 'excused' | null) {
 }
 
 /* ─────────────── Statut de séance (quick-win) ─────────────── */
-const nonPointables = new Set<SessionStatus>(['cancelled', 'holiday', 'vacation'])
+/* ─────────────── Sessions: statut / note / pointabilité ─────────────── */
+const NON_POINTABLE = new Set(['cancelled', 'holiday', 'vacation'])
 
-function sessionById(id: number) {
-  return sessions.value.find((s) => s.id === id)
+function sessionById(sessionId: number): Session | undefined {
+  return sessions.value.find((s) => s.id === sessionId)
 }
-function sessionStatus(id: number): SessionStatus {
-  return (sessionById(id)?.status as SessionStatus) ?? 'scheduled'
+
+function sessionStatus(
+  sessionId: number,
+): 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra' {
+  return (sessionById(sessionId)?.status ?? 'scheduled') as
+    | 'scheduled'
+    | 'cancelled'
+    | 'holiday'
+    | 'vacation'
+    | 'extra'
 }
-function sessionNote(id: number): string | null {
-  return sessionById(id)?.note ?? null
+
+function sessionNote(sessionId: number): string | null {
+  return sessionById(sessionId)?.note ?? null
 }
-function isSessionPointable(id: number) {
-  return !nonPointables.has(sessionStatus(id))
+
+function isSessionPointable(sessionId: number): boolean {
+  return !NON_POINTABLE.has(sessionStatus(sessionId))
 }
 
 function chipLabel(s: SessionStatus) {
@@ -897,8 +913,11 @@ const sortedSessions = computed<Session[]>(() => {
 
 /* ─────────────── Avance & Restauration — PAR ÉLÈVE (mobile) ─────────────── */
 function isValidated(studentId: number, sessionId: number) {
+  // Une séance annulée / férié / vacances est considérée validée d’office
+  if (!isSessionPointable(sessionId)) return true
   return !!getStatus(studentId, sessionId)
 }
+
 const progressKeyForStudent = (studentId: number) =>
   `attendance_progress_class_${String(props.classId)}_student_${studentId}`
 
@@ -936,7 +955,7 @@ function restoreActiveSessionForAllStudents() {
 }
 
 /* ─────────────── Dédup sessions + init nouvel élève ─────────────── */
-function dedupeSessions(list: { id: number; date: string }[]) {
+function dedupeSessions(list: Session[]) {
   const seen = new Set<number>()
   return list.filter((s) => !seen.has(s.id) && seen.add(s.id))
 }
@@ -1023,6 +1042,15 @@ async function onSetStatus(
   comment: string | null = null,
 ) {
   try {
+    if (!isSessionPointable(sessionId)) {
+      snackbar.value = {
+        show: true,
+        text: "Cette séance n'est pas pointable (annulée / férié / vacances).",
+        color: 'error',
+      }
+      return
+    }
+
     // garde-fou front si séance non pointable
     if (!isSessionPointable(sessionId)) {
       snackbar.value = {

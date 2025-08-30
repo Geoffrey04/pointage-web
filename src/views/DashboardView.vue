@@ -44,50 +44,43 @@
 
     <!-- Barre de contrôle du jour de cours (modern + responsive) -->
     <v-sheet class="control-bar rounded-xl px-3 py-2 mb-4">
-      <div class="d-flex flex-column flex-sm-row align-center justify-space-between ga-3">
-        <!-- Picker jour -->
-        <div class="d-flex align-center ga-2 w-100">
-          <v-icon size="20">mdi-calendar-week</v-icon>
-          <div class="text-body-2 text-medium-emphasis mr-1">Jour de cours</div>
+      <div class="control-row">
+        <!-- Zone jours -->
+        <div class="control-days">
+          <v-icon size="20" class="mr-1">mdi-calendar-week</v-icon>
+          <!-- Libellé compact en mobile -->
+          <div class="label d-none d-sm-inline text-medium-emphasis">Jour de cours</div>
+          <div class="label d-sm-none text-medium-emphasis">Jour</div>
 
-          <!-- Desktop / tablette : chips complets -->
-          <v-chip-group v-model="classWeekday" class="d-none d-sm-flex flex-wrap" mandatory>
-            <v-chip
+          <!-- Slide group = scroll horizontal + flèches -->
+          <v-slide-group v-model="classWeekday" class="days-scroll" mandatory show-arrows="hover">
+            <v-slide-group-item
               v-for="d in weekdayChips"
               :key="d.value"
               :value="d.value"
-              filter
-              variant="tonal"
-              class="my-1 mr-1"
+              v-slot="{ isSelected, toggle }"
             >
-              {{ d.title }}
-            </v-chip>
-          </v-chip-group>
-
-          <!-- Mobile : chips courts, scroll horizontal -->
-          <v-chip-group v-model="classWeekday" class="d-flex d-sm-none chip-scroll" mandatory>
-            <v-chip
-              v-for="d in weekdayChips"
-              :key="d.value"
-              :value="d.value"
-              filter
-              variant="tonal"
-              class="mr-2"
-            >
-              {{ d.short }}
-            </v-chip>
-          </v-chip-group>
+              <v-chip
+                :color="isSelected ? 'primary' : undefined"
+                variant="tonal"
+                class="mx-1 my-1"
+                @click="toggle"
+              >
+                {{ smAndDown ? d.short : d.title }}
+              </v-chip>
+            </v-slide-group-item>
+          </v-slide-group>
         </div>
 
         <!-- Actions -->
-        <div class="d-flex ga-2 w-100 w-sm-auto">
+        <div class="control-actions">
           <v-btn
             color="primary"
-            class="flex-1 flex-sm-none"
             :loading="savingWeekday"
             :disabled="!classWeekday"
             @click="saveWeekday"
             prepend-icon="mdi-content-save"
+            class="save-btn"
           >
             Enregistrer
           </v-btn>
@@ -98,7 +91,7 @@
             variant="tonal"
             color="success"
             prepend-icon="mdi-check"
-            class="align-self-center"
+            class="ml-2 d-none d-sm-inline"
           >
             Sauvegardé
           </v-chip>
@@ -136,9 +129,11 @@ import axios from 'axios'
 import AttendanceMatrix from '@/components/AttendanceMatrix.vue'
 import AddStudentForm from '@/components/AddStudentForm.vue'
 import StudentList from '@/components/StudentList.vue'
+import { useDisplay } from 'vuetify'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const route = useRoute()
+const { smAndDown } = useDisplay()
 const authHeaders = () => {
   const token = localStorage.getItem('token')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -244,5 +239,58 @@ onMounted(fetchClassWeekday)
 .chip-scroll::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.15);
   border-radius: 999px;
+}
+
+.control-bar {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-border-color), 0.25);
+  box-shadow: var(--v-shadow-2);
+}
+
+.control-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.control-days {
+  display: flex;
+  align-items: center;
+  min-width: 0; /* permet le scroll du groupe */
+}
+
+.label {
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+.days-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.days-scroll :deep(.v-slide-group__content) {
+  padding: 0 2px;
+}
+
+/* Actions : bouton plein largeur en mobile */
+.control-actions {
+  display: flex;
+  align-items: center;
+}
+.save-btn {
+  min-width: 160px;
+}
+
+@media (max-width: 600px) {
+  .control-row {
+    grid-template-columns: 1fr; /* empile jours + bouton */
+  }
+  .control-actions {
+    width: 100%;
+  }
+  .save-btn {
+    width: 100%;
+  }
 }
 </style>

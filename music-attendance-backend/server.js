@@ -188,10 +188,12 @@ admin.patch('/classes/:id', async (req, res) => {
   }
 })
 
+// ADMIN: suppression classe
 admin.delete('/classes/:id', async (req, res) => {
   try {
     const { id } = req.params
-    await pool.query('DELETE FROM classes WHERE id = $1', [id])
+    const { rowCount } = await pool.query('DELETE FROM classes WHERE id = $1', [id])
+    if (rowCount === 0) return res.status(404).json({ message: 'Classe introuvable' })
     res.json({ ok: true })
   } catch (e) {
     console.error('admin DELETE /classes/:id', e)

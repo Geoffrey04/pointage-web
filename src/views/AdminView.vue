@@ -156,7 +156,7 @@ const deleting = ref(false)
 
 /* KPIs */
 const kpis = ref([
-  { label: 'Utilisateurs', value: 0, icon: 'mdi-account-group', color: 'primary' },
+  { label: 'Professeurs', value: 0, icon: 'mdi-account-group', color: 'primary' },
   { label: 'Élèves', value: 0, icon: 'mdi-account-school', color: 'teal' },
   { label: 'Classes', value: 0, icon: 'mdi-google-classroom', color: 'indigo' },
   { label: 'Cours', value: 0, icon: 'mdi-calendar-multiple', color: 'orange' },
