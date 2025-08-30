@@ -83,122 +83,167 @@
                     class="date-slide px-4 py-3 d-flex flex-column align-center justify-center"
                     width="220"
                   >
-                    <div class="text-caption text-medium-emphasis mb-2">
+                    <div class="text-caption text-medium-emphasis mb-2 d-flex align-center">
                       {{ formatDate(s.date) }}
+
+                      <!-- CHIP statut de séance -->
                       <v-chip
-                        v-if="!isSessionFullyValidated(s.id)"
+                        v-if="sessionStatus(s.id) !== 'scheduled'"
                         size="x-small"
-                        class="ml-1"
+                        :color="chipColor(sessionStatus(s.id))"
                         variant="tonal"
+                        class="ml-1"
+                        :prepend-icon="chipIcon(sessionStatus(s.id))"
                       >
-                        À valider
+                        {{ chipLabel(sessionStatus(s.id)) }}
                       </v-chip>
+
+                      <!-- note éventuelle -->
+                      <v-btn
+                        v-if="sessionNote(s.id)"
+                        icon
+                        size="x-small"
+                        variant="text"
+                        class="ml-1"
+                        @click="openCommentViewer(sessionNote(s.id)!)"
+                        :title="sessionNote(s.id)!"
+                      >
+                        <v-icon>mdi-note-text-outline</v-icon>
+                      </v-btn>
+
+                      <!-- éditer statut de séance -->
+                      <v-btn
+                        icon
+                        size="x-small"
+                        variant="text"
+                        class="ml-1"
+                        @click="openSessionDialog(s)"
+                        :title="`Éditer le statut du ${formatDate(s.date)}`"
+                      >
+                        <v-icon>mdi-pencil</v-icon>
+                      </v-btn>
                     </div>
 
-                    <!-- ====== tout ton contenu inchangé (statuts, boutons, etc.) ====== -->
-                    <!-- Icône commentaire : tooltip sur desktop / dialog au tap sur mobile -->
-                    <!-- ====== SI UN STATUT EST DÉJÀ CHOISI ====== -->
-                    <template v-if="hasStatus(st.id, s.id)">
-                      <!-- Icône commentaire, visible uniquement si Excusé + commentaire -->
-                      <template
-                        v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
-                      >
-                        <!-- Desktop : tooltip -->
-                        <v-tooltip v-if="!smAndDown" :text="getComment(st.id, s.id)" location="top">
-                          <template #activator="{ props }">
-                            <v-btn
-                              v-bind="props"
-                              size="x-small"
-                              icon
-                              variant="text"
-                              class="mb-1"
-                              :color="colorOf(getStatus(st.id, s.id))"
-                              aria-label="Voir le motif"
-                            >
-                              <v-icon>mdi-note-text-outline</v-icon>
-                            </v-btn>
-                          </template>
-                        </v-tooltip>
-                        <!-- Mobile : tap = dialog -->
-                        <v-btn
-                          v-else
-                          size="x-small"
-                          icon
-                          variant="text"
-                          class="mb-1"
-                          :color="colorOf(getStatus(st.id, s.id))"
-                          aria-label="Voir le motif"
-                          @click="openCommentViewer(getComment(st.id, s.id)!)"
+                    <!-- ====== CONTENU CELLULE ====== -->
+                    <!-- Si séance non pointable (annulée / férié / vacances) -->
+                    <template v-if="!isSessionPointable(s.id)">
+                      <div class="text-caption text-medium-emphasis mt-1 text-center">
+                        Pointage indisponible ({{ chipLabel(sessionStatus(s.id)) }})
+                      </div>
+                    </template>
+
+                    <!-- Sinon, affichage normal -->
+                    <template v-else>
+                      <!-- Si un statut est déjà choisi -->
+                      <template v-if="hasStatus(st.id, s.id)">
+                        <!-- Icône commentaire si Excusé + commentaire -->
+                        <template
+                          v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
                         >
-                          <v-icon>mdi-note-text-outline</v-icon>
+                          <!-- Desktop : tooltip -->
+                          <v-tooltip
+                            v-if="!smAndDown"
+                            :text="getComment(st.id, s.id)"
+                            location="top"
+                          >
+                            <template #activator="{ props }">
+                              <v-btn
+                                v-bind="props"
+                                size="x-small"
+                                icon
+                                variant="text"
+                                class="mb-1"
+                                :color="colorOf(getStatus(st.id, s.id))"
+                                aria-label="Voir le motif"
+                              >
+                                <v-icon>mdi-note-text-outline</v-icon>
+                              </v-btn>
+                            </template>
+                          </v-tooltip>
+                          <!-- Mobile : tap = dialog -->
+                          <v-btn
+                            v-else
+                            size="x-small"
+                            icon
+                            variant="text"
+                            class="mb-1"
+                            :color="colorOf(getStatus(st.id, s.id))"
+                            aria-label="Voir le motif"
+                            @click="openCommentViewer(getComment(st.id, s.id)!)"
+                          >
+                            <v-icon>mdi-note-text-outline</v-icon>
+                          </v-btn>
+                        </template>
+
+                        <!-- Pilule du statut -->
+                        <v-btn
+                          size="large"
+                          :color="colorOf(getStatus(st.id, s.id))"
+                          variant="flat"
+                          class="status-pill mb-1"
+                          @click="toggleEdit(st.id, s.id)"
+                        >
+                          <v-icon :icon="iconOf(getStatus(st.id, s.id))" start />
+                          {{ shortLabel(getStatus(st.id, s.id)) }}
+                        </v-btn>
+
+                        <!-- Remettre à “À valider” -->
+                        <v-btn
+                          size="x-small"
+                          variant="text"
+                          @click="resetCell(st.id, s.id)"
+                          title="Changer"
+                        >
+                          ↺
                         </v-btn>
                       </template>
 
-                      <!-- Pilule du statut -->
-                      <v-btn
-                        size="large"
-                        :color="colorOf(getStatus(st.id, s.id))"
-                        variant="flat"
-                        class="status-pill mb-1"
-                        @click="toggleEdit(st.id, s.id)"
-                      >
-                        <v-icon :icon="iconOf(getStatus(st.id, s.id))" start />
-                        {{ shortLabel(getStatus(st.id, s.id)) }}
-                      </v-btn>
+                      <!-- Sinon : choix des 3 statuts -->
+                      <template v-else>
+                        <v-row class="d-flex justify-center align-center mt-2" dense>
+                          <v-col cols="4" class="text-center">
+                            <v-btn
+                              icon
+                              size="large"
+                              color="green"
+                              class="rounded-circle"
+                              @click="onSetStatus(st.id, s.id, 'present')"
+                              aria-label="Présent"
+                            >
+                              <v-icon>mdi-check</v-icon>
+                            </v-btn>
+                            <div class="text-caption mt-1">Présent</div>
+                          </v-col>
 
-                      <!-- Remettre à “À valider” -->
-                      <v-btn
-                        size="x-small"
-                        variant="text"
-                        @click="resetCell(st.id, s.id)"
-                        title="Changer"
-                        >↺</v-btn
-                      >
-                    </template>
+                          <v-col cols="4" class="text-center">
+                            <v-btn
+                              icon
+                              size="large"
+                              color="orange"
+                              class="rounded-circle"
+                              @click="openExcuseDialog(st.id, s.id)"
+                              aria-label="Excusé(e)"
+                            >
+                              <v-icon>mdi-file-check-outline</v-icon>
+                            </v-btn>
+                            <div class="text-caption mt-1">Excusé(e)</div>
+                          </v-col>
 
-                    <!-- ====== SINON : CHOIX DES 3 STATUTS (À VALIDER) ====== -->
-                    <template v-else>
-                      <v-row class="d-flex justify-center align-center mt-2" dense>
-                        <v-col cols="4" class="text-center">
-                          <v-btn
-                            icon
-                            size="large"
-                            color="green"
-                            class="rounded-circle"
-                            @click="onSetStatus(st.id, s.id, 'present')"
-                            aria-label="Présent"
-                          >
-                            <v-icon>mdi-check</v-icon>
-                          </v-btn>
-                          <div class="text-caption mt-1">Présent</div>
-                        </v-col>
-                        <v-col cols="4" class="text-center">
-                          <v-btn
-                            icon
-                            size="large"
-                            color="orange"
-                            class="rounded-circle"
-                            @click="openExcuseDialog(st.id, s.id)"
-                            aria-label="Excusé(e)"
-                          >
-                            <v-icon>mdi-file-check-outline</v-icon>
-                          </v-btn>
-                          <div class="text-caption mt-1">Excusé(e)</div>
-                        </v-col>
-                        <v-col cols="4" class="text-center">
-                          <v-btn
-                            icon
-                            size="large"
-                            color="red"
-                            class="rounded-circle"
-                            @click="onSetStatus(st.id, s.id, 'absent')"
-                            aria-label="Absent"
-                          >
-                            <v-icon>mdi-close</v-icon>
-                          </v-btn>
-                          <div class="text-caption mt-1">Absent</div>
-                        </v-col>
-                      </v-row>
+                          <v-col cols="4" class="text-center">
+                            <v-btn
+                              icon
+                              size="large"
+                              color="red"
+                              class="rounded-circle"
+                              @click="onSetStatus(st.id, s.id, 'absent')"
+                              aria-label="Absent"
+                            >
+                              <v-icon>mdi-close</v-icon>
+                            </v-btn>
+                            <div class="text-caption mt-1">Absent</div>
+                          </v-col>
+                        </v-row>
+                      </template>
                     </template>
                   </v-card>
                 </div>
@@ -214,16 +259,42 @@
           <thead>
             <tr>
               <th class="sticky-left name-col z-20 bg-surface top-sticky">Élève</th>
+
               <th v-for="s in sortedSessions" :key="s.id" class="text-center date-col top-sticky">
-                {{ formatDate(s.date) }}
-                <v-chip
-                  v-if="!isSessionFullyValidated(s.id)"
-                  size="x-small"
-                  class="ml-1"
-                  variant="tonal"
-                >
-                  À valider
-                </v-chip>
+                <div class="d-flex align-center justify-center ga-1">
+                  <span class="text-caption text-medium-emphasis">{{ formatDate(s.date) }}</span>
+
+                  <v-chip
+                    v-if="sessionStatus(s.id) !== 'scheduled'"
+                    size="x-small"
+                    :color="chipColor(sessionStatus(s.id))"
+                    variant="tonal"
+                    :prepend-icon="chipIcon(sessionStatus(s.id))"
+                  >
+                    {{ chipLabel(sessionStatus(s.id)) }}
+                  </v-chip>
+
+                  <v-btn
+                    v-if="sessionNote(s.id)"
+                    icon
+                    size="x-small"
+                    variant="text"
+                    @click="openCommentViewer(sessionNote(s.id)!)"
+                    :title="sessionNote(s.id)!"
+                  >
+                    <v-icon>mdi-note-text-outline</v-icon>
+                  </v-btn>
+
+                  <v-btn
+                    icon
+                    size="x-small"
+                    variant="text"
+                    @click="openSessionDialog(s)"
+                    :title="`Éditer le statut du ${formatDate(s.date)}`"
+                  >
+                    <v-icon>mdi-pencil</v-icon>
+                  </v-btn>
+                </div>
               </th>
             </tr>
           </thead>
@@ -240,9 +311,15 @@
               </td>
 
               <td v-for="s in sortedSessions" :key="`${s.id}-${st.id}`" class="text-center cell">
-                <!-- État choisi -->
-                <template v-if="hasStatus(st.id, s.id)">
-                  <!-- Icône commentaire si Excusé + commentaire -->
+                <!-- Si séance non pointable -->
+                <template v-if="!isSessionPointable(s.id)">
+                  <div class="text-caption text-medium-emphasis">
+                    — {{ chipLabel(sessionStatus(s.id)) }} —
+                  </div>
+                </template>
+
+                <!-- Si un statut est déjà choisi -->
+                <template v-else-if="hasStatus(st.id, s.id)">
                   <template v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)">
                     <v-tooltip v-if="!smAndDown" :text="getComment(st.id, s.id)" location="top">
                       <template #activator="{ props }">
@@ -273,7 +350,6 @@
                     </v-btn>
                   </template>
 
-                  <!-- Pilule du statut -->
                   <v-btn
                     size="small"
                     :color="colorOf(getStatus(st.id, s.id))"
@@ -291,8 +367,9 @@
                     class="ml-1"
                     @click="resetCell(st.id, s.id)"
                     title="Changer"
-                    >↺</v-btn
                   >
+                    ↺
+                  </v-btn>
                 </template>
 
                 <!-- Sinon : 3 boutons -->
@@ -322,95 +399,6 @@
                       </v-btn>
                       <div class="status-label">Excusé(e)</div>
                     </div>
-                    <div class="status-item">
-                      <v-btn
-                        class="action-btn"
-                        color="red"
-                        variant="flat"
-                        @click="onSetStatus(st.id, s.id, 'absent')"
-                        aria-label="Absent"
-                      >
-                        <v-icon>mdi-close</v-icon>
-                      </v-btn>
-                      <div class="status-label">Absent</div>
-                    </div>
-                  </div>
-                </template>
-
-                <!-- ====== SINON : CHOIX DES 3 STATUTS (À VALIDER) ====== -->
-                <template v-else>
-                  <v-row class="d-flex justify-center align-center mt-2" dense>
-                    <v-col cols="4" class="text-center">
-                      <v-btn
-                        icon
-                        size="large"
-                        color="green"
-                        class="rounded-circle"
-                        @click="onSetStatus(st.id, s.id, 'present')"
-                        aria-label="Présent"
-                      >
-                        <v-icon>mdi-check</v-icon>
-                      </v-btn>
-                      <div class="text-caption mt-1">Présent</div>
-                    </v-col>
-                    <v-col cols="4" class="text-center">
-                      <v-btn
-                        icon
-                        size="large"
-                        color="orange"
-                        class="rounded-circle"
-                        @click="openExcuseDialog(st.id, s.id)"
-                        aria-label="Excusé(e)"
-                      >
-                        <v-icon>mdi-file-check-outline</v-icon>
-                      </v-btn>
-                      <div class="text-caption mt-1">Excusé(e)</div>
-                    </v-col>
-                    <v-col cols="4" class="text-center">
-                      <v-btn
-                        icon
-                        size="large"
-                        color="red"
-                        class="rounded-circle"
-                        @click="onSetStatus(st.id, s.id, 'absent')"
-                        aria-label="Absent"
-                      >
-                        <v-icon>mdi-close</v-icon>
-                      </v-btn>
-                      <div class="text-caption mt-1">Absent</div>
-                    </v-col>
-                  </v-row>
-                </template>
-
-                <template v-else>
-                  <!-- Choix des statuts — Solution A compact (3 ronds + labels) -->
-                  <div class="status-row">
-                    <div class="status-item">
-                      <v-btn
-                        class="action-btn"
-                        color="green"
-                        variant="flat"
-                        @click="onSetStatus(st.id, s.id, 'present')"
-                        aria-label="Présent"
-                      >
-                        <v-icon>mdi-check</v-icon>
-                      </v-btn>
-                      <div class="status-label">Présent</div>
-                    </div>
-
-                    <div class="status-item">
-                      <v-btn
-                        class="action-btn"
-                        color="orange"
-                        variant="flat"
-                        @click="openExcuseDialog(st.id, s.id)"
-                        aria-label="Excusé(e)"
-                      >
-                        <v-icon>mdi-file-check-outline</v-icon>
-                      </v-btn>
-                      <div class="status-label">Excusé(e)</div>
-                    </div>
-
                     <div class="status-item">
                       <v-btn
                         class="action-btn"
@@ -464,8 +452,7 @@
     </v-card>
   </v-dialog>
 
-  <!--Dialog suppression d'un eleve -->
-
+  <!-- Dialog suppression d'un élève -->
   <v-dialog v-model="deleteDialog.show" max-width="460">
     <v-card>
       <v-card-title class="text-h6">Supprimer l'élève ?</v-card-title>
@@ -529,6 +516,56 @@
     </v-card>
   </v-dialog>
 
+  <!-- Dialog édition statut de séance (quick-win) -->
+  <v-dialog v-model="sessionDialog.show" max-width="520">
+    <v-card>
+      <v-card-title class="text-h6">Statut de la séance</v-card-title>
+      <v-card-text>
+        <div class="mb-2 text-caption text-medium-emphasis">
+          {{ sessionDialog.dateLabel }}
+        </div>
+
+        <v-select
+          v-model="sessionDialog.status"
+          :items="sessionStatusOptions"
+          item-title="label"
+          item-value="value"
+          label="Statut"
+          density="comfortable"
+          variant="outlined"
+        />
+
+        <v-textarea
+          v-model="sessionDialog.note"
+          class="mt-2"
+          label="Note (optionnelle)"
+          auto-grow
+          rows="2"
+          counter="300"
+          variant="outlined"
+        />
+
+        <v-checkbox
+          v-if="['cancelled', 'holiday', 'vacation'].includes(sessionDialog.status)"
+          v-model="sessionDialog.force"
+          class="mt-1"
+          label="Supprimer les pointages existants pour cette séance"
+          density="compact"
+          hide-details
+        />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn variant="text" @click="sessionDialog.show = false" :disabled="sessionDialog.saving">
+          Annuler
+        </v-btn>
+        <v-btn color="primary" :loading="sessionDialog.saving" @click="saveSessionStatus">
+          Enregistrer
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
+
   <!-- Snackbar -->
   <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
     {{ snackbar.text }}
@@ -541,7 +578,8 @@ import { useDisplay } from 'vuetify'
 import axios from 'axios'
 
 type Student = { id: number; firstname: string; lastname: string; phone?: string | null }
-type Session = { id: number; date: string } // yyyy-mm-dd
+type SessionStatus = 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra'
+type Session = { id: number; date: string; status?: SessionStatus | null; note?: string | null }
 type AttendanceRow = {
   student_id: number
   session_id: number
@@ -585,6 +623,7 @@ function openStudentInfo(st: Student) {
   selectedStudent.value = st
   studentDialog.value = true
 }
+
 const commentViewer = ref<{ show: boolean; text: string }>({ show: false, text: '' })
 function openCommentViewer(text: string) {
   commentViewer.value = { show: true, text: text ?? '' }
@@ -614,20 +653,19 @@ async function confirmExcuse() {
   if (!text) return
   const stId = excuseDialog.value.studentId!
   const seId = excuseDialog.value.sessionId!
-  await onSetStatus(stId, seId, 'excused', text) // avance par élève (mobile) dans onSetStatus
+  await onSetStatus(stId, seId, 'excused', text)
   closeExcuseDialog()
 }
 
+/* Suppression élève */
 const deleteDialog = ref<{ show: boolean; loading: boolean; student: Student | null }>({
   show: false,
   loading: false,
   student: null,
 })
-
 function askDeleteStudent(st: Student) {
   deleteDialog.value = { show: true, loading: false, student: st }
 }
-
 async function doDeleteStudent() {
   const st = deleteDialog.value.student
   if (!st) return
@@ -640,7 +678,6 @@ async function doDeleteStudent() {
     // Nettoyer ses cellules et sa slide
     delete attendanceMap[st.id]
     delete activeSlide.value[st.id]
-
     // Repositionner les slides si besoin
     restoreActiveSessionForAllStudents()
 
@@ -719,60 +756,158 @@ function iconOf(status: 'present' | 'absent' | 'excused' | null) {
         : 'mdi-help-circle-outline'
 }
 
-/* ─────────────── Validation & Tri ─────────────── */
+/* ─────────────── Statut de séance (quick-win) ─────────────── */
+const nonPointables = new Set<SessionStatus>(['cancelled', 'holiday', 'vacation'])
 
-/** Une session est “pleinement validée” si TOUS les élèves ont un statut non null */
-function isSessionFullyValidated(sessionId: number) {
-  if (!students.value.length) return false
-  return students.value.every((st) => !!getStatus(st.id, sessionId))
+function sessionById(id: number) {
+  return sessions.value.find((s) => s.id === id)
+}
+function sessionStatus(id: number): SessionStatus {
+  return (sessionById(id)?.status as SessionStatus) ?? 'scheduled'
+}
+function sessionNote(id: number): string | null {
+  return sessionById(id)?.note ?? null
+}
+function isSessionPointable(id: number) {
+  return !nonPointables.has(sessionStatus(id))
 }
 
-/** Sessions triées :
- * - Desktop : strictement chronologique (stable)
- * - Mobile : non validées d’abord (optionnel) puis chronologique
- */
+function chipLabel(s: SessionStatus) {
+  return s === 'extra'
+    ? 'Séance extra'
+    : s === 'cancelled'
+      ? 'Annulé'
+      : s === 'holiday'
+        ? 'Férié'
+        : s === 'vacation'
+          ? 'Vacances'
+          : ''
+}
+function chipIcon(s: SessionStatus) {
+  return s === 'extra'
+    ? 'mdi-plus-circle-outline'
+    : s === 'cancelled'
+      ? 'mdi-close-octagon-outline'
+      : s === 'holiday'
+        ? 'mdi-flag-variant-outline'
+        : 'mdi-airplane'
+}
+function chipColor(s: SessionStatus) {
+  return s === 'extra'
+    ? 'secondary'
+    : s === 'cancelled'
+      ? 'error'
+      : s === 'holiday'
+        ? 'grey'
+        : 'info'
+}
 
-// Calcule l'année scolaire de référence pour une date YYYY-MM-DD
+const sessionStatusOptions = [
+  { value: 'scheduled', label: 'Programmé (pointable)' },
+  { value: 'cancelled', label: 'Annulé (non pointable)' },
+  { value: 'holiday', label: 'Férié (non pointable)' },
+  { value: 'vacation', label: 'Vacances (non pointable)' },
+  { value: 'extra', label: 'Séance extra (pointable)' },
+] as { value: SessionStatus; label: string }[]
+
+const sessionDialog = ref<{
+  show: boolean
+  id: number | null
+  status: SessionStatus
+  note: string
+  force: boolean
+  saving: boolean
+  dateLabel: string
+}>({
+  show: false,
+  id: null,
+  status: 'scheduled',
+  note: '',
+  force: false,
+  saving: false,
+  dateLabel: '',
+})
+
+function openSessionDialog(s: Session) {
+  sessionDialog.value = {
+    show: true,
+    id: s.id,
+    status: (s.status as SessionStatus) ?? 'scheduled',
+    note: s.note ?? '',
+    force: false,
+    saving: false,
+    dateLabel: `Séance du ${formatDate(s.date)}`,
+  }
+}
+
+async function saveSessionStatus() {
+  const d = sessionDialog.value
+  if (!d.id) return
+  try {
+    d.saving = true
+    const params = d.force ? '?force=true' : ''
+    const body = { status: d.status, note: d.note?.trim() || null }
+    const { data } = await axios.patch(`${API}/sessions/${d.id}/status${params}`, body, {
+      headers: authHeaders(),
+    })
+
+    // MAJ locale de la session
+    const idx = sessions.value.findIndex((s) => s.id === d.id)
+    if (idx >= 0) {
+      sessions.value[idx] = {
+        ...sessions.value[idx],
+        status: (data?.status as SessionStatus) ?? d.status,
+        note: data?.note ?? body.note ?? null,
+      }
+    }
+
+    sessionDialog.value.show = false
+    snackbar.value = { show: true, text: 'Statut de séance mis à jour', color: 'success' }
+  } catch (e: any) {
+    const msg =
+      e?.response?.data?.message ||
+      (e?.response?.status === 409
+        ? 'Des pointages existent. Cochez "Supprimer les pointages…" pour forcer.'
+        : 'Erreur de mise à jour.')
+    snackbar.value = { show: true, text: msg, color: 'error' }
+  } finally {
+    d.saving = false
+  }
+}
+
+/* ─────────────── Validation & Tri ─────────────── */
 function schoolStartYear(dateStr: string) {
   const y = Number(dateStr.slice(0, 4))
   const m = Number(dateStr.slice(5, 7))
-  return m >= 9 ? y : y - 1 // Septembre (09) démarre une nouvelle année scolaire
+  return m >= 9 ? y : y - 1
 }
-
-// Vrai si la date est entre 01/09/<Y> et 14/07/<Y+1> (inclus)
 function inSchoolWindow(dateStr: string) {
   if (!dateStr) return false
   const y0 = schoolStartYear(dateStr)
   const lower = `${y0}-09-01`
   const upper = `${y0 + 1}-07-14`
-  return dateStr >= lower && dateStr <= upper // comparaison lexicographique OK en YYYY-MM-DD
+  return dateStr >= lower && dateStr <= upper
 }
 
 const sortedSessions = computed<Session[]>(() => {
   return sessions.value
-    .filter((s) => s && s.date && inSchoolWindow(s.date)) // ⬅️ on coupe août / fin juillet
+    .filter((s) => s && s.date && inSchoolWindow(s.date))
     .sort((a, b) => a.date.localeCompare(b.date))
 })
 
 /* ─────────────── Avance & Restauration — PAR ÉLÈVE (mobile) ─────────────── */
-
-/** Validé pour un élève donné ? (cellule) */
 function isValidated(studentId: number, sessionId: number) {
   return !!getStatus(studentId, sessionId)
 }
-
 const progressKeyForStudent = (studentId: number) =>
   `attendance_progress_class_${String(props.classId)}_student_${studentId}`
 
-/** 1ʳᵉ date non validée pour UN élève */
 function firstUnvalidatedForStudent(studentId: number): number {
   for (const s of sortedSessions.value) {
     if (!isValidated(studentId, s.id)) return s.id
   }
   return sortedSessions.value[0]?.id ?? 0
 }
-
-/** Prochaine date non validée à partir d'une session pour UN élève */
 function nextUnvalidatedFromForStudent(studentId: number, sessionId: number): number {
   if (!sortedSessions.value.length) return 0
   const startIdx = Math.max(
@@ -783,17 +918,12 @@ function nextUnvalidatedFromForStudent(studentId: number, sessionId: number): nu
     const s = sortedSessions.value[i]
     if (!isValidated(studentId, s.id)) return s.id
   }
-  // wrap sur la première non validée (de CET élève)
   return firstUnvalidatedForStudent(studentId)
 }
-
-/** Fixe la session active pour UN élève + mémorise */
 function setActiveSessionForStudent(studentId: number, sessionId: number) {
   activeSlide.value[studentId] = sessionId
   localStorage.setItem(progressKeyForStudent(studentId), String(sessionId))
 }
-
-/** Restaure la session active pour TOUS les élèves (individuellement) */
 function restoreActiveSessionForAllStudents() {
   if (!sortedSessions.value.length || !students.value.length) return
   for (const st of students.value) {
@@ -806,14 +936,10 @@ function restoreActiveSessionForAllStudents() {
 }
 
 /* ─────────────── Dédup sessions + init nouvel élève ─────────────── */
-
-// Déduplique les sessions (au cas où l'API renverrait des doublons)
 function dedupeSessions(list: { id: number; date: string }[]) {
   const seen = new Set<number>()
   return list.filter((s) => !seen.has(s.id) && seen.add(s.id))
 }
-
-// Quand un nouvel élève arrive dans la liste, on initialise ses cellules & sa slide
 watch(
   students,
   (newList, oldList) => {
@@ -841,14 +967,20 @@ async function fetchAll() {
     const stRes = await axios.get<Student[]>(`${API}/api/students/${classIdNum}`, { headers: auth })
     students.value = Array.isArray(stRes.data) ? stRes.data : []
 
-    // 2) sessions
-    const seRes = await axios.get<{ id: number; date: string }[]>(`${API}/sessions/${classIdNum}`, {
-      headers: auth,
-    })
+    // 2) sessions (id, date, status, note)
+    const seRes = await axios.get<
+      { id: number; date: string; status?: SessionStatus; note?: string | null }[]
+    >(`${API}/sessions/${classIdNum}`, { headers: auth })
+    const raw = Array.isArray(seRes.data) ? seRes.data : []
     sessions.value = dedupeSessions(
-      (Array.isArray(seRes.data) ? seRes.data : []).filter(
-        (s) => s && typeof s.id === 'number' && s.date,
-      ),
+      raw
+        .filter((s) => s && typeof s.id === 'number' && s.date)
+        .map((s) => ({
+          id: s.id,
+          date: s.date,
+          status: (s.status as SessionStatus) ?? 'scheduled',
+          note: s.note ?? null,
+        })),
     )
 
     // 3) présences
@@ -863,12 +995,12 @@ async function fetchAll() {
     for (const row of atRes.data || []) {
       ensureKey(row.student_id, row.session_id)
       attendanceMap[row.student_id][row.session_id] = {
-        status: row.status, // 'present' | 'absent' | 'excused'
+        status: row.status,
         comment: row.comment ?? null,
       }
     }
 
-    // pre-create empty cells (status = null = non validé)
+    // pre-create empty cells
     for (const st of students.value) {
       for (const s of sessions.value) ensureKey(st.id, s.id)
     }
@@ -891,19 +1023,27 @@ async function onSetStatus(
   comment: string | null = null,
 ) {
   try {
-    // on crée la cellule si besoin, mais hors rendu
+    // garde-fou front si séance non pointable
+    if (!isSessionPointable(sessionId)) {
+      snackbar.value = {
+        show: true,
+        text: 'Séance non pointable (annulée/férié/vacances).',
+        color: 'error',
+      }
+      return
+    }
+
     ensureKey(studentId, sessionId)
 
-    // Si excusé sans motif -> ouvrir le dialog
     if (status === 'excused' && (!comment || !comment.trim())) {
       return openExcuseDialog(studentId, sessionId)
     }
 
-    // snapshot pour rollback
+    // snapshot
     const prevStatus = attendanceMap[studentId][sessionId].status
     const prevComment = attendanceMap[studentId][sessionId].comment
 
-    // ✅ MAJ optimiste **champ par champ** (réactivité fiable)
+    // MAJ optimiste champ par champ
     if (status === 'present') {
       attendanceMap[studentId][sessionId].status = 'present'
       attendanceMap[studentId][sessionId].comment = null
@@ -911,14 +1051,10 @@ async function onSetStatus(
       attendanceMap[studentId][sessionId].status = 'absent'
       attendanceMap[studentId][sessionId].comment = null
     } else {
-      // 'excused'
       attendanceMap[studentId][sessionId].status = 'excused'
       attendanceMap[studentId][sessionId].comment = (comment ?? '').trim()
     }
 
-    console.log('after set', studentId, sessionId, attendanceMap[studentId][sessionId])
-
-    // API
     await axios.post(
       `${API}/attendance`,
       {
@@ -932,7 +1068,6 @@ async function onSetStatus(
 
     snackbar.value = { show: true, text: '✅ Enregistré', color: 'success' }
 
-    // auto-avance par élève (mobile uniquement)
     if (smAndDown.value) {
       const next = nextUnvalidatedFromForStudent(studentId, sessionId)
       setActiveSessionForStudent(studentId, next)
@@ -940,8 +1075,8 @@ async function onSetStatus(
   } catch (e) {
     console.error('Erreur sauvegarde présence :', e)
     // rollback
-    attendanceMap[studentId][sessionId].status = prevStatus ?? null
-    attendanceMap[studentId][sessionId].comment = prevComment ?? null
+    attendanceMap[studentId][sessionId].status = null
+    attendanceMap[studentId][sessionId].comment = null
     snackbar.value = { show: true, text: '❌ Erreur enregistrement', color: 'error' }
   }
 }
@@ -954,11 +1089,7 @@ defineExpose({ reload })
 
 /* ───────── lifecycle ───────── */
 onMounted(fetchAll)
-
-// Si la classe change → reload
 watch(() => props.classId, fetchAll)
-
-// Si les listes changent (après fetch/ajout) → restaurer par élève
 watch([students, sessions], () => {
   if (students.value.length && sessions.value.length) restoreActiveSessionForAllStudents()
 })
@@ -966,8 +1097,8 @@ watch([students, sessions], () => {
 
 <style scoped>
 /* =========================
-    MOBILE – carrousel centré
-    ========================= */
+   MOBILE – carrousel centré
+   ========================= */
 .attendance-slides {
   width: 100%;
   padding-inline: 8px;
@@ -989,7 +1120,6 @@ watch([students, sessions], () => {
 }
 .attendance-slides :deep(.v-slide-group__content) {
   touch-action: pan-x !important;
-  -ms-touch-action: pan-x;
   user-select: none;
   cursor: grab;
 }
@@ -1002,8 +1132,8 @@ watch([students, sessions], () => {
 }
 
 /* =========================
-    BOUTONS / ÉTIQUETTES
-    ========================= */
+   BOUTONS / ÉTIQUETTES
+   ========================= */
 .status-row {
   display: flex;
   justify-content: center;
@@ -1046,8 +1176,8 @@ watch([students, sessions], () => {
 }
 
 /* =========================
-    TABLE DESKTOP
-    ========================= */
+   TABLE DESKTOP
+   ========================= */
 .table-scroll {
   overflow: auto;
 }

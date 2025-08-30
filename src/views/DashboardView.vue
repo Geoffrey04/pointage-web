@@ -42,34 +42,69 @@
       </v-card>
     </v-dialog>
 
-    <!-- Sélecteur du jour de cours (classe) -->
-    <div class="d-flex align-center mb-3 ga-2">
-      <v-select
-        v-model="classWeekday"
-        :items="[
-          { title: 'Lundi', value: 1 },
-          { title: 'Mardi', value: 2 },
-          { title: 'Mercredi', value: 3 },
-          { title: 'Jeudi', value: 4 },
-          { title: 'Vendredi', value: 5 },
-          { title: 'Samedi', value: 6 },
-          { title: 'Dimanche', value: 7 },
-        ]"
-        label="Jour de cours de la classe"
-        density="comfortable"
-        variant="outlined"
-        style="max-width: 260px"
-      />
-      <v-btn
-        color="primary"
-        class="ml-2"
-        @click="saveWeekday"
-        :disabled="!classWeekday"
-        :loading="savingWeekday"
-      >
-        Enregistrer
-      </v-btn>
-    </div>
+    <!-- Barre de contrôle du jour de cours (modern + responsive) -->
+    <v-sheet class="control-bar rounded-xl px-3 py-2 mb-4">
+      <div class="d-flex flex-column flex-sm-row align-center justify-space-between ga-3">
+        <!-- Picker jour -->
+        <div class="d-flex align-center ga-2 w-100">
+          <v-icon size="20">mdi-calendar-week</v-icon>
+          <div class="text-body-2 text-medium-emphasis mr-1">Jour de cours</div>
+
+          <!-- Desktop / tablette : chips complets -->
+          <v-chip-group v-model="classWeekday" class="d-none d-sm-flex flex-wrap" mandatory>
+            <v-chip
+              v-for="d in weekdayChips"
+              :key="d.value"
+              :value="d.value"
+              filter
+              variant="tonal"
+              class="my-1 mr-1"
+            >
+              {{ d.title }}
+            </v-chip>
+          </v-chip-group>
+
+          <!-- Mobile : chips courts, scroll horizontal -->
+          <v-chip-group v-model="classWeekday" class="d-flex d-sm-none chip-scroll" mandatory>
+            <v-chip
+              v-for="d in weekdayChips"
+              :key="d.value"
+              :value="d.value"
+              filter
+              variant="tonal"
+              class="mr-2"
+            >
+              {{ d.short }}
+            </v-chip>
+          </v-chip-group>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex ga-2 w-100 w-sm-auto">
+          <v-btn
+            color="primary"
+            class="flex-1 flex-sm-none"
+            :loading="savingWeekday"
+            :disabled="!classWeekday"
+            @click="saveWeekday"
+            prepend-icon="mdi-content-save"
+          >
+            Enregistrer
+          </v-btn>
+
+          <v-chip
+            v-if="lastSavedAt"
+            size="small"
+            variant="tonal"
+            color="success"
+            prepend-icon="mdi-check"
+            class="align-self-center"
+          >
+            Sauvegardé
+          </v-chip>
+        </div>
+      </div>
+    </v-sheet>
 
     <!-- Tableau de présence -->
     <v-card class="rounded-xl elevation-2">
@@ -95,7 +130,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
 import AttendanceMatrix from '@/components/AttendanceMatrix.vue'
@@ -109,10 +144,6 @@ const authHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-// dialogs
-const dialogAddStudent = ref(false)
-const dialogStudentList = ref(false)
-
 // ID de la classe depuis l’URL
 const currentClassId = computed(() => Number(route.params.id))
 
@@ -120,8 +151,31 @@ const currentClassId = computed(() => Number(route.params.id))
 const classWeekday = ref(null) // 1..7 (lun..dim)
 const savingWeekday = ref(false)
 
+// état “dernier enregistrement”
+const lastSavedAt = ref(null)
+
+// items pour les chips (1..7)
+const weekdayChips = [
+  { title: 'Lundi', short: 'Lun', value: 1 },
+  { title: 'Mardi', short: 'Mar', value: 2 },
+  { title: 'Mercredi', short: 'Mer', value: 3 },
+  { title: 'Jeudi', short: 'Jeu', value: 4 },
+  { title: 'Vendredi', short: 'Ven', value: 5 },
+  { title: 'Samedi', short: 'Sam', value: 6 },
+  { title: 'Dimanche', short: 'Dim', value: 7 },
+]
+
+// reset du badge “Sauvegardé” quand on change de sélection
+watch(classWeekday, () => {
+  lastSavedAt.value = null
+})
+
 // Snackbar
 const snackbar = ref({ show: false, text: '', color: 'success' })
+
+// dialogs
+const dialogAddStudent = ref(false)
+const dialogStudentList = ref(false)
 
 // Ref vers la matrice pour déclencher reload()
 const attendanceRef = ref(null)
@@ -132,7 +186,6 @@ function refreshMatrix() {
 // Charger le weekday actuel de la classe
 async function fetchClassWeekday() {
   try {
-    // On lit toute la liste puis on filtre la classe courante
     const { data } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
     const cls = (Array.isArray(data) ? data : []).find((c) => Number(c.id) === currentClassId.value)
     classWeekday.value = cls ? Number(cls.weekday ?? 0) || null : null
@@ -142,16 +195,18 @@ async function fetchClassWeekday() {
   }
 }
 
-// Sauvegarde + régénération des sessions + refresh tableau
+// Sauvegarde + régénération des sessions + refresh tableau + badge
 async function saveWeekday() {
   try {
     savingWeekday.value = true
+    const startYear = 2025 // ⬅️ force la génération 2025–2026
     await axios.patch(
       `${API}/api/classes/${currentClassId.value}/weekday`,
-      { weekday: classWeekday.value },
+      { weekday: classWeekday.value, startYear }, // ⬅️ ici
       { headers: authHeaders() },
     )
     refreshMatrix()
+    lastSavedAt.value = Date.now()
     snackbar.value = { show: true, text: 'Jour de classe mis à jour', color: 'success' }
   } catch (e) {
     console.error('saveWeekday', e)
@@ -164,8 +219,30 @@ async function saveWeekday() {
 // évènement du formulaire d’ajout
 function onStudentAdded() {
   refreshMatrix()
-  // tu peux aussi rouvrir/fermer des dialogs ici si besoin
+  dialogAddStudent.value = false
 }
 
 onMounted(fetchClassWeekday)
 </script>
+
+<style scoped>
+.control-bar {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: var(--v-shadow-2);
+}
+
+/* scroll horizontal propre en mobile */
+.chip-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 2px;
+}
+.chip-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.chip-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 999px;
+}
+</style>

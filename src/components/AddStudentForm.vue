@@ -48,18 +48,6 @@
       </template>
     </v-select>
 
-    <v-select
-      v-model="weekday"
-      :items="weekdayItems"
-      item-title="label"
-      item-value="value"
-      label="Jour du cours"
-      :rules="[rules.required]"
-      variant="outlined"
-      density="comfortable"
-      class="mb-4"
-    />
-
     <v-btn type="submit" color="primary" :disabled="!formValid" block> Ajouter l’élève </v-btn>
   </v-form>
 </template>
@@ -84,19 +72,6 @@ const class_id = ref(null) // on stocke l'ID mais on affiche le NOM dans le sele
 
 // Sélecteur de classe (affiche le NOM)
 const classes = ref([]) // [{ id, name }]
-
-// Jour du cours (1..7 / Lundi..Dimanche)
-const weekday = ref(null)
-const weekdayItems = [
-  { value: 1, label: 'Lundi' },
-  { value: 2, label: 'Mardi' },
-  { value: 3, label: 'Mercredi' },
-  { value: 4, label: 'Jeudi' },
-  { value: 5, label: 'Vendredi' },
-  { value: 6, label: 'Samedi' },
-  { value: 7, label: 'Dimanche' },
-]
-
 const formRef = ref(null)
 const formValid = ref(false)
 
@@ -156,28 +131,25 @@ async function submitForm() {
       phone: phone.value.trim(),
       class_id: cid,
     })
-    emit('student-added') // 🔔 informer le parent
 
-    // 2) générer les sessions pour la classe (jour choisi)
-    try {
-      await axios.post(
-        `${API}/classes/${cid}/generate-sessions`,
-        { weekday: Number(weekday.value) },
-        { headers: authHeaders() },
-      )
-      emit('sessions-changed') // 🔔 informer le parent
-    } catch (e) {
-      console.warn('Génération sessions: ', e?.response?.data || e.message)
-      // on rafraîchit quand même la matrice au cas où
-      emit('sessions-changed')
-    }
+    // 2) informer le parent pour rafraîchir la matrice
+    emit('student-added')
+    emit('sessions-changed') // si ton parent l’écoute pour faire reload()
 
-    // 3) reset (on garde la classe si verrouillée)
+    // 3) (optionnel) générer les sessions SI tu veux auto-créer au 1er élève
+    //    → ne PAS passer de weekday ici, l’API lira classes.weekday
+    // try {
+    //   await axios.post(`${API}/classes/${cid}/generate-sessions`, {}, { headers: authHeaders() })
+    //   emit('sessions-changed')
+    // } catch (e) {
+    //   console.warn('Génération sessions:', e?.response?.data || e.message)
+    // }
+
+    // 4) reset du formulaire
     firstname.value = ''
     lastname.value = ''
     phone.value = ''
     if (!lockClass.value) class_id.value = null
-    weekday.value = null
   } catch (e) {
     console.error('Erreur ajout élève :', e)
   }
