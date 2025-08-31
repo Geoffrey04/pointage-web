@@ -16,6 +16,7 @@
               <div class="text-caption text-medium-emphasis">{{ kpi.label }}</div>
             </div>
           </v-card-text>
+          <v-card></v-card>
         </v-card>
       </v-col>
     </v-row>
@@ -26,11 +27,21 @@
         <v-card class="rounded-xl elevation-2">
           <v-card-title class="d-flex align-center justify-space-between">
             <span class="text-subtitle-1">Classes</span>
-            <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreate"
-              >Nouvelle classe</v-btn
-            >
+            <div class="d-flex ga-2">
+              <v-btn
+                size="small"
+                variant="tonal"
+                color="primary"
+                @click="openCreate"
+                prepend-icon="mdi-account-multiple-outline"
+              >
+                Nouvelle classe
+              </v-btn>
+            </div>
           </v-card-title>
+
           <v-divider />
+
           <v-card-text>
             <v-skeleton-loader v-if="loading.classes" type="table" class="rounded-lg" />
             <v-data-table
@@ -50,6 +61,16 @@
               </template>
 
               <template #item.actions="{ item }">
+                <!-- ⬇️ Nouveau bouton “gérer les profs” par ligne -->
+                <v-btn
+                  icon
+                  variant="text"
+                  :title="`Gérer les profs de ${item.name}`"
+                  @click="openManagersDialog(item)"
+                >
+                  <v-icon>mdi-account-multiple-outline</v-icon>
+                </v-btn>
+
                 <v-btn icon variant="text" @click="openEdit(item)" :title="`Éditer ${item.name}`">
                   <v-icon>mdi-pencil</v-icon>
                 </v-btn>
@@ -129,6 +150,79 @@
       </v-card>
     </v-dialog>
 
+    <!-- Dialog gestion des profs -->
+    <v-dialog v-model="managersDialog.show" max-width="640">
+      <v-card>
+        <!-- En-tête compacte avec sélecteur de classe à droite -->
+        <v-toolbar flat density="comfortable">
+          <v-toolbar-title class="text-subtitle-1 font-weight-600"> Gestionnaires </v-toolbar-title>
+          <v-spacer />
+          <v-select
+            v-model="managersDialog.classId"
+            :items="managersDialog.classes"
+            item-title="name"
+            item-value="id"
+            label="Classe"
+            density="comfortable"
+            variant="outlined"
+            hide-details
+            style="max-width: 260px"
+          />
+        </v-toolbar>
+
+        <v-divider />
+
+        <v-card-text>
+          <v-skeleton-loader v-if="managersDialog.loading" type="list-item@3" />
+
+          <template v-else>
+            <!-- Titre classe courant -->
+            <div class="text-h6 mb-2">{{ managersDialog.className }}</div>
+
+            <!-- Profs actuels -->
+            <div class="text-subtitle-2 mb-2">Profs actuels</div>
+            <div class="chips-wrap mb-4">
+              <v-chip
+                v-for="m in managersDialog.managers"
+                :key="m.id"
+                :color="m.is_owner ? 'primary' : undefined"
+                variant="tonal"
+                :prepend-icon="m.is_owner ? 'mdi-crown' : 'mdi-account'"
+                :closable="!m.is_owner"
+                @click:close="removeCoProf(m.id)"
+              >
+                {{ m.username }} <span v-if="m.is_owner" class="ml-1">(owner)</span>
+              </v-chip>
+            </div>
+
+            <v-divider class="my-4" />
+
+            <!-- Ajout co-prof -->
+            <div class="text-subtitle-2 mb-2">Ajouter un co-prof</div>
+            <div class="add-grid">
+              <v-select
+                v-model="managersDialog.selectedProfId"
+                :items="managersDialog.allProfs"
+                item-title="username"
+                item-value="id"
+                label="Choisir un prof"
+                density="comfortable"
+                variant="outlined"
+                :loading="managersDialog.loading"
+              />
+              <v-btn color="primary" :disabled="!managersDialog.selectedProfId" @click="addCoProf">
+                Ajouter
+              </v-btn>
+            </div>
+          </template>
+        </v-card-text>
+
+        <v-card-actions class="justify-end">
+          <v-btn variant="text" @click="managersDialog.show = false">Fermer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
       {{ snackbar.text }}
     </v-snackbar>
@@ -136,7 +230,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 
@@ -186,6 +280,114 @@ const rules = { required: (v) => !!(v && String(v).trim()) || 'Requis' }
 
 /* Confirm delete */
 const confirm = ref({ open: false, item: null })
+
+// état du dialog (JS pur)
+const managersDialog = ref({
+  show: false,
+  classId: null,
+  className: '',
+  loading: false,
+  classes: [],
+  managers: [], // [{ id, username, role, is_owner }]
+  allProfs: [], // [{ id, username }]
+  selectedProfId: null,
+})
+
+// ouvre le dialog et charge les données
+async function openManagersDialog(cls) {
+  try {
+    managersDialog.value.show = true
+    managersDialog.value.loading = true
+
+    // 1) Si on a reçu la classe → on fixe l'ID + libellé
+    if (cls && cls.id) {
+      managersDialog.value.classId = cls.id
+      managersDialog.value.className = cls.name || ''
+    }
+
+    // 2) Si on n'a pas encore de classe (ou ouverture globale),
+    // on charge la liste pour permettre la sélection
+    if (!managersDialog.value.classId) {
+      const resClasses = await axios.get(`${API}/api/admin/classes`, { headers: authHeaders() })
+      managersDialog.value.classes = Array.isArray(resClasses.data) ? resClasses.data : []
+      if (managersDialog.value.classes.length) {
+        managersDialog.value.classId = managersDialog.value.classes[0].id
+        managersDialog.value.className = managersDialog.value.classes[0].name
+      }
+    }
+
+    // 3) Charger les profs disponibles (pour le <v-select>)
+    const resProfs = await axios.get(`${API}/api/admin/profs`, { headers: authHeaders() })
+    managersDialog.value.allProfs = Array.isArray(resProfs.data) ? resProfs.data : []
+
+    // 4) Charger les managers de la classe courante
+    if (managersDialog.value.classId) {
+      const resMgrs = await axios.get(`${API}/api/admin/class-users`, {
+        headers: authHeaders(),
+        params: { class_id: managersDialog.value.classId },
+      })
+      managersDialog.value.managers = Array.isArray(resMgrs.data) ? resMgrs.data : []
+    }
+  } catch (e) {
+    console.error('openManagersDialog error:', e)
+  } finally {
+    managersDialog.value.loading = false
+  }
+}
+
+watch(
+  () => managersDialog.value.classId,
+  async (cid) => {
+    if (!cid) return
+    try {
+      managersDialog.value.loading = true
+      const res = await axios.get(`${API}/api/admin/class-users`, {
+        headers: authHeaders(),
+        params: { class_id: cid },
+      })
+      managersDialog.value.managers = Array.isArray(res.data) ? res.data : []
+
+      // synchronise le libellé si tu as la liste des classes chargée
+      const found = (managersDialog.value.classes || []).find((c) => c.id === cid)
+      managersDialog.value.className = found ? found.name : managersDialog.value.className
+    } catch (e) {
+      console.error('reload managers on class change', e)
+    } finally {
+      managersDialog.value.loading = false
+    }
+  },
+)
+
+async function addCoProf() {
+  const cid = managersDialog.value.classId
+  const uid = managersDialog.value.selectedProfId
+  if (!cid || !uid) return
+  await axios.post(
+    `${API}/api/admin/class-users`,
+    { class_id: cid, user_id: uid },
+    { headers: authHeaders() },
+  )
+  await openManagersDialog({ id: cid, name: managersDialog.value.className })
+}
+
+async function removeCoProf(userId) {
+  const cid = managersDialog.value.classId
+  if (!cid || !userId) return
+
+  try {
+    managersDialog.value.loading = true
+    await axios.delete(`${API}/api/admin/class-users`, {
+      headers: authHeaders(),
+      data: { class_id: cid, user_id: userId },
+    })
+    // Recharge le contenu du dialog (managers + liste des profs)
+    await openManagersDialog({ id: cid, name: managersDialog.value.className })
+  } catch (e) {
+    console.error('removeCoProf error:', e)
+  } finally {
+    managersDialog.value.loading = false
+  }
+}
 
 /* Utils */
 function ownerName(id) {
@@ -305,6 +507,24 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.add-grid {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .add-grid {
+    grid-template-columns: 1fr; /* le bouton passe sous le select */
+  }
+}
+
 .kpi-card {
   min-height: 86px;
 }

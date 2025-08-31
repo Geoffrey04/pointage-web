@@ -137,6 +137,41 @@ admin.get('/classes', async (_req, res) => {
   }
 })
 
+// Admin: liste des gestionnaires (owner + co-profs) d'une classe
+admin.get('/classes/:id/managers', async (req, res) => {
+  try {
+    const classId = Number(req.params.id)
+    if (!Number.isInteger(classId)) {
+      return res.status(400).json({ message: 'classId invalide' })
+    }
+
+    const { rows } = await pool.query(
+      `
+      -- Owner
+      SELECT u.id, u.username, u.role, TRUE AS is_owner
+      FROM users u
+      JOIN classes c ON c.user_id = u.id
+      WHERE c.id = $1
+
+      UNION
+
+      -- Co-profs (class_users)
+      SELECT u.id, u.username, u.role, FALSE AS is_owner
+      FROM users u
+      JOIN class_users cu ON cu.user_id = u.id
+      WHERE cu.class_id = $1
+
+      ORDER BY is_owner DESC, username ASC
+      `,
+      [classId],
+    )
+    res.json(rows)
+  } catch (e) {
+    console.error('admin GET /classes/:id/managers', e)
+    res.status(500).json({ message: 'Erreur chargement gestionnaires' })
+  }
+})
+
 async function upsertOwnerLink(classId, ownerId) {
   if (!ownerId) return
   await pool.query(
@@ -218,6 +253,42 @@ admin.post('/class-users', async (req, res) => {
   }
 })
 
+// Liste des gestionnaires (owner + co-profs) d'une classe
+admin.get('/class-users', async (req, res) => {
+  try {
+    const class_id = Number(req.query.class_id)
+    if (!Number.isInteger(class_id)) {
+      return res.status(400).json({ message: 'class_id invalide' })
+    }
+
+    const sql = `
+      (
+        -- co-profs liés via class_users
+        SELECT u.id, u.username, u.role, FALSE AS is_owner
+        FROM class_users cu
+        JOIN users u ON u.id = cu.user_id
+        WHERE cu.class_id = $1
+      )
+      UNION
+      (
+        -- owner déclaré sur la classe
+        SELECT u.id, u.username, u.role, TRUE AS is_owner
+        FROM classes c
+        JOIN users   u ON u.id = c.user_id
+        WHERE c.id = $1 AND c.user_id IS NOT NULL
+      )
+      ORDER BY is_owner DESC, username ASC
+    `
+
+    const { rows } = await pool.query(sql, [class_id])
+    // Si la classe n'existe pas, on renvoie juste []
+    return res.json(Array.isArray(rows) ? rows : [])
+  } catch (e) {
+    console.error('admin GET /class-users', e)
+    return res.status(500).json({ message: 'Erreur chargement gestionnaires' })
+  }
+})
+
 admin.delete('/class-users', async (req, res) => {
   try {
     const { class_id, user_id } = req.body
@@ -292,6 +363,70 @@ function enumerateDatesByWeekday(startUtc, endUtc, isoDow) {
   return out
 }
 
+// ─────────────────────────────────────────────────────────────
+// ACCÈS PROF à une CLASSE/SESSION (owner OU co-prof via class_users)
+// ─────────────────────────────────────────────────────────────
+
+// Vérifie si le user (prof) a accès à la classe (owner ou présent dans class_users)
+async function ensureClassAccess(req, res, next) {
+  try {
+    if (req.user?.role === 'admin') return next() // admin = passe-droit
+
+    const classId = Number(
+      req.params.classId ?? req.params.id ?? req.body.class_id ?? req.query.class_id,
+    )
+
+    if (!Number.isInteger(classId)) {
+      return res.status(400).json({ message: 'classId invalide' })
+    }
+
+    const { rows } = await pool.query(
+      `
+      SELECT 1
+      FROM classes c
+      LEFT JOIN class_users cu
+        ON cu.class_id = c.id AND cu.user_id = $2
+      WHERE c.id = $1
+        AND (c.user_id = $2 OR cu.user_id IS NOT NULL)
+      LIMIT 1
+    `,
+      [classId, req.user.id],
+    )
+
+    if (!rows.length) {
+      return res.status(403).json({ message: 'Accès refusé à cette classe' })
+    }
+
+    next()
+  } catch (e) {
+    console.error('ensureClassAccess', e)
+    res.status(500).json({ message: 'Erreur serveur (access classe)' })
+  }
+}
+
+// Récupère class_id depuis une session, puis réutilise ensureClassAccess
+async function ensureSessionAccess(req, res, next) {
+  try {
+    if (req.user?.role === 'admin') return next()
+
+    const sessionId = Number(req.params.id ?? req.body.session_id ?? req.query.session_id)
+    if (!Number.isInteger(sessionId)) {
+      return res.status(400).json({ message: 'sessionId invalide' })
+    }
+
+    const { rows } = await pool.query('SELECT class_id FROM sessions WHERE id = $1', [sessionId])
+    if (!rows.length) return res.status(404).json({ message: 'Séance introuvable' })
+
+    // Injecte le classId pour reuse
+    req.params.classId = rows[0].class_id
+    req.params.id = rows[0].class_id // selon les routes, on standardise
+    return ensureClassAccess(req, res, next)
+  } catch (e) {
+    console.error('ensureSessionAccess', e)
+    res.status(500).json({ message: 'Erreur serveur (access session)' })
+  }
+}
+
 // Assure que toutes les dates 01/09 -> 14/07 existent pour (classId, isoWeekday)
 async function ensureSessionsForWeekday(classId, isoWeekday, startYear = schoolStartYear()) {
   const start = utcNoon(startYear, 8, 1) // 01/09
@@ -354,6 +489,7 @@ app.patch(
   ['/api/classes/:id/weekday', '/classes/:id/weekday'],
   authenticateToken,
   authorizeRoles('prof', 'admin'),
+  ensureClassAccess,
   patchClassWeekdayHandler,
 )
 
@@ -362,6 +498,7 @@ app.post(
   '/classes/:id/generate-sessions',
   authenticateToken,
   authorizeRoles('prof', 'admin'),
+  ensureClassAccess, // ⬅️ ajoute ceci
   async (req, res) => {
     try {
       const classId = Number(req.params.id)
@@ -583,54 +720,67 @@ app.use('/api/students', studentsRouter)
 /* ---------------- SESSIONS ---------------- */
 const sessionsRouter = express.Router()
 
-sessionsRouter.get('/:classId', async (req, res) => {
-  try {
-    const { classId } = req.params
-    const { rows } = await pool.query(
-      "SELECT id, to_char(date,'YYYY-MM-DD') AS date, status, note \
-   FROM sessions WHERE class_id=$1 ORDER BY date",
-      [classId],
-    )
-    res.json(rows)
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Erreur serveur' })
-  }
-})
-
-sessionsRouter.post('/', async (req, res) => {
-  try {
-    const { class_id, dates } = req.body
-    if (!class_id || !Array.isArray(dates) || dates.length === 0) {
-      return res.status(400).json({ error: 'Classe ou dates manquantes' })
+// GET toutes les dates d’une classe (protégé)
+sessionsRouter.get(
+  '/:classId',
+  authenticateToken,
+  authorizeRoles('prof', 'admin'),
+  ensureClassAccess,
+  async (req, res) => {
+    try {
+      const { classId } = req.params
+      const { rows } = await pool.query(
+        "SELECT id, to_char(date,'YYYY-MM-DD') AS date, status, note \
+         FROM sessions WHERE class_id=$1 ORDER BY date",
+        [classId],
+      )
+      res.json(rows)
+    } catch (err) {
+      console.error(err)
+      res.status(500).json({ error: 'Erreur serveur' })
     }
+  },
+)
 
-    const existingResult = await pool.query(
-      "SELECT to_char(date, 'YYYY-MM-DD') AS date FROM sessions WHERE class_id = $1",
-      [class_id],
-    )
-    const existingDates = existingResult.rows.map((row) => row.date)
+sessionsRouter.post(
+  '/',
+  authenticateToken,
+  authorizeRoles('prof', 'admin'),
+  ensureClassAccess, // ← lit class_id depuis req.body et vérifie owner/co-prof
+  async (req, res) => {
+    try {
+      const { class_id, dates } = req.body
+      if (!class_id || !Array.isArray(dates) || dates.length === 0) {
+        return res.status(400).json({ error: 'Classe ou dates manquantes' })
+      }
 
-    const newDates = dates.filter((d) => !existingDates.includes(d))
+      const existingResult = await pool.query(
+        "SELECT to_char(date, 'YYYY-MM-DD') AS date FROM sessions WHERE class_id = $1",
+        [class_id],
+      )
+      const existingDates = existingResult.rows.map((row) => row.date)
 
-    if (newDates.length > 0) {
-      const insertQuery = `
+      const newDates = dates.filter((d) => !existingDates.includes(d))
+
+      if (newDates.length > 0) {
+        const insertQuery = `
   INSERT INTO sessions (class_id, date)
   SELECT $1, unnest($2::date[])
   ON CONFLICT (class_id, date) DO NOTHING
   RETURNING id, to_char(date, 'YYYY-MM-DD') AS date
 `
-      const insertValues = [class_id, newDates]
-      await pool.query(insertQuery, insertValues)
-    }
+        const insertValues = [class_id, newDates]
+        await pool.query(insertQuery, insertValues)
+      }
 
-    const allDates = [...existingDates, ...newDates].sort()
-    res.json(allDates)
-  } catch (err) {
-    console.error(err)
-    res.status(500).json({ error: 'Erreur serveur' })
-  }
-})
+      const allDates = [...existingDates, ...newDates].sort()
+      res.json(allDates)
+    } catch (err) {
+      console.error(err)
+      res.status(500).json({ error: 'Erreur serveur' })
+    }
+  },
+)
 
 app.use('/sessions', sessionsRouter)
 
@@ -657,71 +807,78 @@ app.get(
   },
 )
 
-app.post('/attendance', authenticateToken, authorizeRoles('prof', 'admin'), async (req, res) => {
-  try {
-    let { student_id, session_id, status, comment } = req.body
-    student_id = Number(student_id)
-    session_id = Number(session_id)
-    if (!student_id || !session_id || !status) {
-      return res.status(400).json({ message: 'Paramètres manquants' })
-    }
-
-    const allowed = new Set(['present', 'absent', 'excused'])
-    if (!allowed.has(status)) {
-      return res.status(400).json({ message: 'Statut invalide' })
-    }
-
-    if (status === 'excused') {
-      if (!comment || !String(comment).trim()) {
-        return res.status(400).json({ message: 'Commentaire requis pour "excusé(e)"' })
+app.post(
+  '/attendance',
+  authenticateToken,
+  authorizeRoles('prof', 'admin'),
+  ensureSessionAccess,
+  async (req, res) => {
+    try {
+      let { student_id, session_id, status, comment } = req.body
+      student_id = Number(student_id)
+      session_id = Number(session_id)
+      if (!student_id || !session_id || !status) {
+        return res.status(400).json({ message: 'Paramètres manquants' })
       }
-      comment = String(comment).trim()
-    } else {
-      comment = null
-    }
 
-    const fk = await pool.query(
-      `SELECT
+      const allowed = new Set(['present', 'absent', 'excused'])
+      if (!allowed.has(status)) {
+        return res.status(400).json({ message: 'Statut invalide' })
+      }
+
+      if (status === 'excused') {
+        if (!comment || !String(comment).trim()) {
+          return res.status(400).json({ message: 'Commentaire requis pour "excusé(e)"' })
+        }
+        comment = String(comment).trim()
+      } else {
+        comment = null
+      }
+
+      const fk = await pool.query(
+        `SELECT
          (SELECT 1 FROM students WHERE id = $1) AS has_student,
          (SELECT 1 FROM sessions  WHERE id = $2) AS has_session`,
-      [student_id, session_id],
-    )
-    if (!fk.rows[0].has_student) return res.status(400).json({ message: 'Élève introuvable' })
-    if (!fk.rows[0].has_session) return res.status(400).json({ message: 'Session introuvable' })
+        [student_id, session_id],
+      )
+      if (!fk.rows[0].has_student) return res.status(400).json({ message: 'Élève introuvable' })
+      if (!fk.rows[0].has_session) return res.status(400).json({ message: 'Session introuvable' })
 
-    const { rows: sRows } = await pool.query('SELECT status FROM sessions WHERE id=$1', [
-      session_id,
-    ])
-    if (!sRows.length) return res.status(404).json({ message: 'Séance introuvable' })
-    const nonPointables = new Set(['cancelled', 'holiday', 'vacation'])
-    if (nonPointables.has(sRows[0].status)) {
-      return res.status(409).json({
-        message: "Pointage interdit : cette séance n'est pas tenable (annulée/férié/vacances).",
-      })
-    }
+      const { rows: sRows } = await pool.query('SELECT status FROM sessions WHERE id=$1', [
+        session_id,
+      ])
+      if (!sRows.length) return res.status(404).json({ message: 'Séance introuvable' })
+      const nonPointables = new Set(['cancelled', 'holiday', 'vacation'])
+      if (nonPointables.has(sRows[0].status)) {
+        return res.status(409).json({
+          message: "Pointage interdit : cette séance n'est pas tenable (annulée/férié/vacances).",
+        })
+      }
 
-    await pool.query(
-      `INSERT INTO attendances (student_id, session_id, status, comment)
+      await pool.query(
+        `INSERT INTO attendances (student_id, session_id, status, comment)
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (student_id, session_id)
        DO UPDATE SET status = EXCLUDED.status, comment = EXCLUDED.comment`,
-      [student_id, session_id, status, comment],
-    )
+        [student_id, session_id, status, comment],
+      )
 
-    res.json({ message: 'Présence enregistrée' })
-  } catch (err) {
-    if (err.code === '23514') {
-      return res.status(400).json({ message: 'Commentaire requis pour "excusé(e)"' })
+      res.json({ message: 'Présence enregistrée' })
+    } catch (err) {
+      if (err.code === '23514') {
+        return res.status(400).json({ message: 'Commentaire requis pour "excusé(e)"' })
+      }
+      console.error('POST /attendance error:', err)
+      res.status(500).json({ message: 'Erreur serveur' })
     }
-    console.error('POST /attendance error:', err)
-    res.status(500).json({ message: 'Erreur serveur' })
-  }
-})
+  },
+)
 
 app.patch(
   '/sessions/:id/status',
   authenticateToken,
   authorizeRoles('prof', 'admin'),
+  ensureSessionAccess,
   async (req, res) => {
     try {
       const id = Number(req.params.id)
@@ -773,6 +930,7 @@ app.post(
   '/classes/:classId/sessions/extra',
   authenticateToken,
   authorizeRoles('prof', 'admin'),
+  ensureClassAccess,
   async (req, res) => {
     try {
       const classId = Number(req.params.classId)
