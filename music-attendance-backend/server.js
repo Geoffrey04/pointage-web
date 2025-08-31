@@ -292,47 +292,55 @@ function enumerateDatesByWeekday(startUtc, endUtc, isoDow) {
   return out
 }
 
+// Assure que toutes les dates 01/09 -> 14/07 existent pour (classId, isoWeekday)
+async function ensureSessionsForWeekday(classId, isoWeekday, startYear = schoolStartYear()) {
+  const start = utcNoon(startYear, 8, 1) // 01/09
+  const end = utcNoon(startYear + 1, 6, 14) // 14/07
+  const dates = enumerateDatesByWeekday(start, end, isoWeekday) // ["YYYY-MM-DD", ...]
+
+  await pool.query(
+    `
+      INSERT INTO sessions (class_id, date)
+      SELECT $1, unnest($2::date[])
+      ON CONFLICT (class_id, date) DO NOTHING
+    `,
+    [classId, dates],
+  )
+}
+
 /* ---------------- PATCH weekday ---------------- */
 const patchClassWeekdayHandler = async (req, res) => {
   try {
     const classId = Number(req.params.id)
-    const iso = normalizeToIsoWeekday(req.body.weekday)
+    const iso = normalizeToIsoWeekday(req.body.weekday) // 1..7
     if (!iso) return res.status(400).json({ message: 'weekday invalide' })
 
+    // Mémoriser le jour par défaut de la classe
     await pool.query('UPDATE classes SET weekday=$1 WHERE id=$2', [iso, classId])
 
+    // Fenêtre scolaire (01/09 -> 14/07)
     const sy = Number.isInteger(req.body.startYear) ? req.body.startYear : schoolStartYear()
     const start = utcNoon(sy, 8, 1)
     const end = utcNoon(sy + 1, 6, 14)
 
-    await pool.query(
-      `
-      WITH cls AS (
-        SELECT id, CASE WHEN weekday=7 THEN 0 ELSE weekday END AS js_dow
-        FROM classes WHERE id=$1
-      )
-      DELETE FROM sessions s
-      USING cls
-      WHERE s.class_id = cls.id
-        AND EXTRACT(DOW FROM s.date) <> cls.js_dow
-        AND NOT EXISTS (SELECT 1 FROM attendances a WHERE a.session_id = s.id);
-    `,
-      [classId],
-    )
+    // ❌ NE PLUS SUPPRIMER les autres jours :
+    // (on retire complètement le bloc WITH ... DELETE ... EXTRACT(DOW) <> ...)
 
+    // ✅ On complète simplement les séances pour ce nouveau jour (sans doublons)
     const dates = enumerateDatesByWeekday(start, end, iso)
     await pool.query(
       `
       INSERT INTO sessions (class_id, date)
       SELECT $1, unnest($2::date[])
       ON CONFLICT (class_id, date) DO NOTHING
-    `,
+      `,
       [classId, dates],
     )
 
+    // Retourne toutes les séances de la classe
     const { rows } = await pool.query(
       "SELECT id, to_char(date,'YYYY-MM-DD') AS date, status, note \
-   FROM sessions WHERE class_id=$1 ORDER BY date",
+       FROM sessions WHERE class_id=$1 ORDER BY date",
       [classId],
     )
     res.json(rows)
@@ -341,6 +349,7 @@ const patchClassWeekdayHandler = async (req, res) => {
     res.status(500).json({ message: 'Erreur mise à jour du jour de classe' })
   }
 }
+
 app.patch(
   ['/api/classes/:id/weekday', '/classes/:id/weekday'],
   authenticateToken,
@@ -458,21 +467,57 @@ classesRouter.get('/', authenticateToken, async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur' })
   }
 })
+
+// GET /api/classes/:id  -> { id, name, weekday }
+classesRouter.get('/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { rows } = await pool.query(
+      'SELECT id, nom AS name, weekday FROM classes WHERE id = $1',
+      [id],
+    )
+    if (!rows.length) return res.status(404).json({ message: 'Classe introuvable' })
+    res.json(rows[0])
+  } catch (e) {
+    console.error('GET /api/classes/:id', e)
+    res.status(500).json({ message: 'Erreur serveur' })
+  }
+})
+
 app.use('/api/classes', classesRouter)
 
 /* ---------------- STUDENTS ---------------- */
 const studentsRouter = express.Router()
 
+// Ajouter un élève
 studentsRouter.post('/', async (req, res) => {
   try {
-    const { firstname, lastname, class_id, phone } = req.body
-    const result = await pool.query(
-      'INSERT INTO students (firstname, lastname, class_id, phone) VALUES ($1, $2, $3, $4) RETURNING *',
-      [firstname, lastname, class_id, phone],
-    )
-    res.json(result.rows[0])
+    const { firstname, lastname, class_id, phone, weekday } = req.body
+
+    // weekday élève optionnel
+    let iso = normalizeToIsoWeekday(weekday) // => 1..7 ou null
+
+    const insertSql = `
+      INSERT INTO students (firstname, lastname, class_id, phone, weekday)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `
+    const { rows } = await pool.query(insertSql, [
+      firstname,
+      lastname,
+      class_id,
+      phone ?? null,
+      iso ?? null,
+    ])
+
+    // Si un weekday élève a été fourni, on garantit les séances correspondantes pour la classe
+    if (iso) {
+      await ensureSessionsForWeekday(Number(class_id), iso)
+    }
+
+    res.json(rows[0])
   } catch (err) {
-    console.error(err.message)
+    console.error('POST /api/students', err)
     res.status(500).send('Erreur serveur')
   }
 })
@@ -503,6 +548,33 @@ app.delete('/api/students/:id', async (req, res) => {
   } catch (err) {
     console.error('delete student', err)
     return res.status(500).json({ error: 'server_error' })
+  }
+})
+
+// Mettre à jour le weekday d'un élève
+studentsRouter.patch('/:id', async (req, res) => {
+  try {
+    const id = Number(req.params.id)
+    let iso = normalizeToIsoWeekday(req.body.weekday) // string|number -> 1..7|null
+
+    const { rows } = await pool.query(
+      `UPDATE students
+         SET weekday = $1
+       WHERE id = $2
+       RETURNING id, firstname, lastname, class_id, phone, weekday`,
+      [iso ?? null, id],
+    )
+    if (!rows.length) return res.status(404).json({ message: 'Élève introuvable' })
+
+    // Si on a positionné un jour, s'assurer que les séances existent pour la classe de l'élève
+    if (iso) {
+      await ensureSessionsForWeekday(Number(rows[0].class_id), iso)
+    }
+
+    res.json(rows[0])
+  } catch (e) {
+    console.error('PATCH /api/students/:id', e)
+    res.status(500).json({ message: 'Erreur serveur' })
   }
 })
 

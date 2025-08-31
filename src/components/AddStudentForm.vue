@@ -43,10 +43,24 @@
       :disabled="lockClass"
     >
       <template #selection="{ item }">
-        <!-- Affiche le nom choisi dans le champ -->
         <span>{{ item?.raw?.name ?? '—' }}</span>
       </template>
     </v-select>
+
+    <!-- Jour de cours (élève) — optionnel -->
+    <v-select
+      v-model="studentWeekday"
+      :items="weekdayItems"
+      item-title="title"
+      item-value="value"
+      label="Jour de cours (élève — optionnel)"
+      hint="Laisse vide pour utiliser le jour par défaut de la classe"
+      persistent-hint
+      clearable
+      variant="outlined"
+      density="comfortable"
+      class="mb-4"
+    />
 
     <v-btn type="submit" color="primary" :disabled="!formValid" block> Ajouter l’élève </v-btn>
   </v-form>
@@ -58,7 +72,7 @@ import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { useStudentsStore } from '@/stores/Students'
 
-const emit = defineEmits(['student-added', 'sessions-changed'])
+const emit = defineEmits(['student-added'])
 
 const route = useRoute()
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
@@ -70,8 +84,22 @@ const lastname = ref('')
 const phone = ref('')
 const class_id = ref(null) // on stocke l'ID mais on affiche le NOM dans le select
 
+// Jour de cours (élève) — nullable : 1..7 (lun..dim) ou null = "par défaut"
+const studentWeekday = ref(null)
+const weekdayItems = [
+  { title: 'Par défaut (jour de la classe)', value: null },
+  { title: 'Lundi', value: 1 },
+  { title: 'Mardi', value: 2 },
+  { title: 'Mercredi', value: 3 },
+  { title: 'Jeudi', value: 4 },
+  { title: 'Vendredi', value: 5 },
+  { title: 'Samedi', value: 6 },
+  { title: 'Dimanche', value: 7 },
+]
+
 // Sélecteur de classe (affiche le NOM)
 const classes = ref([]) // [{ id, name }]
+
 const formRef = ref(null)
 const formValid = ref(false)
 
@@ -104,7 +132,6 @@ function authHeaders() {
 onMounted(async () => {
   try {
     const { data } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
-    // data attendu: [{ id, name }]
     classes.value = Array.isArray(data) ? data.map((c) => ({ id: Number(c.id), name: c.name })) : []
 
     // Pré-sélectionner la classe depuis l’URL si présente et existante
@@ -124,31 +151,22 @@ async function submitForm() {
   const cid = Number(class_id.value)
 
   try {
-    // 1) créer l’élève
+    // Créer l’élève (→ on passe aussi weekday nullable)
     await studentStore.addStudent({
       firstname: firstname.value.trim(),
       lastname: lastname.value.trim(),
       phone: phone.value.trim(),
       class_id: cid,
+      weekday: studentWeekday.value ?? null,
     })
 
-    // 2) informer le parent pour rafraîchir la matrice
     emit('student-added')
-    emit('sessions-changed') // si ton parent l’écoute pour faire reload()
 
-    // 3) (optionnel) générer les sessions SI tu veux auto-créer au 1er élève
-    //    → ne PAS passer de weekday ici, l’API lira classes.weekday
-    // try {
-    //   await axios.post(`${API}/classes/${cid}/generate-sessions`, {}, { headers: authHeaders() })
-    //   emit('sessions-changed')
-    // } catch (e) {
-    //   console.warn('Génération sessions:', e?.response?.data || e.message)
-    // }
-
-    // 4) reset du formulaire
+    // Reset (on garde la classe si verrouillée)
     firstname.value = ''
     lastname.value = ''
     phone.value = ''
+    studentWeekday.value = null
     if (!lockClass.value) class_id.value = null
   } catch (e) {
     console.error('Erreur ajout élève :', e)

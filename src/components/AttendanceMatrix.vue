@@ -199,6 +199,9 @@
                       </template>
 
                       <!-- Sinon : choix des 3 statuts -->
+                      <template v-else-if="!isPointableForStudent(st.id, s.id)">
+                        <div class="text-disabled text-caption mt-2">— hors jour —</div>
+                      </template>
                       <template v-else>
                         <v-row class="d-flex justify-center align-center mt-2" dense>
                           <v-col cols="4" class="text-center">
@@ -373,6 +376,10 @@
                 </template>
 
                 <!-- Sinon : 3 boutons -->
+                <!-- Hors jour/non pointable -->
+                <template v-else-if="!isPointableForStudent(st.id, s.id)">
+                  <span class="text-disabled">—</span>
+                </template>
                 <template v-else>
                   <div class="status-row">
                     <div class="status-item">
@@ -577,12 +584,18 @@ import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useDisplay } from 'vuetify'
 import axios from 'axios'
 
-type Student = { id: number; firstname: string; lastname: string; phone?: string | null }
+type Student = {
+  id: number
+  firstname: string
+  lastname: string
+  phone?: string | null
+  weekday?: number | null // ⬅️ nouveau
+}
 type SessionStatus = 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra'
 type Session = {
   id: number
   date: string // "YYYY-MM-DD"
-  status?: 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra' | null
+  status?: 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra' | 'String' | null
   note?: string | null
 }
 type AttendanceRow = {
@@ -592,6 +605,7 @@ type AttendanceRow = {
   comment?: string | null
 }
 
+const classWeekday = ref<number | null>(null) // fallback classe
 const props = defineProps<{ classId: number | string }>()
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const { smAndDown } = useDisplay()
@@ -732,6 +746,18 @@ function hasStatus(studentId: number, sessionId: number) {
   return s === 'present' || s === 'absent' || s === 'excused'
 }
 
+// 0..6 (dim..sam) à partir d'un ISO (1..7, lun..dim)
+const jsDowFromIso = (iso?: number | null) => (iso ? iso % 7 : null)
+
+// ISO(1..7) du "YYYY-MM-DD"
+function isoFromYmd(ymd: string | undefined | null) {
+  if (!ymd) return null
+  // Midi UTC pour éviter tout décalage
+  const d = new Date(ymd + 'T12:00:00Z')
+  const js = d.getUTCDay() // 0..6, dim=0
+  return js === 0 ? 7 : js // 1..7
+}
+
 /* Couleurs / labels / icônes */
 function colorOf(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
@@ -769,19 +795,40 @@ function sessionById(sessionId: number): Session | undefined {
   return sessions.value.find((s) => s.id === sessionId)
 }
 
+// Statut de séance (fallback 'scheduled')
 function sessionStatus(
   sessionId: number,
 ): 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra' {
-  return (sessionById(sessionId)?.status ?? 'scheduled') as
-    | 'scheduled'
-    | 'cancelled'
-    | 'holiday'
-    | 'vacation'
-    | 'extra'
+  const s = sessions.value.find((x) => x.id === sessionId)
+  return (s?.status as any) ?? 'scheduled'
 }
 
-function sessionNote(sessionId: number): string | null {
-  return sessionById(sessionId)?.note ?? null
+// Jour attendu pour un élève (ISO 1..7), sinon null
+function expectedIsoForStudent(stId: number): number | null {
+  const st = students.value.find((x) => x.id === stId)
+  if (!st) return null
+  return st.weekday ?? classWeekday.value ?? null
+}
+
+// Cette séance correspond au jour attendu de cet élève ?
+function isExpectedForStudent(stId: number, seId: number): boolean {
+  const se = sessions.value.find((x) => x.id === seId)
+  if (!se) return false
+  const iso = isoFromYmd(se.date)
+  const expected = expectedIsoForStudent(stId)
+  if (!expected || !iso) return true // pas de restriction si aucun jour paramétré
+  return iso === expected
+}
+
+// Séance pointable (jour attendu et pas annulée/férié/vacances)
+function isPointableForStudent(stId: number, seId: number): boolean {
+  const nonPointables = new Set(['cancelled', 'holiday', 'vacation'])
+  if (!isExpectedForStudent(stId, seId)) return false
+  return !nonPointables.has(sessionStatus(seId))
+}
+
+function sessionNote(sessionId: number) {
+  return sessions.value.find((x) => x.id === sessionId)?.note ?? null
 }
 
 function isSessionPointable(sessionId: number): boolean {
@@ -918,15 +965,23 @@ function isValidated(studentId: number, sessionId: number) {
   return !!getStatus(studentId, sessionId)
 }
 
+function isSessionFullyValidated(sessionId: number) {
+  const concerned = students.value.filter((st) => isPointableForStudent(st.id, sessionId))
+  if (!concerned.length) return true // personne concerné → considéré validé
+  return concerned.every((st) => !!getStatus(st.id, sessionId))
+}
+
 const progressKeyForStudent = (studentId: number) =>
   `attendance_progress_class_${String(props.classId)}_student_${studentId}`
 
 function firstUnvalidatedForStudent(studentId: number): number {
   for (const s of sortedSessions.value) {
+    if (!isPointableForStudent(studentId, s.id)) continue
     if (!isValidated(studentId, s.id)) return s.id
   }
-  return sortedSessions.value[0]?.id ?? 0
+  return sortedSessions.value.find((s) => isPointableForStudent(studentId, s.id))?.id ?? 0
 }
+
 function nextUnvalidatedFromForStudent(studentId: number, sessionId: number): number {
   if (!sortedSessions.value.length) return 0
   const startIdx = Math.max(
@@ -935,10 +990,12 @@ function nextUnvalidatedFromForStudent(studentId: number, sessionId: number): nu
   )
   for (let i = startIdx + 1; i < sortedSessions.value.length; i++) {
     const s = sortedSessions.value[i]
+    if (!isPointableForStudent(studentId, s.id)) continue
     if (!isValidated(studentId, s.id)) return s.id
   }
   return firstUnvalidatedForStudent(studentId)
 }
+
 function setActiveSessionForStudent(studentId: number, sessionId: number) {
   activeSlide.value[studentId] = sessionId
   localStorage.setItem(progressKeyForStudent(studentId), String(sessionId))
@@ -981,6 +1038,14 @@ async function fetchAll() {
   try {
     const auth = authHeaders()
     const classIdNum = Number(props.classId)
+
+    // 0) weekday de la classe (fallback)
+    try {
+      const clRes = await axios.get(`${API}/api/classes/${classIdNum}`, { headers: auth })
+      classWeekday.value = Number(clRes.data?.weekday ?? 0) || null
+    } catch {
+      classWeekday.value = null
+    }
 
     // 1) élèves
     const stRes = await axios.get<Student[]>(`${API}/api/students/${classIdNum}`, { headers: auth })
