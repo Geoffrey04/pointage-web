@@ -1,9 +1,11 @@
 <script setup>
-import { ref, computed, watchEffect } from 'vue'
+import { ref, computed, watchEffect, onMounted, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
-import bg from '@/assets/logo-mobile.png' // ou '@/assets/logo-master.png' si tu préfères
+import bg from '@/assets/logo-mobile.png'
+
+const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 const drawer = ref(false)
 const userStore = useUserStore()
@@ -12,8 +14,8 @@ const route = useRoute()
 
 userStore.initialize()
 
-//const isAuthed = computed(() => userStore.isLoggedIn)
 const isAdmin = computed(() => userStore.user?.role === 'admin')
+const roleLabel = computed(() => (isAdmin.value ? 'Administrateur' : 'Professeur'))
 
 // Afficher le fond sur ces sections uniquement
 const showBg = computed(() => {
@@ -24,39 +26,50 @@ const showBg = computed(() => {
 
 const logout = () => {
   userStore.logout()
-  router.replace('/login') // évite back sur page privée
+  router.replace('/login')
 }
 
 function go(path) {
   drawer.value = false
   if (!path) return
-  router.push(path).catch(() => {}) // ignore NavigationDuplicated
+  router.push(path).catch(() => {})
 }
 
-// Menu dynamique
-const menuItems = computed(() => {
-  const homeRoute = userStore.isLoggedIn
-    ? userStore.user?.role === 'admin'
-      ? '/admin'
-      : '/classes'
-    : '/login'
+// ---- Compteur de classes ----
+const classCount = ref(null)
 
-  const items = [{ title: 'Accueil', route: homeRoute, icon: 'mdi-home' }]
+const authHeaders = () => {
+  const token = userStore.token
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
 
-  if (userStore.isLoggedIn && userStore.user?.role === 'prof') {
-    items.push({ title: 'Mes Classes', route: '/classes', icon: 'mdi-account-music' })
+async function fetchCounts() {
+  classCount.value = null
+  try {
+    if (isAdmin.value) {
+      // Admin : compteur global des classes
+      const { data } = await axios.get(`${API}/api/admin/stats`, { headers: authHeaders() })
+      classCount.value = Number(data?.classes ?? 0)
+    } else if (userStore.isLoggedIn) {
+      // Prof : nombre de classes accessibles
+      const { data: classes } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
+      classCount.value = Array.isArray(classes) ? classes.length : 0
+    }
+  } catch (e) {
+    console.error('fetchCounts', e)
   }
-  if (userStore.isLoggedIn && userStore.user?.role === 'admin') {
-    items.push({ title: 'Admin', route: '/admin', icon: 'mdi-shield-account' })
-  }
-  return items
-})
+}
 
+// Auth header par défaut
 watchEffect(() => {
   axios.defaults.headers.common['Authorization'] = userStore.token
     ? `Bearer ${userStore.token}`
     : ''
 })
+
+// Charger les compteurs au login / changement de rôle
+onMounted(fetchCounts)
+watch(() => userStore.user?.role, fetchCounts)
 </script>
 
 <template>
@@ -67,30 +80,52 @@ watchEffect(() => {
       <v-toolbar-title>École de Musique</v-toolbar-title>
       <v-spacer />
       <div v-if="userStore.isLoggedIn" class="d-flex align-center">
-        <span class="mr-2">{{ userStore.user?.username || 'Invité' }}</span>
+        <!-- Icône utilisateur (à la place du nom) -->
+        <v-btn icon><v-icon>mdi-account-circle</v-icon></v-btn>
         <v-btn icon @click="logout"><v-icon>mdi-logout</v-icon></v-btn>
       </div>
     </v-app-bar>
 
-    <!-- Menu latéral (unique) -->
+    <!-- Menu latéral -->
     <v-navigation-drawer app v-model="drawer" temporary :width="300">
       <v-list nav density="comfortable">
-        <v-list-item v-for="item in menuItems" :key="item.title" @click="go(item.route)">
-          <template #prepend
-            ><v-icon>{{ item.icon }}</v-icon></template
-          >
-          <v-list-item-title>{{ item.title }}</v-list-item-title>
+        <!-- En-tête utilisateur dans le drawer -->
+        <v-list-item :title="userStore.user?.username" :subtitle="roleLabel">
+          <template #prepend>
+            <v-avatar size="36" color="primary" class="text-white">
+              <v-icon>mdi-account-circle</v-icon>
+            </v-avatar>
+          </template>
         </v-list-item>
 
         <v-divider class="my-2" />
-        <v-list-subheader v-if="isAdmin">Admin</v-list-subheader>
-        <v-list-item
-          v-if="isAdmin"
-          :to="{ name: 'admin-attendance-rates' }"
-          prepend-icon="mdi-chart-bar"
-          title="Taux de présence par classe"
-          @click="drawer = false"
-        />
+
+        <!-- PROF : Mes classes (plus de “Mes élèves”) -->
+        <template v-if="userStore.isLoggedIn && !isAdmin">
+          <v-list-item @click="go('/classes')" prepend-icon="mdi-account-music">
+            <v-list-item-title>Mes classes</v-list-item-title>
+            <template #append>
+              <v-chip size="small" variant="tonal">{{ classCount ?? '—' }}</v-chip>
+            </template>
+          </v-list-item>
+        </template>
+
+        <!-- ADMIN : Admin + Taux de présence -->
+        <template v-else-if="userStore.isLoggedIn && isAdmin">
+          <v-list-item @click="go('/admin')" prepend-icon="mdi-shield-account">
+            <v-list-item-title>Admin</v-list-item-title>
+            <template #append>
+              <v-chip size="small" variant="tonal">{{ classCount ?? '—' }}</v-chip>
+            </template>
+          </v-list-item>
+
+          <v-list-item
+            :to="{ name: 'admin-attendance-rates' }"
+            prepend-icon="mdi-chart-bar"
+            title="Taux de présence"
+            @click="drawer = false"
+          />
+        </template>
       </v-list>
     </v-navigation-drawer>
 
@@ -105,21 +140,17 @@ watchEffect(() => {
 <style scoped>
 .app-main {
   position: relative;
-  min-height: 100svh; /* mieux que 100vh sur mobile */
-  isolation: isolate; /* garantit le z-index du fond */
+  min-height: 100svh;
+  isolation: isolate;
 }
-
-/* Image de fond en filigrane */
 .app-bg {
   position: absolute;
   inset: 0;
   z-index: 0;
-  opacity: 0.1; /* intensité du watermark */
+  opacity: 0.1;
   object-position: center 40%;
-  pointer-events: none; /* clics passent à travers */
+  pointer-events: none;
 }
-
-/* Ajustements responsive */
 @media (max-width: 600px) {
   .app-bg {
     opacity: 0.12;
