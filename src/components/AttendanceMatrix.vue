@@ -73,7 +73,7 @@
               mandatory
             >
               <v-slide-group-item
-                v-for="s in sortedSessions"
+                v-for="s in mobileSessionsFor(st)"
                 :key="s.id"
                 :value="s.id"
                 class="slide-item"
@@ -200,7 +200,9 @@
 
                       <!-- Sinon : choix des 3 statuts -->
                       <template v-else-if="!isPointableForStudent(st.id, s.id)">
-                        <div class="text-disabled text-caption mt-2">— hors jour —</div>
+                        <div v-if="false" class="text-disabled text-caption mt-2">
+                          — hors jour —
+                        </div>
                       </template>
                       <template v-else>
                         <v-row class="d-flex justify-center align-center mt-2" dense>
@@ -758,6 +760,27 @@ function isoFromYmd(ymd: string | undefined | null) {
   return js === 0 ? 7 : js // 1..7
 }
 
+/** ISO DOW (1..7) depuis 'YYYY-MM-DD' en UTC */
+function isoDowFromYmd(ymd: string): number {
+  const d = new Date(ymd + 'T12:00:00Z')
+  const js = d.getUTCDay() // 0..6 (0=dimanche)
+  return js === 0 ? 7 : js
+}
+
+/** Jour personnel de l'élève si défini, sinon null */
+function studentIsoWeekday(st: Student): number | null {
+  // si ton backend envoie déjà st.weekday => on l’utilise, sinon c’est “libre”
+  const w = Number((st as any).weekday ?? 0)
+  return w >= 1 && w <= 7 ? w : null
+}
+
+/** Sessions visibles pour un élève en MOBILE (on cache “hors jour”) */
+function mobileSessionsFor(st: Student): Session[] {
+  const w = studentIsoWeekday(st)
+  if (!w) return sortedSessions.value
+  return sortedSessions.value.filter((s) => isoDowFromYmd(s.date) === w)
+}
+
 /* Couleurs / labels / icônes */
 function colorOf(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
@@ -974,25 +997,32 @@ function isSessionFullyValidated(sessionId: number) {
 const progressKeyForStudent = (studentId: number) =>
   `attendance_progress_class_${String(props.classId)}_student_${studentId}`
 
+/** 1ʳᵉ date non validée pour UN élève (mobile) */
 function firstUnvalidatedForStudent(studentId: number): number {
-  for (const s of sortedSessions.value) {
-    if (!isPointableForStudent(studentId, s.id)) continue
+  const st = students.value.find((x) => x.id === studentId)
+  if (!st) return 0
+  const list = mobileSessionsFor(st)
+  for (const s of list) {
     if (!isValidated(studentId, s.id)) return s.id
   }
-  return sortedSessions.value.find((s) => isPointableForStudent(studentId, s.id))?.id ?? 0
+  return list[0]?.id ?? 0
 }
 
+/** Prochaine non validée à partir d'une session pour UN élève (mobile) */
 function nextUnvalidatedFromForStudent(studentId: number, sessionId: number): number {
-  if (!sortedSessions.value.length) return 0
+  const st = students.value.find((x) => x.id === studentId)
+  if (!st) return 0
+  const list = mobileSessionsFor(st)
+  if (!list.length) return 0
+
   const startIdx = Math.max(
     0,
-    sortedSessions.value.findIndex((s) => s.id === sessionId),
+    list.findIndex((s) => s.id === sessionId),
   )
-  for (let i = startIdx + 1; i < sortedSessions.value.length; i++) {
-    const s = sortedSessions.value[i]
-    if (!isPointableForStudent(studentId, s.id)) continue
-    if (!isValidated(studentId, s.id)) return s.id
+  for (let i = startIdx + 1; i < list.length; i++) {
+    if (!isValidated(studentId, list[i].id)) return list[i].id
   }
+  // wrap
   return firstUnvalidatedForStudent(studentId)
 }
 
@@ -1000,13 +1030,16 @@ function setActiveSessionForStudent(studentId: number, sessionId: number) {
   activeSlide.value[studentId] = sessionId
   localStorage.setItem(progressKeyForStudent(studentId), String(sessionId))
 }
+/** Restaure la session active pour TOUS les élèves (mobile) */
 function restoreActiveSessionForAllStudents() {
-  if (!sortedSessions.value.length || !students.value.length) return
+  if (!students.value.length) return
   for (const st of students.value) {
+    const list = mobileSessionsFor(st)
+    if (!list.length) continue // aucun cours visible pour cet élève
     const computedId = firstUnvalidatedForStudent(st.id)
     const saved = Number(localStorage.getItem(progressKeyForStudent(st.id)))
-    const savedExists = sortedSessions.value.some((s) => s.id === saved)
-    const target = computedId || (savedExists ? saved : sortedSessions.value[0].id)
+    const savedExists = list.some((s) => s.id === saved)
+    const target = computedId || (savedExists ? saved : list[0].id)
     setActiveSessionForStudent(st.id, target)
   }
 }

@@ -7,6 +7,10 @@
       </v-btn>
 
       <v-btn color="info" class="ma-2" @click="dialogStudentList = true"> Liste des élèves </v-btn>
+
+      <v-btn color="secondary" class="ma-2" prepend-icon="mdi-tune" @click="openClassParams">
+        Paramètres classe
+      </v-btn>
     </v-row>
 
     <!-- Pop-up Ajouter un élève -->
@@ -42,62 +46,78 @@
       </v-card>
     </v-dialog>
 
-    <!-- Barre de contrôle du jour de cours (modern + responsive) -->
-    <v-sheet class="control-bar rounded-xl px-3 py-2 mb-4">
-      <div class="control-row">
-        <!-- Zone jours -->
-        <div class="control-days">
-          <v-icon size="20" class="mr-1">mdi-calendar-week</v-icon>
-          <!-- Libellé compact en mobile -->
-          <div class="label d-none d-sm-inline text-medium-emphasis">Jour de cours</div>
-          <div class="label d-sm-none text-medium-emphasis">Jour</div>
-
-          <!-- Slide group = scroll horizontal + flèches -->
-          <v-slide-group v-model="classWeekday" class="days-scroll" mandatory show-arrows="hover">
-            <v-slide-group-item
-              v-for="d in weekdayChips"
-              :key="d.value"
-              :value="d.value"
-              v-slot="{ isSelected, toggle }"
-            >
-              <v-chip
-                :color="isSelected ? 'primary' : undefined"
-                variant="tonal"
-                class="mx-1 my-1"
-                @click="toggle"
-              >
-                {{ smAndDown ? d.short : d.title }}
-              </v-chip>
-            </v-slide-group-item>
-          </v-slide-group>
-        </div>
-
-        <!-- Actions -->
-        <div class="control-actions">
-          <v-btn
-            color="primary"
-            :loading="savingWeekday"
-            :disabled="!classWeekday"
-            @click="saveWeekday"
-            prepend-icon="mdi-content-save"
-            class="save-btn"
-          >
-            Enregistrer
-          </v-btn>
-
+    <!-- Dialog Paramètres de la classe -->
+    <v-dialog v-model="dialogClassParams" max-width="560">
+      <v-card>
+        <v-card-title class="text-h6 d-flex align-center ga-2">
+          <v-icon>mdi-tune</v-icon>
+          Paramètres de la classe
+          <v-spacer />
           <v-chip
             v-if="lastSavedAt"
             size="small"
             variant="tonal"
             color="success"
             prepend-icon="mdi-check"
-            class="ml-2 d-none d-sm-inline"
           >
             Sauvegardé
           </v-chip>
-        </div>
-      </div>
-    </v-sheet>
+        </v-card-title>
+
+        <v-card-text>
+          <div class="text-body-2 text-medium-emphasis mb-2">Jour de cours (par défaut)</div>
+
+          <!-- Desktop / tablette : chips complets -->
+          <v-chip-group v-model="classWeekday" class="d-none d-sm-flex flex-wrap" mandatory>
+            <v-chip
+              v-for="d in weekdayChips"
+              :key="d.value"
+              :value="d.value"
+              filter
+              variant="tonal"
+              class="my-1 mr-1"
+            >
+              {{ d.title }}
+            </v-chip>
+          </v-chip-group>
+
+          <!-- Mobile : chips courts, scroll horizontal -->
+          <div class="d-flex d-sm-none chip-scroll mt-1">
+            <v-chip-group v-model="classWeekday" mandatory>
+              <v-chip
+                v-for="d in weekdayChips"
+                :key="d.value"
+                :value="d.value"
+                filter
+                variant="tonal"
+                class="mr-2"
+              >
+                {{ d.short }}
+              </v-chip>
+            </v-chip-group>
+          </div>
+
+          <v-alert type="info" variant="tonal" class="mt-4">
+            Ce jour sera utilisé par défaut pour la génération des séances. Les élèves peuvent avoir
+            un jour spécifique (optionnel) dans leur fiche.
+          </v-alert>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="dialogClassParams = false">Annuler</v-btn>
+          <v-btn
+            color="primary"
+            :loading="savingWeekday"
+            :disabled="!classWeekday"
+            @click="saveWeekday"
+            prepend-icon="mdi-content-save"
+          >
+            Enregistrer
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- Tableau de présence -->
     <v-card class="rounded-xl elevation-2">
@@ -129,11 +149,12 @@ import axios from 'axios'
 import AttendanceMatrix from '@/components/AttendanceMatrix.vue'
 import AddStudentForm from '@/components/AddStudentForm.vue'
 import StudentList from '@/components/StudentList.vue'
-import { useDisplay } from 'vuetify'
+// import { useDisplay } from 'vuetify'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const route = useRoute()
-const { smAndDown } = useDisplay()
+// const { smAndDown } = useDisplay()
+
 const authHeaders = () => {
   const token = localStorage.getItem('token')
   return token ? { Authorization: `Bearer ${token}` } : {}
@@ -142,12 +163,13 @@ const authHeaders = () => {
 // ID de la classe depuis l’URL
 const currentClassId = computed(() => Number(route.params.id))
 
-// Sélecteur du jour de cours
-const classWeekday = ref(null) // 1..7 (lun..dim)
+/* ────────────────────────────────────────────
+   Paramètres de classe (dialog + état)
+   ──────────────────────────────────────────── */
+const dialogClassParams = ref(false) // ← NEW: ouverture/fermeture du dialog
 const savingWeekday = ref(false)
-
-// état “dernier enregistrement”
-const lastSavedAt = ref(null)
+const lastSavedAt = ref(null) // number | null
+const classWeekday = ref(null) // 1..7 (lun..dim) ou null
 
 // items pour les chips (1..7)
 const weekdayChips = [
@@ -160,7 +182,7 @@ const weekdayChips = [
   { title: 'Dimanche', short: 'Dim', value: 7 },
 ]
 
-// reset du badge “Sauvegardé” quand on change de sélection
+// Reset du badge “Sauvegardé” quand on change de sélection
 watch(classWeekday, () => {
   lastSavedAt.value = null
 })
@@ -168,7 +190,7 @@ watch(classWeekday, () => {
 // Snackbar
 const snackbar = ref({ show: false, text: '', color: 'success' })
 
-// dialogs
+// dialogs (ajout élève / liste élèves)
 const dialogAddStudent = ref(false)
 const dialogStudentList = ref(false)
 
@@ -178,7 +200,7 @@ function refreshMatrix() {
   attendanceRef.value?.reload?.()
 }
 
-// Charger le weekday actuel de la classe
+/* Charger le weekday actuel de la classe */
 async function fetchClassWeekday() {
   try {
     const { data } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
@@ -190,19 +212,26 @@ async function fetchClassWeekday() {
   }
 }
 
-// Sauvegarde + régénération des sessions + refresh tableau + badge
+/* Ouvrir le dialog Paramètres (charge la valeur à jour) */
+async function openClassParams() {
+  await fetchClassWeekday()
+  lastSavedAt.value = null
+  dialogClassParams.value = true
+}
+
+/* Sauvegarde + régénération des sessions + refresh tableau + badge */
 async function saveWeekday() {
   try {
     savingWeekday.value = true
-    const startYear = 2025 // ⬅️ force la génération 2025–2026
     await axios.patch(
       `${API}/api/classes/${currentClassId.value}/weekday`,
-      { weekday: classWeekday.value, startYear }, // ⬅️ ici
+      { weekday: classWeekday.value }, // ← on ne force plus startYear ici
       { headers: authHeaders() },
     )
-    refreshMatrix()
     lastSavedAt.value = Date.now()
     snackbar.value = { show: true, text: 'Jour de classe mis à jour', color: 'success' }
+    dialogClassParams.value = false // ← fermer le dialog après succès
+    refreshMatrix()
   } catch (e) {
     console.error('saveWeekday', e)
     snackbar.value = { show: true, text: 'Erreur de mise à jour', color: 'error' }
@@ -216,6 +245,11 @@ function onStudentAdded() {
   refreshMatrix()
   dialogAddStudent.value = false
 }
+
+// Recharger le jour quand la classe change (navigation)
+watch(currentClassId, () => {
+  fetchClassWeekday()
+})
 
 onMounted(fetchClassWeekday)
 </script>
@@ -231,7 +265,7 @@ onMounted(fetchClassWeekday)
 .chip-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: 2px;
+  padding-bottom: 4px;
 }
 .chip-scroll::-webkit-scrollbar {
   height: 6px;
