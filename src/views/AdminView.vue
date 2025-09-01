@@ -61,7 +61,7 @@
               </template>
 
               <template #item.actions="{ item }">
-                <!-- ⬇️ Nouveau bouton “gérer les profs” par ligne -->
+                <!-- Gérer les profs -->
                 <v-btn
                   icon
                   variant="text"
@@ -153,22 +153,10 @@
     <!-- Dialog gestion des profs -->
     <v-dialog v-model="managersDialog.show" max-width="640">
       <v-card>
-        <!-- En-tête compacte avec sélecteur de classe à droite -->
-        <v-toolbar flat density="comfortable">
-          <v-toolbar-title class="text-subtitle-1 font-weight-600"> Gestionnaires </v-toolbar-title>
-          <v-spacer />
-          <v-select
-            v-model="managersDialog.classId"
-            :items="managersDialog.classes"
-            item-title="name"
-            item-value="id"
-            label="Classe"
-            density="comfortable"
-            variant="outlined"
-            hide-details
-            style="max-width: 260px"
-          />
-        </v-toolbar>
+        <!-- ✅ Titre simple sans sélecteur de classe -->
+        <v-card-title class="text-subtitle-1 font-weight-600">
+          Gestionnaires — {{ managersDialog.className }}
+        </v-card-title>
 
         <v-divider />
 
@@ -176,9 +164,6 @@
           <v-skeleton-loader v-if="managersDialog.loading" type="list-item@3" />
 
           <template v-else>
-            <!-- Titre classe courant -->
-            <div class="text-h6 mb-2">{{ managersDialog.className }}</div>
-
             <!-- Profs actuels -->
             <div class="text-subtitle-2 mb-2">Profs actuels</div>
             <div class="chips-wrap mb-4">
@@ -281,53 +266,37 @@ const rules = { required: (v) => !!(v && String(v).trim()) || 'Requis' }
 /* Confirm delete */
 const confirm = ref({ open: false, item: null })
 
-// état du dialog (JS pur)
+/* Dialog gestion des profs */
 const managersDialog = ref({
   show: false,
   classId: null,
   className: '',
   loading: false,
-  classes: [],
+  classes: [], // conservé si besoin ultérieur, mais plus affiché
   managers: [], // [{ id, username, role, is_owner }]
   allProfs: [], // [{ id, username }]
   selectedProfId: null,
 })
 
-// ouvre le dialog et charge les données
 async function openManagersDialog(cls) {
   try {
     managersDialog.value.show = true
     managersDialog.value.loading = true
 
-    // 1) Si on a reçu la classe → on fixe l'ID + libellé
-    if (cls && cls.id) {
-      managersDialog.value.classId = cls.id
-      managersDialog.value.className = cls.name || ''
-    }
+    // On reçoit toujours la classe depuis le bouton de la ligne
+    managersDialog.value.classId = cls.id
+    managersDialog.value.className = cls.name || ''
 
-    // 2) Si on n'a pas encore de classe (ou ouverture globale),
-    // on charge la liste pour permettre la sélection
-    if (!managersDialog.value.classId) {
-      const resClasses = await axios.get(`${API}/api/admin/classes`, { headers: authHeaders() })
-      managersDialog.value.classes = Array.isArray(resClasses.data) ? resClasses.data : []
-      if (managersDialog.value.classes.length) {
-        managersDialog.value.classId = managersDialog.value.classes[0].id
-        managersDialog.value.className = managersDialog.value.classes[0].name
-      }
-    }
-
-    // 3) Charger les profs disponibles (pour le <v-select>)
+    // Profs disponibles
     const resProfs = await axios.get(`${API}/api/admin/profs`, { headers: authHeaders() })
     managersDialog.value.allProfs = Array.isArray(resProfs.data) ? resProfs.data : []
 
-    // 4) Charger les managers de la classe courante
-    if (managersDialog.value.classId) {
-      const resMgrs = await axios.get(`${API}/api/admin/class-users`, {
-        headers: authHeaders(),
-        params: { class_id: managersDialog.value.classId },
-      })
-      managersDialog.value.managers = Array.isArray(resMgrs.data) ? resMgrs.data : []
-    }
+    // Managers de la classe
+    const resMgrs = await axios.get(`${API}/api/admin/class-users`, {
+      headers: authHeaders(),
+      params: { class_id: managersDialog.value.classId },
+    })
+    managersDialog.value.managers = Array.isArray(resMgrs.data) ? resMgrs.data : []
   } catch (e) {
     console.error('openManagersDialog error:', e)
   } finally {
@@ -335,6 +304,7 @@ async function openManagersDialog(cls) {
   }
 }
 
+/* Si jamais classId change (peu probable sans sélecteur), on garde le rechargement en place */
 watch(
   () => managersDialog.value.classId,
   async (cid) => {
@@ -346,10 +316,6 @@ watch(
         params: { class_id: cid },
       })
       managersDialog.value.managers = Array.isArray(res.data) ? res.data : []
-
-      // synchronise le libellé si tu as la liste des classes chargée
-      const found = (managersDialog.value.classes || []).find((c) => c.id === cid)
-      managersDialog.value.className = found ? found.name : managersDialog.value.className
     } catch (e) {
       console.error('reload managers on class change', e)
     } finally {
@@ -362,12 +328,20 @@ async function addCoProf() {
   const cid = managersDialog.value.classId
   const uid = managersDialog.value.selectedProfId
   if (!cid || !uid) return
-  await axios.post(
-    `${API}/api/admin/class-users`,
-    { class_id: cid, user_id: uid },
-    { headers: authHeaders() },
-  )
-  await openManagersDialog({ id: cid, name: managersDialog.value.className })
+  try {
+    await axios.post(
+      `${API}/api/admin/class-users`,
+      { class_id: cid, user_id: uid },
+      { headers: authHeaders() },
+    )
+    // ✅ Fermer le dialog et reset le champ
+    managersDialog.value.selectedProfId = null
+    managersDialog.value.show = false
+    snackbar.value = { show: true, text: 'Co-prof ajouté', color: 'success' }
+  } catch (e) {
+    console.error('addCoProf error:', e)
+    snackbar.value = { show: true, text: "Erreur lors de l'ajout", color: 'error' }
+  }
 }
 
 async function removeCoProf(userId) {
@@ -380,8 +354,12 @@ async function removeCoProf(userId) {
       headers: authHeaders(),
       data: { class_id: cid, user_id: userId },
     })
-    // Recharge le contenu du dialog (managers + liste des profs)
-    await openManagersDialog({ id: cid, name: managersDialog.value.className })
+    // On recharge la liste (on garde le dialog ouvert ici)
+    const resMgrs = await axios.get(`${API}/api/admin/class-users`, {
+      headers: authHeaders(),
+      params: { class_id: cid },
+    })
+    managersDialog.value.managers = Array.isArray(resMgrs.data) ? resMgrs.data : []
   } catch (e) {
     console.error('removeCoProf error:', e)
   } finally {
@@ -491,7 +469,6 @@ async function deleteClass() {
 
 /* Navigation vers le tableau de présence d’une classe */
 function goToClass(id) {
-  // Adapte le nom de route si besoin (ex: 'DashboardView' ou path `/dashboard/${id}`)
   router.push({ name: 'DashboardView', params: { id: String(id) } })
 }
 

@@ -72,20 +72,22 @@ import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { useStudentsStore } from '@/stores/Students'
 
+/* Emits */
 const emit = defineEmits(['student-added'])
 
+/* Constantes / stores */
 const route = useRoute()
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const studentStore = useStudentsStore()
 
-// Champs cohérents avec la DB
+/* Champs formulaire */
 const firstname = ref('')
 const lastname = ref('')
 const phone = ref('')
-const class_id = ref(null) // on stocke l'ID mais on affiche le NOM dans le select
+const class_id = ref(null) // id num. en base
+const studentWeekday = ref(null) // 1..7 (lun..dim) ou null
 
-// Jour de cours (élève) — nullable : 1..7 (lun..dim) ou null = "par défaut"
-const studentWeekday = ref(null)
+/* Items */
 const weekdayItems = [
   { title: 'Par défaut (jour de la classe)', value: null },
   { title: 'Lundi', value: 1 },
@@ -96,45 +98,42 @@ const weekdayItems = [
   { title: 'Samedi', value: 6 },
   { title: 'Dimanche', value: 7 },
 ]
-
-// Sélecteur de classe (affiche le NOM)
 const classes = ref([]) // [{ id, name }]
 
+/* Validation */
 const formRef = ref(null)
 const formValid = ref(false)
-
 const rules = {
-  required: (v) => !!v || 'Champ requis',
-  onlyLetters: (v) => /^[a-zA-ZÀ-ÿ\s\-']+$/.test(v || '') || 'Lettres uniquement',
+  required: (v) => !!(v && String(v).trim()) || 'Champ requis',
+  onlyLetters: (v) =>
+    /^[a-zA-ZÀ-ÿ\s\-']+$/.test(v || '') || 'Uniquement lettres, espaces, tirets et apostrophes',
+  // Téléphone facultatif : OK si vide, sinon exactement 10 chiffres
   phoneLength: (v) => {
     const digits = (v || '').replace(/\D/g, '')
-    return digits.length === 10 || '10 chiffres requis'
+    return digits.length === 0 || digits.length === 10 || '10 chiffres requis'
   },
 }
 
+/* Helpers */
 function formatPhone(e) {
   let digits = (e.target.value || '').replace(/\D/g, '').slice(0, 10)
   const parts = digits.match(/.{1,2}/g) || []
   phone.value = parts.join(' ')
 }
-
-// On verrouille le select si on est déjà dans une page de classe
 const routeClassId = computed(() => Number(route.params.classId ?? route.params.id))
 const lockClass = computed(() => !!routeClassId.value)
-
-// Helper headers
 function authHeaders() {
   const token = localStorage.getItem('token')
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
-// Charger les classes au montage
+/* Chargement des classes */
 onMounted(async () => {
   try {
     const { data } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
     classes.value = Array.isArray(data) ? data.map((c) => ({ id: Number(c.id), name: c.name })) : []
 
-    // Pré-sélectionner la classe depuis l’URL si présente et existante
+    // Pré-sélectionne la classe de l'URL si elle existe
     if (routeClassId.value) {
       const exists = classes.value.some((c) => c.id === routeClassId.value)
       if (exists) class_id.value = routeClassId.value
@@ -144,20 +143,20 @@ onMounted(async () => {
   }
 })
 
+/* Soumission */
 async function submitForm() {
-  const ok = await formRef.value?.validate()
-  if (!ok) return
+  const res = await formRef.value?.validate()
+  const valid = typeof res === 'object' ? res.valid : !!res
+  if (!valid) return
 
   const cid = Number(class_id.value)
-
   try {
-    // Créer l’élève (→ on passe aussi weekday nullable)
     await studentStore.addStudent({
       firstname: firstname.value.trim(),
       lastname: lastname.value.trim(),
       phone: phone.value.trim(),
       class_id: cid,
-      weekday: studentWeekday.value ?? null,
+      weekday: studentWeekday.value ?? null, // ⬅️ backend gère et génère les séances
     })
 
     emit('student-added')

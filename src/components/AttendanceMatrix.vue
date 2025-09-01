@@ -51,10 +51,9 @@
         </div>
       </div>
 
-      <!-- ====== MOBILE : Carrousel par élève ====== -->
+      <!-- ====== MOBILE : Carrousel par élève (cache les séances “hors jour” de l’élève) ====== -->
       <div v-if="smAndDown" class="d-flex flex-column ga-3">
         <v-skeleton-loader v-if="loading" type="card@3" />
-
         <v-card v-else v-for="st in students" :key="st.id" class="rounded-xl border-thin">
           <v-card-text class="pt-3 pb-1 pa-0">
             <div class="d-flex align-center justify-space-between mb-2">
@@ -64,7 +63,6 @@
               </v-btn>
             </div>
 
-            <!-- Carrousel des dates (1 date visible à la fois) -->
             <v-slide-group
               v-model="activeSlide[st.id]"
               class="attendance-slides"
@@ -86,7 +84,7 @@
                     <div class="text-caption text-medium-emphasis mb-2 d-flex align-center">
                       {{ formatDate(s.date) }}
 
-                      <!-- CHIP statut de séance -->
+                      <!-- Chip statut de séance -->
                       <v-chip
                         v-if="sessionStatus(s.id) !== 'scheduled'"
                         size="x-small"
@@ -98,7 +96,7 @@
                         {{ chipLabel(sessionStatus(s.id)) }}
                       </v-chip>
 
-                      <!-- note éventuelle -->
+                      <!-- Note éventuelle -->
                       <v-btn
                         v-if="sessionNote(s.id)"
                         icon
@@ -111,7 +109,7 @@
                         <v-icon>mdi-note-text-outline</v-icon>
                       </v-btn>
 
-                      <!-- éditer statut de séance -->
+                      <!-- Éditer statut séance -->
                       <v-btn
                         icon
                         size="x-small"
@@ -124,23 +122,19 @@
                       </v-btn>
                     </div>
 
-                    <!-- ====== CONTENU CELLULE ====== -->
-                    <!-- Si séance non pointable (annulée / férié / vacances) -->
+                    <!-- Contenu cellule -->
                     <template v-if="!isSessionPointable(s.id)">
                       <div class="text-caption text-medium-emphasis mt-1 text-center">
                         Pointage indisponible ({{ chipLabel(sessionStatus(s.id)) }})
                       </div>
                     </template>
 
-                    <!-- Sinon, affichage normal -->
                     <template v-else>
-                      <!-- Si un statut est déjà choisi -->
+                      <!-- Statut déjà saisi -->
                       <template v-if="hasStatus(st.id, s.id)">
-                        <!-- Icône commentaire si Excusé + commentaire -->
                         <template
                           v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
                         >
-                          <!-- Desktop : tooltip -->
                           <v-tooltip
                             v-if="!smAndDown"
                             :text="getComment(st.id, s.id)"
@@ -160,7 +154,6 @@
                               </v-btn>
                             </template>
                           </v-tooltip>
-                          <!-- Mobile : tap = dialog -->
                           <v-btn
                             v-else
                             size="x-small"
@@ -175,7 +168,6 @@
                           </v-btn>
                         </template>
 
-                        <!-- Pilule du statut -->
                         <v-btn
                           size="large"
                           :color="colorOf(getStatus(st.id, s.id))"
@@ -187,7 +179,6 @@
                           {{ shortLabel(getStatus(st.id, s.id)) }}
                         </v-btn>
 
-                        <!-- Remettre à “À valider” -->
                         <v-btn
                           size="x-small"
                           variant="text"
@@ -198,12 +189,14 @@
                         </v-btn>
                       </template>
 
-                      <!-- Sinon : choix des 3 statuts -->
+                      <!-- À valider : on cache simplement le hors-jour sur mobile -->
                       <template v-else-if="!isPointableForStudent(st.id, s.id)">
                         <div v-if="false" class="text-disabled text-caption mt-2">
                           — hors jour —
                         </div>
                       </template>
+
+                      <!-- Choix des 3 statuts -->
                       <template v-else>
                         <v-row class="d-flex justify-center align-center mt-2" dense>
                           <v-col cols="4" class="text-center">
@@ -219,7 +212,6 @@
                             </v-btn>
                             <div class="text-caption mt-1">Présent</div>
                           </v-col>
-
                           <v-col cols="4" class="text-center">
                             <v-btn
                               icon
@@ -233,7 +225,6 @@
                             </v-btn>
                             <div class="text-caption mt-1">Excusé(e)</div>
                           </v-col>
-
                           <v-col cols="4" class="text-center">
                             <v-btn
                               icon
@@ -258,13 +249,12 @@
         </v-card>
       </div>
 
-      <!-- ====== DESKTOP : Table ====== -->
+      <!-- ====== DESKTOP : Tableau ====== -->
       <div v-else class="table-scroll">
         <v-table fixed-header density="comfortable" class="attendance-table">
           <thead>
             <tr>
               <th class="sticky-left name-col z-20 bg-surface top-sticky">Élève</th>
-
               <th v-for="s in sortedSessions" :key="s.id" class="text-center date-col top-sticky">
                 <div class="d-flex align-center justify-center ga-1">
                   <span class="text-caption text-medium-emphasis">{{ formatDate(s.date) }}</span>
@@ -316,14 +306,14 @@
               </td>
 
               <td v-for="s in sortedSessions" :key="`${s.id}-${st.id}`" class="text-center cell">
-                <!-- Si séance non pointable -->
+                <!-- Séance non pointable -->
                 <template v-if="!isSessionPointable(s.id)">
                   <div class="text-caption text-medium-emphasis">
                     — {{ chipLabel(sessionStatus(s.id)) }} —
                   </div>
                 </template>
 
-                <!-- Si un statut est déjà choisi -->
+                <!-- Statut saisi -->
                 <template v-else-if="hasStatus(st.id, s.id)">
                   <template v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)">
                     <v-tooltip v-if="!smAndDown" :text="getComment(st.id, s.id)" location="top">
@@ -372,13 +362,11 @@
                     class="ml-1"
                     @click="resetCell(st.id, s.id)"
                     title="Changer"
+                    >↺</v-btn
                   >
-                    ↺
-                  </v-btn>
                 </template>
 
-                <!-- Sinon : 3 boutons -->
-                <!-- Hors jour/non pointable -->
+                <!-- À valider -->
                 <template v-else-if="!isPointableForStudent(st.id, s.id)">
                   <span class="text-disabled">—</span>
                 </template>
@@ -442,7 +430,7 @@
     </v-card-text>
   </v-card>
 
-  <!-- Popup infos élève -->
+  <!-- Fiches & dialogs -->
   <v-dialog v-model="studentDialog" max-width="420">
     <v-card>
       <v-card-title class="text-h6">Infos élève</v-card-title>
@@ -453,15 +441,14 @@
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn color="error" variant="tonal" @click="askDeleteStudent(selectedStudent!)">
-          Supprimer
-        </v-btn>
+        <v-btn color="error" variant="tonal" @click="askDeleteStudent(selectedStudent!)"
+          >Supprimer</v-btn
+        >
         <v-btn variant="text" @click="studentDialog = false">Fermer</v-btn>
       </v-card-actions>
     </v-card>
   </v-dialog>
 
-  <!-- Dialog suppression d'un élève -->
   <v-dialog v-model="deleteDialog.show" max-width="460">
     <v-card>
       <v-card-title class="text-h6">Supprimer l'élève ?</v-card-title>
@@ -473,17 +460,16 @@
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" @click="deleteDialog.show = false" :disabled="deleteDialog.loading">
-          Annuler
-        </v-btn>
-        <v-btn color="error" :loading="deleteDialog.loading" @click="doDeleteStudent">
-          Supprimer
-        </v-btn>
+        <v-btn variant="text" @click="deleteDialog.show = false" :disabled="deleteDialog.loading"
+          >Annuler</v-btn
+        >
+        <v-btn color="error" :loading="deleteDialog.loading" @click="doDeleteStudent"
+          >Supprimer</v-btn
+        >
       </v-card-actions>
     </v-card>
   </v-dialog>
 
-  <!-- Dialog commentaire Excusé(e) -->
   <v-dialog v-model="excuseDialog.show" max-width="520">
     <v-card>
       <v-card-title class="text-h6">Motif d'absence (excusé·e)</v-card-title>
@@ -511,7 +497,6 @@
     </v-card>
   </v-dialog>
 
-  <!-- Dialog lecture du motif (mobile & desktop click) -->
   <v-dialog v-model="commentViewer.show" max-width="420">
     <v-card>
       <v-card-title class="text-h6">Motif d'absence</v-card-title>
@@ -525,14 +510,12 @@
     </v-card>
   </v-dialog>
 
-  <!-- Dialog édition statut de séance (quick-win) -->
+  <!-- Dialog édition statut de séance -->
   <v-dialog v-model="sessionDialog.show" max-width="520">
     <v-card>
       <v-card-title class="text-h6">Statut de la séance</v-card-title>
       <v-card-text>
-        <div class="mb-2 text-caption text-medium-emphasis">
-          {{ sessionDialog.dateLabel }}
-        </div>
+        <div class="mb-2 text-caption text-medium-emphasis">{{ sessionDialog.dateLabel }}</div>
 
         <v-select
           v-model="sessionDialog.status"
@@ -565,17 +548,16 @@
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn variant="text" @click="sessionDialog.show = false" :disabled="sessionDialog.saving">
-          Annuler
-        </v-btn>
-        <v-btn color="primary" :loading="sessionDialog.saving" @click="saveSessionStatus">
-          Enregistrer
-        </v-btn>
+        <v-btn variant="text" @click="sessionDialog.show = false" :disabled="sessionDialog.saving"
+          >Annuler</v-btn
+        >
+        <v-btn color="primary" :loading="sessionDialog.saving" @click="saveSessionStatus"
+          >Enregistrer</v-btn
+        >
       </v-card-actions>
     </v-card>
   </v-dialog>
 
-  <!-- Snackbar -->
   <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
     {{ snackbar.text }}
   </v-snackbar>
@@ -586,20 +568,16 @@ import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useDisplay } from 'vuetify'
 import axios from 'axios'
 
+/* ===== Types ===== */
 type Student = {
   id: number
   firstname: string
   lastname: string
   phone?: string | null
-  weekday?: number | null // ⬅️ nouveau
+  weekday?: number | null
 }
 type SessionStatus = 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra'
-type Session = {
-  id: number
-  date: string // "YYYY-MM-DD"
-  status?: 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra' | 'String' | null
-  note?: string | null
-}
+type Session = { id: number; date: string; status?: SessionStatus | null; note?: string | null }
 type AttendanceRow = {
   student_id: number
   session_id: number
@@ -607,16 +585,18 @@ type AttendanceRow = {
   comment?: string | null
 }
 
-const classWeekday = ref<number | null>(null) // fallback classe
+/* ===== Consts / refs ===== */
+const NON_POINTABLE = new Set<SessionStatus>(['cancelled', 'holiday', 'vacation'])
+
 const props = defineProps<{ classId: number | string }>()
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const { smAndDown } = useDisplay()
 
-/* ─────────────── State ─────────────── */
+const classWeekday = ref<number | null>(null) // jour par défaut de la classe (fallback)
 const students = ref<Student[]>([])
 const sessions = ref<Session[]>([])
 
-/** Map: studentId -> sessionId -> {status, comment} */
+/** Map réactive : studentId -> sessionId -> { status, comment } */
 const attendanceMap = reactive<
   Record<
     number,
@@ -632,12 +612,10 @@ const snackbar = ref<{ show: boolean; text: string; color: string }>({
   color: 'success',
 })
 
-/**
- * Mobile : session active PAR élève (valeur = sessionId)
- */
-const activeSlide = ref<Record<number, number>>({}) // st.id -> sessionId actif
+/** Mobile : session active PAR élève */
+const activeSlide = ref<Record<number, number>>({})
 
-/* ─────────────── Dialogs ─────────────── */
+/* ===== Dialogs ===== */
 const studentDialog = ref(false)
 const selectedStudent = ref<Student | null>(null)
 function openStudentInfo(st: Student) {
@@ -656,7 +634,6 @@ const excuseDialog = ref<{
   sessionId: number | null
   text: string
 }>({ show: false, studentId: null, sessionId: null, text: '' })
-
 function openExcuseDialog(studentId: number, sessionId: number) {
   ensureKey(studentId, sessionId)
   excuseDialog.value = {
@@ -672,9 +649,7 @@ function closeExcuseDialog() {
 async function confirmExcuse() {
   const text = excuseDialog.value.text?.trim()
   if (!text) return
-  const stId = excuseDialog.value.studentId!
-  const seId = excuseDialog.value.sessionId!
-  await onSetStatus(stId, seId, 'excused', text)
+  await onSetStatus(excuseDialog.value.studentId!, excuseDialog.value.sessionId!, 'excused', text)
   closeExcuseDialog()
 }
 
@@ -693,15 +668,10 @@ async function doDeleteStudent() {
   deleteDialog.value.loading = true
   try {
     await axios.delete(`${API}/api/students/${st.id}`, { headers: authHeaders() })
-
-    // Retirer l'élève du state (UI instantanée)
     students.value = students.value.filter((x) => x.id !== st.id)
-    // Nettoyer ses cellules et sa slide
     delete attendanceMap[st.id]
     delete activeSlide.value[st.id]
-    // Repositionner les slides si besoin
     restoreActiveSessionForAllStudents()
-
     deleteDialog.value = { show: false, loading: false, student: null }
     studentDialog.value = false
     snackbar.value = { show: true, text: '🗑️ Élève supprimé', color: 'success' }
@@ -712,12 +682,11 @@ async function doDeleteStudent() {
   }
 }
 
-/* ─────────────── Utils ─────────────── */
+/* ===== Utils ===== */
 function authHeaders() {
-  const token = localStorage.getItem('token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
+  const t = localStorage.getItem('token')
+  return t ? { Authorization: `Bearer ${t}` } : {}
 }
-
 function formatDate(d?: string) {
   if (!d) return '—'
   const [y, m, dd] = d.split('-')
@@ -726,9 +695,8 @@ function formatDate(d?: string) {
 
 function ensureKey(studentId: number, sessionId: number) {
   if (!attendanceMap[studentId]) attendanceMap[studentId] = {}
-  if (!attendanceMap[studentId][sessionId]) {
-    attendanceMap[studentId][sessionId] = { status: null, comment: null } // ← non validé
-  }
+  if (!attendanceMap[studentId][sessionId])
+    attendanceMap[studentId][sessionId] = { status: null, comment: null }
 }
 function getStatus(studentId: number, sessionId: number) {
   return attendanceMap[studentId]?.[sessionId]?.status ?? null
@@ -748,40 +716,27 @@ function hasStatus(studentId: number, sessionId: number) {
   return s === 'present' || s === 'absent' || s === 'excused'
 }
 
-// 0..6 (dim..sam) à partir d'un ISO (1..7, lun..dim)
-const jsDowFromIso = (iso?: number | null) => (iso ? iso % 7 : null)
-
-// ISO(1..7) du "YYYY-MM-DD"
-function isoFromYmd(ymd: string | undefined | null) {
-  if (!ymd) return null
-  // Midi UTC pour éviter tout décalage
-  const d = new Date(ymd + 'T12:00:00Z')
-  const js = d.getUTCDay() // 0..6, dim=0
-  return js === 0 ? 7 : js // 1..7
-}
-
-/** ISO DOW (1..7) depuis 'YYYY-MM-DD' en UTC */
+/** ISO (1..7) depuis YYYY-MM-DD (UTC) */
 function isoDowFromYmd(ymd: string): number {
   const d = new Date(ymd + 'T12:00:00Z')
-  const js = d.getUTCDay() // 0..6 (0=dimanche)
+  const js = d.getUTCDay() // 0..6, 0=dim
   return js === 0 ? 7 : js
 }
 
-/** Jour personnel de l'élève si défini, sinon null */
+/** Jour personnel élève (1..7) si défini, sinon null */
 function studentIsoWeekday(st: Student): number | null {
-  // si ton backend envoie déjà st.weekday => on l’utilise, sinon c’est “libre”
   const w = Number((st as any).weekday ?? 0)
   return w >= 1 && w <= 7 ? w : null
 }
 
-/** Sessions visibles pour un élève en MOBILE (on cache “hors jour”) */
+/** Sessions affichées en MOBILE pour l’élève (filtrage “hors jour”) */
 function mobileSessionsFor(st: Student): Session[] {
   const w = studentIsoWeekday(st)
   if (!w) return sortedSessions.value
   return sortedSessions.value.filter((s) => isoDowFromYmd(s.date) === w)
 }
 
-/* Couleurs / labels / icônes */
+/* Couleurs / labels / icônes pour boutons d’élève */
 function colorOf(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
     ? 'green'
@@ -810,54 +765,39 @@ function iconOf(status: 'present' | 'absent' | 'excused' | null) {
         : 'mdi-help-circle-outline'
 }
 
-/* ─────────────── Statut de séance (quick-win) ─────────────── */
-/* ─────────────── Sessions: statut / note / pointabilité ─────────────── */
-const NON_POINTABLE = new Set(['cancelled', 'holiday', 'vacation'])
-
-function sessionById(sessionId: number): Session | undefined {
-  return sessions.value.find((s) => s.id === sessionId)
+/* ===== Statut / note de séance + pointabilité ===== */
+function sessionStatus(id: number): SessionStatus {
+  const s = sessions.value.find((x) => x.id === id)
+  return (s?.status as SessionStatus) ?? 'scheduled'
+}
+function sessionNote(id: number) {
+  return sessions.value.find((x) => x.id === id)?.note ?? null
+}
+function isSessionPointable(id: number) {
+  return !NON_POINTABLE.has(sessionStatus(id))
 }
 
-// Statut de séance (fallback 'scheduled')
-function sessionStatus(
-  sessionId: number,
-): 'scheduled' | 'cancelled' | 'holiday' | 'vacation' | 'extra' {
-  const s = sessions.value.find((x) => x.id === sessionId)
-  return (s?.status as any) ?? 'scheduled'
-}
-
-// Jour attendu pour un élève (ISO 1..7), sinon null
+/** Jour attendu pour l’élève (priorité: élève > classe) */
 function expectedIsoForStudent(stId: number): number | null {
   const st = students.value.find((x) => x.id === stId)
-  if (!st) return null
-  return st.weekday ?? classWeekday.value ?? null
+  return st?.weekday ?? classWeekday.value ?? null
 }
-
-// Cette séance correspond au jour attendu de cet élève ?
+/** Cette séance correspond-elle au jour attendu de l’élève ? */
 function isExpectedForStudent(stId: number, seId: number): boolean {
   const se = sessions.value.find((x) => x.id === seId)
   if (!se) return false
-  const iso = isoFromYmd(se.date)
+  const iso = isoDowFromYmd(se.date)
   const expected = expectedIsoForStudent(stId)
   if (!expected || !iso) return true // pas de restriction si aucun jour paramétré
   return iso === expected
 }
-
-// Séance pointable (jour attendu et pas annulée/férié/vacances)
+/** Pointable pour l’élève = bon jour & séance pointable */
 function isPointableForStudent(stId: number, seId: number): boolean {
-  const nonPointables = new Set(['cancelled', 'holiday', 'vacation'])
   if (!isExpectedForStudent(stId, seId)) return false
-  return !nonPointables.has(sessionStatus(seId))
+  return isSessionPointable(seId)
 }
 
-function sessionNote(sessionId: number) {
-  return sessions.value.find((x) => x.id === sessionId)?.note ?? null
-}
-
-function isSessionPointable(sessionId: number): boolean {
-  return !NON_POINTABLE.has(sessionStatus(sessionId))
-}
-
+/* Chips de statut séance */
 function chipLabel(s: SessionStatus) {
   return s === 'extra'
     ? 'Séance extra'
@@ -887,7 +827,6 @@ function chipColor(s: SessionStatus) {
         ? 'grey'
         : 'info'
 }
-
 const sessionStatusOptions = [
   { value: 'scheduled', label: 'Programmé (pointable)' },
   { value: 'cancelled', label: 'Annulé (non pointable)' },
@@ -896,6 +835,7 @@ const sessionStatusOptions = [
   { value: 'extra', label: 'Séance extra (pointable)' },
 ] as { value: SessionStatus; label: string }[]
 
+/* Dialog édition statut */
 const sessionDialog = ref<{
   show: boolean
   id: number | null
@@ -913,7 +853,6 @@ const sessionDialog = ref<{
   saving: false,
   dateLabel: '',
 })
-
 function openSessionDialog(s: Session) {
   sessionDialog.value = {
     show: true,
@@ -925,7 +864,6 @@ function openSessionDialog(s: Session) {
     dateLabel: `Séance du ${formatDate(s.date)}`,
   }
 }
-
 async function saveSessionStatus() {
   const d = sessionDialog.value
   if (!d.id) return
@@ -936,17 +874,13 @@ async function saveSessionStatus() {
     const { data } = await axios.patch(`${API}/sessions/${d.id}/status${params}`, body, {
       headers: authHeaders(),
     })
-
-    // MAJ locale de la session
     const idx = sessions.value.findIndex((s) => s.id === d.id)
-    if (idx >= 0) {
+    if (idx >= 0)
       sessions.value[idx] = {
         ...sessions.value[idx],
         status: (data?.status as SessionStatus) ?? d.status,
         note: data?.note ?? body.note ?? null,
       }
-    }
-
     sessionDialog.value.show = false
     snackbar.value = { show: true, text: 'Statut de séance mis à jour', color: 'success' }
   } catch (e: any) {
@@ -961,81 +895,65 @@ async function saveSessionStatus() {
   }
 }
 
-/* ─────────────── Validation & Tri ─────────────── */
+/* ===== Tri & fenêtre scolaire ===== */
 function schoolStartYear(dateStr: string) {
-  const y = Number(dateStr.slice(0, 4))
-  const m = Number(dateStr.slice(5, 7))
+  const y = Number(dateStr.slice(0, 4)),
+    m = Number(dateStr.slice(5, 7))
   return m >= 9 ? y : y - 1
 }
 function inSchoolWindow(dateStr: string) {
-  if (!dateStr) return false
   const y0 = schoolStartYear(dateStr)
-  const lower = `${y0}-09-01`
-  const upper = `${y0 + 1}-07-14`
+  const lower = `${y0}-09-01`,
+    upper = `${y0 + 1}-07-14`
   return dateStr >= lower && dateStr <= upper
 }
-
-const sortedSessions = computed<Session[]>(() => {
-  return sessions.value
+const sortedSessions = computed<Session[]>(() =>
+  sessions.value
     .filter((s) => s && s.date && inSchoolWindow(s.date))
-    .sort((a, b) => a.date.localeCompare(b.date))
-})
+    .sort((a, b) => a.date.localeCompare(b.date)),
+)
 
-/* ─────────────── Avance & Restauration — PAR ÉLÈVE (mobile) ─────────────── */
+/* ===== Avancement (mobile) ===== */
 function isValidated(studentId: number, sessionId: number) {
-  // Une séance annulée / férié / vacances est considérée validée d’office
-  if (!isSessionPointable(sessionId)) return true
+  if (!isSessionPointable(sessionId)) return true // une séance non pointable est “validée”
   return !!getStatus(studentId, sessionId)
 }
-
 function isSessionFullyValidated(sessionId: number) {
   const concerned = students.value.filter((st) => isPointableForStudent(st.id, sessionId))
-  if (!concerned.length) return true // personne concerné → considéré validé
+  if (!concerned.length) return true
   return concerned.every((st) => !!getStatus(st.id, sessionId))
 }
-
 const progressKeyForStudent = (studentId: number) =>
   `attendance_progress_class_${String(props.classId)}_student_${studentId}`
-
-/** 1ʳᵉ date non validée pour UN élève (mobile) */
 function firstUnvalidatedForStudent(studentId: number): number {
   const st = students.value.find((x) => x.id === studentId)
   if (!st) return 0
   const list = mobileSessionsFor(st)
-  for (const s of list) {
-    if (!isValidated(studentId, s.id)) return s.id
-  }
+  for (const s of list) if (!isValidated(studentId, s.id)) return s.id
   return list[0]?.id ?? 0
 }
-
-/** Prochaine non validée à partir d'une session pour UN élève (mobile) */
 function nextUnvalidatedFromForStudent(studentId: number, sessionId: number): number {
   const st = students.value.find((x) => x.id === studentId)
   if (!st) return 0
   const list = mobileSessionsFor(st)
   if (!list.length) return 0
-
   const startIdx = Math.max(
     0,
     list.findIndex((s) => s.id === sessionId),
   )
-  for (let i = startIdx + 1; i < list.length; i++) {
+  for (let i = startIdx + 1; i < list.length; i++)
     if (!isValidated(studentId, list[i].id)) return list[i].id
-  }
-  // wrap
   return firstUnvalidatedForStudent(studentId)
 }
-
 function setActiveSessionForStudent(studentId: number, sessionId: number) {
   activeSlide.value[studentId] = sessionId
   localStorage.setItem(progressKeyForStudent(studentId), String(sessionId))
 }
-/** Restaure la session active pour TOUS les élèves (mobile) */
 function restoreActiveSessionForAllStudents() {
   if (!students.value.length) return
   for (const st of students.value) {
     const list = mobileSessionsFor(st)
-    if (!list.length) continue // aucun cours visible pour cet élève
+    if (!list.length) continue
     const computedId = firstUnvalidatedForStudent(st.id)
     const saved = Number(localStorage.getItem(progressKeyForStudent(st.id)))
     const savedExists = list.some((s) => s.id === saved)
@@ -1044,7 +962,7 @@ function restoreActiveSessionForAllStudents() {
   }
 }
 
-/* ─────────────── Dédup sessions + init nouvel élève ─────────────── */
+/* ===== Dédup + init nouvel élève ===== */
 function dedupeSessions(list: Session[]) {
   const seen = new Set<number>()
   return list.filter((s) => !seen.has(s.id) && seen.add(s.id))
@@ -1056,15 +974,14 @@ watch(
     for (const st of newList) {
       if (!oldIds.has(st.id)) {
         for (const s of sessions.value) ensureKey(st.id, s.id)
-        const target = firstUnvalidatedForStudent(st.id)
-        setActiveSessionForStudent(st.id, target)
+        setActiveSessionForStudent(st.id, firstUnvalidatedForStudent(st.id))
       }
     }
   },
   { deep: false },
 )
 
-/* ─────────────── Fetch ─────────────── */
+/* ===== Fetch ===== */
 async function fetchAll() {
   loading.value = true
   error.value = null
@@ -1072,7 +989,7 @@ async function fetchAll() {
     const auth = authHeaders()
     const classIdNum = Number(props.classId)
 
-    // 0) weekday de la classe (fallback)
+    // (0) fallback weekday de la classe
     try {
       const clRes = await axios.get(`${API}/api/classes/${classIdNum}`, { headers: auth })
       classWeekday.value = Number(clRes.data?.weekday ?? 0) || null
@@ -1080,11 +997,11 @@ async function fetchAll() {
       classWeekday.value = null
     }
 
-    // 1) élèves
+    // (1) élèves
     const stRes = await axios.get<Student[]>(`${API}/api/students/${classIdNum}`, { headers: auth })
     students.value = Array.isArray(stRes.data) ? stRes.data : []
 
-    // 2) sessions (id, date, status, note)
+    // (2) sessions
     const seRes = await axios.get<
       { id: number; date: string; status?: SessionStatus; note?: string | null }[]
     >(`${API}/sessions/${classIdNum}`, { headers: auth })
@@ -1100,15 +1017,11 @@ async function fetchAll() {
         })),
     )
 
-    // 3) présences
+    // (3) présences
     const atRes = await axios.get<AttendanceRow[]>(`${API}/attendance/${classIdNum}`, {
       headers: auth,
     })
-
-    // reset map
-    for (const sid in attendanceMap) delete attendanceMap[+sid]
-
-    // hydrate
+    for (const sid in attendanceMap) delete attendanceMap[+sid] // reset
     for (const row of atRes.data || []) {
       ensureKey(row.student_id, row.session_id)
       attendanceMap[row.student_id][row.session_id] = {
@@ -1116,13 +1029,9 @@ async function fetchAll() {
         comment: row.comment ?? null,
       }
     }
+    // pré-créer cellules vides
+    for (const st of students.value) for (const s of sessions.value) ensureKey(st.id, s.id)
 
-    // pre-create empty cells
-    for (const st of students.value) {
-      for (const s of sessions.value) ensureKey(st.id, s.id)
-    }
-
-    // positionner la session active — PAR ÉLÈVE
     restoreActiveSessionForAllStudents()
   } catch (e) {
     console.error('[AttendanceMatrix] fetchAll error', e)
@@ -1132,49 +1041,38 @@ async function fetchAll() {
   }
 }
 
-/* ─────────────── Save ─────────────── */
+/* ===== Save présence (avec rollback fiable) ===== */
 async function onSetStatus(
   studentId: number,
   sessionId: number,
   status: 'present' | 'absent' | 'excused',
   comment: string | null = null,
 ) {
+  // garde-fou : pas de pointage sur séance non pointable
+  if (!isSessionPointable(sessionId)) {
+    snackbar.value = {
+      show: true,
+      text: 'Séance non pointable (annulée/férié/vacances).',
+      color: 'error',
+    }
+    return
+  }
+
+  ensureKey(studentId, sessionId)
+
+  // excusé => commentaire requis (ouvrir le dialog si vide)
+  if (status === 'excused' && (!comment || !comment.trim())) {
+    return openExcuseDialog(studentId, sessionId)
+  }
+
+  // snapshot pour rollback
+  const prevStatus = attendanceMap[studentId][sessionId].status
+  const prevComment = attendanceMap[studentId][sessionId].comment
+
   try {
-    if (!isSessionPointable(sessionId)) {
-      snackbar.value = {
-        show: true,
-        text: "Cette séance n'est pas pointable (annulée / férié / vacances).",
-        color: 'error',
-      }
-      return
-    }
-
-    // garde-fou front si séance non pointable
-    if (!isSessionPointable(sessionId)) {
-      snackbar.value = {
-        show: true,
-        text: 'Séance non pointable (annulée/férié/vacances).',
-        color: 'error',
-      }
-      return
-    }
-
-    ensureKey(studentId, sessionId)
-
-    if (status === 'excused' && (!comment || !comment.trim())) {
-      return openExcuseDialog(studentId, sessionId)
-    }
-
-    // snapshot
-    const prevStatus = attendanceMap[studentId][sessionId].status
-    const prevComment = attendanceMap[studentId][sessionId].comment
-
-    // MAJ optimiste champ par champ
-    if (status === 'present') {
-      attendanceMap[studentId][sessionId].status = 'present'
-      attendanceMap[studentId][sessionId].comment = null
-    } else if (status === 'absent') {
-      attendanceMap[studentId][sessionId].status = 'absent'
+    // MAJ optimiste
+    if (status === 'present' || status === 'absent') {
+      attendanceMap[studentId][sessionId].status = status
       attendanceMap[studentId][sessionId].comment = null
     } else {
       attendanceMap[studentId][sessionId].status = 'excused'
@@ -1194,26 +1092,26 @@ async function onSetStatus(
 
     snackbar.value = { show: true, text: '✅ Enregistré', color: 'success' }
 
+    // auto-avance (mobile)
     if (smAndDown.value) {
       const next = nextUnvalidatedFromForStudent(studentId, sessionId)
       setActiveSessionForStudent(studentId, next)
     }
   } catch (e) {
     console.error('Erreur sauvegarde présence :', e)
-    // rollback
-    attendanceMap[studentId][sessionId].status = null
-    attendanceMap[studentId][sessionId].comment = null
+    // rollback fidèle
+    attendanceMap[studentId][sessionId].status = prevStatus ?? null
+    attendanceMap[studentId][sessionId].comment = prevComment ?? null
     snackbar.value = { show: true, text: '❌ Erreur enregistrement', color: 'error' }
   }
 }
 
-/* ───────── expose API au parent ───────── */
+/* ===== Exposition au parent & lifecycle ===== */
 function reload() {
   return fetchAll()
 }
 defineExpose({ reload })
 
-/* ───────── lifecycle ───────── */
 onMounted(fetchAll)
 watch(() => props.classId, fetchAll)
 watch([students, sessions], () => {

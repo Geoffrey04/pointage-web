@@ -14,8 +14,11 @@ const route = useRoute()
 
 userStore.initialize()
 
+const isLoggedIn = computed(() => userStore.isLoggedIn)
 const isAdmin = computed(() => userStore.user?.role === 'admin')
-const roleLabel = computed(() => (isAdmin.value ? 'Administrateur' : 'Professeur'))
+const roleLabel = computed(() =>
+  isLoggedIn.value ? (isAdmin.value ? 'Administrateur' : 'Professeur') : '',
+)
 
 // Afficher le fond sur ces sections uniquement
 const showBg = computed(() => {
@@ -50,7 +53,7 @@ async function fetchCounts() {
       // Admin : compteur global des classes
       const { data } = await axios.get(`${API}/api/admin/stats`, { headers: authHeaders() })
       classCount.value = Number(data?.classes ?? 0)
-    } else if (userStore.isLoggedIn) {
+    } else if (isLoggedIn.value) {
       // Prof : nombre de classes accessibles
       const { data: classes } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
       classCount.value = Array.isArray(classes) ? classes.length : 0
@@ -79,7 +82,7 @@ watch(() => userStore.user?.role, fetchCounts)
       <v-app-bar-nav-icon @click="drawer = !drawer" />
       <v-toolbar-title>École de Musique</v-toolbar-title>
       <v-spacer />
-      <div v-if="userStore.isLoggedIn" class="d-flex align-center">
+      <div v-if="isLoggedIn" class="d-flex align-center">
         <!-- Icône utilisateur (à la place du nom) -->
         <v-btn icon><v-icon>mdi-account-circle</v-icon></v-btn>
         <v-btn icon @click="logout"><v-icon>mdi-logout</v-icon></v-btn>
@@ -89,8 +92,8 @@ watch(() => userStore.user?.role, fetchCounts)
     <!-- Menu latéral -->
     <v-navigation-drawer app v-model="drawer" temporary :width="300">
       <v-list nav density="comfortable">
-        <!-- En-tête utilisateur dans le drawer -->
-        <v-list-item :title="userStore.user?.username" :subtitle="roleLabel">
+        <!-- En-tête utilisateur dans le drawer (seulement si connecté) -->
+        <v-list-item v-if="isLoggedIn" :title="userStore.user?.username" :subtitle="roleLabel">
           <template #prepend>
             <v-avatar size="36" color="primary" class="text-white">
               <v-icon>mdi-account-circle</v-icon>
@@ -101,7 +104,7 @@ watch(() => userStore.user?.role, fetchCounts)
         <v-divider class="my-2" />
 
         <!-- PROF : Mes classes (plus de “Mes élèves”) -->
-        <template v-if="userStore.isLoggedIn && !isAdmin">
+        <template v-if="isLoggedIn && !isAdmin">
           <v-list-item @click="go('/classes')" prepend-icon="mdi-account-music">
             <v-list-item-title>Mes classes</v-list-item-title>
             <template #append>
@@ -111,7 +114,7 @@ watch(() => userStore.user?.role, fetchCounts)
         </template>
 
         <!-- ADMIN : Admin + Taux de présence -->
-        <template v-else-if="userStore.isLoggedIn && isAdmin">
+        <template v-else-if="isLoggedIn && isAdmin">
           <v-list-item @click="go('/admin')" prepend-icon="mdi-shield-account">
             <v-list-item-title>Admin</v-list-item-title>
             <template #append>
