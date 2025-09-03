@@ -1,0 +1,38 @@
+name: Deploy Front to 1hebergement
+
+on:
+  push:
+    branches: [ "main" ]   # ajuste si besoin (ex: "master")
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: FTP Deploy (dist -> public_html)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./dist/
+          server-dir: public_html/
+          # Optionnel mais pratique :
+          # dangerous-clean-slate: true
+          # exclude: |
+          #   .well-known/**
+          #   **/.htaccess    # <-- retire cette ligne si tu veux déployer le .htaccess
