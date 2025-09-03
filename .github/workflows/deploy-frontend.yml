@@ -58,7 +58,7 @@ jobs:
           protocol: ftps
           port: 21
           local-dir: pointage-web/dist/
-          server-dir: ./           # si l'utilisateur FTP est chrooté dans public_html/
+          server-dir: /             # <- car ton FTP s’ouvre DANS public_html
           log-level: verbose
 
       # --- Si FTPS échoue, on retente en FTP simple ---
@@ -72,5 +72,5 @@ jobs:
           protocol: ftp
           port: 21
           local-dir: pointage-web/dist/
-          server-dir: ./
+          server-dir: /             # idem
           log-level: verbose
