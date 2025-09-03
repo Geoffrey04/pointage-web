@@ -26,26 +26,51 @@ jobs:
           cache-dependency-path: "pointage-web/package-lock.json"
 
       - name: Install deps
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm i
+          fi
 
       - name: Inject prod env
-        # crée .env.production au moment du build
         run: echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" > .env.production
 
       - name: Build
         run: npm run build
 
-      - name: Deploy via FTP (FTPS)
+      - name: Show build output
+        run: |
+          pwd
+          ls -lah
+          ls -lah dist || true
+        working-directory: pointage-web
+
+      # --- Déploiement : FTPS d'abord ---
+      - name: Deploy via FTPS
+        id: deploy_ftps
+        continue-on-error: true
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
           password: ${{ secrets.FTP_PASS }}
-          protocol: ftps          # ← si ça bloque, essaie: ftp
+          protocol: ftps
           port: 21
           local-dir: pointage-web/dist/
-          server-dir: ./          # ← car l’utilisateur FTP est enfermé dans public_html/
-          exclude: |
-            **/.git*
-            **/.github*
-            **/node_modules/**
+          server-dir: ./           # si l'utilisateur FTP est chrooté dans public_html/
+          log-level: verbose
+
+      # --- Si FTPS échoue, on retente en FTP simple ---
+      - name: Retry with plain FTP
+        if: steps.deploy_ftps.outcome == 'failure'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          protocol: ftp
+          port: 21
+          local-dir: pointage-web/dist/
+          server-dir: ./
+          log-level: verbose
