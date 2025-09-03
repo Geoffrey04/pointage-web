@@ -2,7 +2,7 @@ name: Deploy Front to 1hebergement
 
 on:
   push:
-    branches: [ "main" ]   # ajuste si besoin (ex: "master")
+    branches: [ "main" ]  
 
 jobs:
   build-and-deploy:
