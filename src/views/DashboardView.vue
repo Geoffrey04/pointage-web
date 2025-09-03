@@ -9,7 +9,7 @@
       <v-btn color="info" class="ma-2" @click="dialogStudentList = true"> Liste des élèves </v-btn>
 
       <v-btn color="secondary" class="ma-2" prepend-icon="mdi-tune" @click="openClassParams">
-        Paramètres classe
+        Paramètres de classe
       </v-btn>
     </v-row>
 

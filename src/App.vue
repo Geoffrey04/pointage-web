@@ -80,7 +80,7 @@ watch(() => userStore.user?.role, fetchCounts)
     <!-- Barre supérieure -->
     <v-app-bar app color="primary" dark>
       <v-app-bar-nav-icon @click="drawer = !drawer" />
-      <v-toolbar-title>École de Musique</v-toolbar-title>
+      <v-toolbar-title>École de Musique </v-toolbar-title>
       <v-spacer />
       <div v-if="isLoggedIn" class="d-flex align-center">
         <!-- Icône utilisateur (à la place du nom) -->
