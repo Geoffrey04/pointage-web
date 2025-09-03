@@ -43,6 +43,7 @@
     "sass-loader": "^13.3.3",
     "typescript": "^5.9.2",
     "vite": "npm:rolldown-vite@latest",
-    "vite-plugin-vue-devtools": "^8.0.0"
+    "vite-plugin-vue-devtools": "^8.0.0",
+    "vite-plugin-vuetify": "^2.1.2"
   }
 }
