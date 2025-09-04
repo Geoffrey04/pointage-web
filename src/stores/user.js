@@ -1,3 +1,4 @@
+// src/stores/user.js
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
@@ -10,7 +11,7 @@ export const useUserStore = defineStore('user', {
   }),
 
   getters: {
-    isLoggedIn: (state) => !!state.token, // suffit pour protéger les routes
+    isLoggedIn: (state) => !!state.token,
     isAdmin: (state) => state.user?.role === 'admin',
   },
 
@@ -31,17 +32,16 @@ export const useUserStore = defineStore('user', {
       }
     },
 
-    // ⬇️ accepte un objet { username, password } (comme envoyé par ta LoginView)
+    // ⬇️ ENVOI EN x-www-form-urlencoded → pas de pré-vol CORS
     async login({ username, password }) {
       try {
-        const { data } = await axios.post(
-          `${API}/login`,
-          {
-            username: String(username ?? '').trim(),
-            password: String(password ?? ''),
-          },
-          { headers: { 'Content-Type': 'application/json' } },
-        )
+        const body = new URLSearchParams()
+        body.set('username', String(username ?? '').trim())
+        body.set('password', String(password ?? ''))
+
+        const { data } = await axios.post(`${API}/login`, body, {
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        })
 
         this.user = data.user
         this.token = data.token
