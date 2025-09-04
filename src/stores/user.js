@@ -1,8 +1,21 @@
-// src/stores/user.js
+// stores/user.js
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+export const API_BASE =
+  import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+
+// ── Axios sans auth (uniquement pour /login)
+export const httpNoAuth = axios.create({
+  baseURL: API_BASE,
+  headers: { Accept: 'application/json' },
+})
+
+// ── Axios avec auth (pour tout le reste)
+export const api = axios.create({
+  baseURL: API_BASE,
+  headers: { Accept: 'application/json' },
+})
 
 export const useUserStore = defineStore('user', {
   state: () => ({
@@ -11,18 +24,26 @@ export const useUserStore = defineStore('user', {
   }),
 
   getters: {
-    isLoggedIn: (state) => !!state.token,
-    isAdmin: (state) => state.user?.role === 'admin',
+    isLoggedIn: (s) => !!s.token,
+    isAdmin: (s) => s.user?.role === 'admin',
   },
 
   actions: {
+    // Applique / retire le token sur l'instance "api"
+    _applyToken(token) {
+      this.token = token || null
+      if (token) {
+        api.defaults.headers.common.Authorization = `Bearer ${token}`
+      } else {
+        delete api.defaults.headers.common.Authorization
+      }
+    },
+
     initialize() {
       const token = localStorage.getItem('token')
       const user = localStorage.getItem('user')
-      if (token) {
-        this.token = token
-        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      }
+
+      if (token) this._applyToken(token)
       if (user) {
         try {
           this.user = JSON.parse(user)
@@ -32,37 +53,45 @@ export const useUserStore = defineStore('user', {
       }
     },
 
-    // ⬇️ ENVOI EN x-www-form-urlencoded → pas de pré-vol CORS
+    /**
+     * Login sans pré-vol CORS :
+     * - aucun header Authorization
+     * - Content-Type: application/x-www-form-urlencoded
+     */
     async login({ username, password }) {
       try {
-        const body = new URLSearchParams()
-        body.set('username', String(username ?? '').trim())
-        body.set('password', String(password ?? ''))
+        // S'assurer qu'un éventuel Authorization global ne fuit pas
+        delete axios.defaults.headers.common?.Authorization
 
-        const { data } = await axios.post(`${API}/login`, body, {
+        const body = new URLSearchParams({
+          username: String(username ?? '').trim(),
+          password: String(password ?? ''),
+        })
+
+        const { data } = await httpNoAuth.post('/login', body, {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         })
 
+        // Stockage + activation de l'axios authentifié
         this.user = data.user
-        this.token = data.token
-
         localStorage.setItem('user', JSON.stringify(this.user))
-        localStorage.setItem('token', this.token)
 
-        axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
+        localStorage.setItem('token', data.token)
+        this._applyToken(data.token)
+
         return true
       } catch (err) {
-        console.error('Login error:', err.response?.data || err.message)
+        console.error('Login error:', err?.response?.data || err?.message)
         return false
       }
     },
 
     logout() {
       this.user = null
-      this.token = null
       localStorage.removeItem('user')
+
       localStorage.removeItem('token')
-      delete axios.defaults.headers.common['Authorization']
+      this._applyToken(null)
     },
   },
 })
