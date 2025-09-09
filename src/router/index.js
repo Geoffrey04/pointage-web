@@ -18,6 +18,15 @@ const routes = [
   // Prof / Admin
   { path: '/classes', name: 'ClassesList', component: ClassesView, meta: { requiresAuth: true, roles: ['prof','admin'] } },
 
+  // src/router/index.ts|js
+{
+  path: '/dashboard/:id',
+  name: 'DashboardView',
+  component: () => import('@/views/DashboardView.vue'),
+  props: true, // optionnel mais pratique
+  meta: { requiresAuth: true },
+},
+
   // DÉTAIL d’une classe → présence/séances
   // (choisis ce path plutôt que de multiplier /presence et /dashboard/:id)
   { path: '/classes/:id', name: 'ClassPresence', component: DashboardView, meta: { requiresAuth: true, roles: ['prof','admin'] } },

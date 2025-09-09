@@ -52,15 +52,19 @@
               class="rounded-lg"
             >
               <template #item.name="{ item }">
-                <span class="linkish" @click="goToClass(item.raw.id)">{{ item.raw.name }}</span>
-              </template>
-
+  <RouterLink
+    :to="{ name: 'DashboardView', params: { id: String(item.id) } }"
+    class="linkish"
+  >
+    {{ item.name }}
+  </RouterLink>
+</template>
               <template #item.owner_id="{ item }">
-                <span class="text-medium-emphasis">{{ ownerName(item.raw.owner_id) }}</span>
+                <span class="text-medium-emphasis">{{ ownerName(item.owner_id) }}</span>
               </template>
 
               <template #item.description="{ item }">
-                <span>{{ item.raw.description || '—' }}</span>
+                <span>{{ item.description || '—' }}</span>
               </template>
 
               <template #item.actions="{ item }">
@@ -68,21 +72,21 @@
                 <v-btn
                   icon
                   variant="text"
-                  :title="`Gérer les profs de ${item.raw.name}`"
+                  :title="`Gérer les profs de ${item.name}`"
                   @click="openManagersDialog(item)"
                 >
                   <v-icon>mdi-account-multiple-outline</v-icon>
                 </v-btn>
 
-                <v-btn icon variant="text" @click="openEdit(item.raw)" :title="`Éditer ${item.raw.name}`">
+                <v-btn icon variant="text" @click="openEdit(item)" :title="`Éditer ${item.name}`">
                   <v-icon>mdi-pencil</v-icon>
                 </v-btn>
                 <v-btn
                   icon
                   variant="text"
                   color="red"
-                  @click="confirmDelete(item.raw)"
-                  :title="`Supprimer ${item.raw.name}`"
+                  @click="confirmDelete(item)"
+                  :title="`Supprimer ${item.name}`"
                 >
                   <v-icon>mdi-delete</v-icon>
                 </v-btn>
