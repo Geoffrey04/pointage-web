@@ -16,7 +16,6 @@
               <div class="text-caption text-medium-emphasis">{{ kpi.label }}</div>
             </div>
           </v-card-text>
-          <v-card></v-card>
         </v-card>
       </v-col>
     </v-row>
@@ -53,11 +52,11 @@
               class="rounded-lg"
             >
               <template #item.name="{ item }">
-                <span class="linkish" @click="goToClass(item.id)">{{ item.name }}</span>
+                <span class="linkish" @click="goToClass(item.raw.id)">{{ item.raw.name }}</span>
               </template>
 
               <template #item.owner_id="{ item }">
-                <span class="text-medium-emphasis">{{ ownerName(item.owner_id) }}</span>
+                <span class="text-medium-emphasis">{{ ownerName(item.raw.owner_id) }}</span>
               </template>
 
               <template #item.actions="{ item }">
@@ -65,21 +64,21 @@
                 <v-btn
                   icon
                   variant="text"
-                  :title="`Gérer les profs de ${item.name}`"
+                  :title="`Gérer les profs de ${item.raw.name}`"
                   @click="openManagersDialog(item)"
                 >
                   <v-icon>mdi-account-multiple-outline</v-icon>
                 </v-btn>
 
-                <v-btn icon variant="text" @click="openEdit(item)" :title="`Éditer ${item.name}`">
+                <v-btn icon variant="text" @click="openEdit(item.raw)" :title="`Éditer ${item.raw.name}`">
                   <v-icon>mdi-pencil</v-icon>
                 </v-btn>
                 <v-btn
                   icon
                   variant="text"
                   color="red"
-                  @click="confirmDelete(item)"
-                  :title="`Supprimer ${item.name}`"
+                  @click="confirmDelete(item.raw)"
+                  :title="`Supprimer ${item.raw.name}`"
                 >
                   <v-icon>mdi-delete</v-icon>
                 </v-btn>
@@ -247,10 +246,10 @@ const profs = ref([])
 
 /* Table headers (sans ID, avec actions) */
 const classHeaders = [
-  { title: 'Nom', value: 'name' },
-  { title: 'Description', value: 'description' },
-  { title: 'Prof responsable', value: 'owner_id', width: 180 },
-  { title: '', value: 'actions', width: 90, sortable: false },
+  { title: 'Nom', key: 'name' },
+  { title: 'Description', key: 'description' },
+  { title: 'Prof responsable', key: 'owner_id', width: 180 },
+  { title: '', key: 'actions', width: 90, sortable: false },
 ]
 
 /* Snackbar */
