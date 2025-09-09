@@ -33,11 +33,17 @@ const classes = ref([])
 const router = useRouter()
 const userStore = useUserStore()
 
+
+// ✅ base API: .env ou le domaine courant (prod)
+const API = import.meta.env.VITE_API_URL || window.location.origin
+const authHeaders = () => {
+  const t = userStore.token || localStorage.getItem('token')
+  return t ? { Authorization: `Bearer ${t}` } : {}
+}
+
 onMounted(async () => {
   try {
-    const res = await axios.get('http://localhost:3000/my-classes', {
-      headers: { Authorization: `Bearer ${userStore.token}` },
-    })
+    const res = await axios.get(`${API}/my-classes`, { headers: authHeaders() })
     classes.value = res.data
   } catch (err) {
     console.error('Erreur récupération classes :', err)
@@ -45,6 +51,6 @@ onMounted(async () => {
 })
 
 const goToDashboard = (id) => {
-  router.push(`/dashboard/${id}`)
+  router.push({ name: 'DashboardView', params: { id: String(id) } })
 }
 </script>
