@@ -566,7 +566,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useDisplay } from 'vuetify'
-import axios from 'axios'
+import axios,{ isAxiosError, AxiosError } from 'axios'
 
 /* ===== Types ===== */
 type Student = {
@@ -659,28 +659,29 @@ const deleteDialog = ref<{ show: boolean; loading: boolean; student: Student | n
   loading: false,
   student: null,
 })
-function askDeleteStudent(st: Student) {
-  deleteDialog.value = { show: true, loading: false, student: st }
-}
 async function doDeleteStudent() {
-  const st = deleteDialog.value.student
-  if (!st) return
-  deleteDialog.value.loading = true
+  // ...
   try {
-    await axios.delete(`${API}/api/students/${st.id}`, { headers: authHeaders() })
-    students.value = students.value.filter((x) => x.id !== st.id)
-    delete attendanceMap[st.id]
-    delete activeSlide.value[st.id]
-    restoreActiveSessionForAllStudents()
-    deleteDialog.value = { show: false, loading: false, student: null }
-    studentDialog.value = false
-    snackbar.value = { show: true, text: '🗑️ Élève supprimé', color: 'success' }
-  } catch (e) {
+    await axios.delete(`${BASE}/api/students/${st.id}`, { headers: authHeaders() })
+    // ...
+  } catch (e: unknown) {
+    let msg = '❌ Échec suppression'
+    if (isAxiosError(e)) {
+      const status = e.response?.status
+      const serverMsg =
+        (e.response?.data as { error?: string; message?: string } | undefined)?.error ??
+        (e.response?.data as any)?.message
+      msg =
+        status === 404
+          ? serverMsg || 'Endpoint introuvable (base API incorrecte ?)'
+          : serverMsg || msg
+    }
     console.error('Suppression élève échouée', e)
+    snackbar.value = { show: true, text: msg, color: 'error' }
     deleteDialog.value.loading = false
-    snackbar.value = { show: true, text: '❌ Échec suppression', color: 'error' }
   }
 }
+
 
 /* ===== Utils ===== */
 function authHeaders() {
