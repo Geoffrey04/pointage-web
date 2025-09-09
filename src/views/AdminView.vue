@@ -59,6 +59,10 @@
                 <span class="text-medium-emphasis">{{ ownerName(item.raw.owner_id) }}</span>
               </template>
 
+              <template #item.description="{ item }">
+                <span>{{ item.raw.description || '—' }}</span>
+              </template>
+
               <template #item.actions="{ item }">
                 <!-- Gérer les profs -->
                 <v-btn
@@ -247,9 +251,9 @@ const profs = ref([])
 /* Table headers (sans ID, avec actions) */
 const classHeaders = [
   { title: 'Nom', key: 'name' },
-  { title: 'Description', key: 'description' },
-  { title: 'Prof responsable', key: 'owner_id', width: 180 },
-  { title: '', key: 'actions', width: 90, sortable: false },
+  { title: 'Description', key: 'description', value:'description'},
+  { title: 'Prof responsable', key: 'owner_username', value: 'owner_username', width: 180 },
+  { title: '', key: 'actions', value: 'actions', width: 90, sortable: false },
 ]
 
 /* Snackbar */
