@@ -176,7 +176,7 @@ watch(() => userStore.user?.role, fetchCounts)
           </v-list-item>
 
           <v-list-item
-            :to="{ name: 'admin-attendance-rates' }"
+            :to="{ name: 'AdminAttendanceRates' }"
             prepend-icon="mdi-chart-bar"
             title="Taux de présence"
             @click="drawer = false"

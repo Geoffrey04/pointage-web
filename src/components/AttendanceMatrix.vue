@@ -441,7 +441,7 @@
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn color="error" variant="tonal" @click="askDeleteStudent(selectedStudent!)"
+        <v-btn color="error" variant="tonal" :disabled="!selectedStudent" @click="askDeleteStudent(selectedStudent!)"
           >Supprimer</v-btn
         >
         <v-btn variant="text" @click="studentDialog = false">Fermer</v-btn>
@@ -660,10 +660,23 @@ const deleteDialog = ref<{ show: boolean; loading: boolean; student: Student | n
   student: null,
 })
 async function doDeleteStudent() {
-  // ...
+  const st = deleteDialog.value.student
+  if (!st) return
+  deleteDialog.value.loading = true
+
   try {
-    await axios.delete(`${BASE}/api/students/${st.id}`, { headers: authHeaders() })
-    // ...
+    await axios.delete(`${API}/api/students/${st.id}`, { headers: authHeaders() })
+
+    // MAJ UI locale
+    students.value = students.value.filter((x) => x.id !== st.id)
+    delete attendanceMap[st.id]
+    delete activeSlide.value[st.id]
+    restoreActiveSessionForAllStudents()
+
+    // Ferme les dialogs + feedback
+    deleteDialog.value = { show: false, loading: false, student: null }
+    studentDialog.value = false
+    snackbar.value = { show: true, text: '🗑️ Élève supprimé', color: 'success' }
   } catch (e: unknown) {
     let msg = '❌ Échec suppression'
     if (isAxiosError(e)) {
@@ -671,17 +684,17 @@ async function doDeleteStudent() {
       const serverMsg =
         (e.response?.data as { error?: string; message?: string } | undefined)?.error ??
         (e.response?.data as any)?.message
-      msg =
-        status === 404
-          ? serverMsg || 'Endpoint introuvable (base API incorrecte ?)'
-          : serverMsg || msg
+
+      if (status === 404) msg = serverMsg || 'Endpoint introuvable (base API incorrecte ?)'
+      else if (status === 401 || status === 403) msg = 'Action non autorisée'
+      else msg = serverMsg || msg
     }
     console.error('Suppression élève échouée', e)
     snackbar.value = { show: true, text: msg, color: 'error' }
+  } finally {
     deleteDialog.value.loading = false
   }
 }
-
 
 /* ===== Utils ===== */
 function authHeaders() {
@@ -895,6 +908,12 @@ async function saveSessionStatus() {
     d.saving = false
   }
 }
+
+function askDeleteStudent(st: Student) {
+  studentDialog.value = false
+  deleteDialog.value = { show: true, loading: false, student: st }
+}
+
 
 /* ===== Tri & fenêtre scolaire ===== */
 function schoolStartYear(dateStr: string) {
