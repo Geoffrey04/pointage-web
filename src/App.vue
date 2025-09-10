@@ -4,6 +4,7 @@ import { useUserStore } from '@/stores/user'
 import { useRouter, useRoute } from 'vue-router'
 import axios from 'axios'
 import bg from '@/assets/logo-mobile.png'
+import logo from '@/assets/logo-64.png'
 
 const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
@@ -97,7 +98,7 @@ watch(() => userStore.user?.role, fetchCounts)
 </script>
 
 <template>
-  <v-app>
+  <v-app class="d-flex flex-column min-h-screen">
     <!-- TOP BAR -->
     <v-app-bar
       app
@@ -113,7 +114,7 @@ watch(() => userStore.user?.role, fetchCounts)
         </v-btn>
 
         <v-avatar size="28" class="mr-2" variant="tonal">
-          <v-img src="src/assets/logo-64.png" alt="Logo" />
+          <v-img :src="logo" alt="Logo" cover />
         </v-avatar>
 
         <div class="appbar__titles">
@@ -171,17 +172,19 @@ watch(() => userStore.user?.role, fetchCounts)
           />
         </template>
       </v-list>
+
+
     </v-navigation-drawer>
 
     <!-- CONTENU -->
-    <v-main class="app-main">
+    <v-main class="app-main flex-grow-1">
       <!-- fond, derrière tout -->
       <v-img v-if="showBg" :src="bg" class="app-bg" cover />
       <router-view />
     </v-main>
 
     <!-- FOOTER -->
-    <v-footer app elevation="0" class="footer" role="contentinfo">
+    <v-footer elevation="0" class="footer" role="contentinfo">
       <v-container class="footer__container px-4 py-3">
         <v-row class="align-center" no-gutters>
           <v-col cols="12" md="6" class="copyright">
@@ -191,7 +194,7 @@ watch(() => userStore.user?.role, fetchCounts)
 
           <v-col cols="12" md="6">
             <nav class="links" aria-label="Liens de bas de page">
-              <v-btn variant="text" size="small" prepend-icon="mdi-scale-balance" :to="'/legal'" class="link">
+              <v-btn variant="text" size="small" prepend-icon="mdi-scale-balance" :to="'/mentions-legales'" class="link">
                 Mentions légales
               </v-btn>
               <v-btn variant="text" size="small" prepend-icon="mdi-shield-lock" :to="'/privacy'" class="link">
@@ -199,9 +202,6 @@ watch(() => userStore.user?.role, fetchCounts)
               </v-btn>
               <v-btn variant="text" size="small" prepend-icon="mdi-cookie" :to="'/cookies'" class="link">
                 Cookies
-              </v-btn>
-              <v-btn variant="text" size="small" prepend-icon="mdi-email" :to="'/contact'" class="link">
-                Contact
               </v-btn>
             </nav>
           </v-col>
@@ -322,6 +322,7 @@ html, body, #app { font-family: var(--font-ui); }
 
 /* -------- Footer transparent + texte noir -------- */
 .footer {
+  position: relative;
   background: transparent !important;
   backdrop-filter: none;
   border-top: none;
