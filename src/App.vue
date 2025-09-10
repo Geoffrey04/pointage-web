@@ -98,7 +98,7 @@ watch(() => userStore.user?.role, fetchCounts)
 
 <template>
   <v-app>
-    <!-- Barre supérieure (bleu fixe) -->
+    <!-- TOP BAR -->
     <v-app-bar
       app
       flat
@@ -112,22 +112,17 @@ watch(() => userStore.user?.role, fetchCounts)
           <v-icon>mdi-menu</v-icon>
         </v-btn>
 
-        <!-- Logo / monogramme -->
         <v-avatar size="28" class="mr-2" variant="tonal">
           <v-img src="src/assets/logo-64.png" alt="Logo" />
         </v-avatar>
 
-        <!-- Titre + sous-titre -->
         <div class="appbar__titles">
-          <div class="brand">
-            <span class="brand__org">{{ orgName }}</span>
-          </div>
+          <div class="brand"><span class="brand__org">{{ orgName }}</span></div>
           <div class="subtitle text-caption">{{ pageTitle }}</div>
         </div>
 
         <div class="flex-grow-1" />
 
-        <!-- Déconnexion + avatar -->
         <v-tooltip v-if="isLoggedIn" text="Se déconnecter" location="bottom">
           <template #activator="{ props }">
             <v-btn icon v-bind="props" @click="logout" aria-label="Se déconnecter">
@@ -142,10 +137,9 @@ watch(() => userStore.user?.role, fetchCounts)
       </v-container>
     </v-app-bar>
 
-    <!-- Menu latéral -->
+    <!-- DRAWER -->
     <v-navigation-drawer app v-model="drawer" temporary :width="300">
       <v-list nav density="comfortable">
-        <!-- En-tête utilisateur dans le drawer (seulement si connecté) -->
         <v-list-item v-if="isLoggedIn" :title="userStore.user?.username" :subtitle="roleLabel">
           <template #prepend>
             <v-avatar size="36" color="primary" class="text-white">
@@ -156,23 +150,17 @@ watch(() => userStore.user?.role, fetchCounts)
 
         <v-divider class="my-2" />
 
-        <!-- PROF : Mes classes -->
         <template v-if="isLoggedIn && !isAdmin">
           <v-list-item @click="go('/classes')" prepend-icon="mdi-account-music">
             <v-list-item-title>Mes classes</v-list-item-title>
-            <template #append>
-              <v-chip size="small" variant="tonal">{{ classCount ?? '—' }}</v-chip>
-            </template>
+            <template #append><v-chip size="small" variant="tonal">{{ classCount ?? '—' }}</v-chip></template>
           </v-list-item>
         </template>
 
-        <!-- ADMIN : Admin + Taux de présence -->
         <template v-else-if="isLoggedIn && isAdmin">
           <v-list-item @click="go('/admin')" prepend-icon="mdi-shield-account">
             <v-list-item-title>Admin</v-list-item-title>
-            <template #append>
-              <v-chip size="small" variant="tonal">{{ classCount ?? '—' }}</v-chip>
-            </template>
+            <template #append><v-chip size="small" variant="tonal">{{ classCount ?? '—' }}</v-chip></template>
           </v-list-item>
 
           <v-list-item
@@ -185,61 +173,34 @@ watch(() => userStore.user?.role, fetchCounts)
       </v-list>
     </v-navigation-drawer>
 
-    <!-- Contenu principal + fond global -->
+    <!-- CONTENU -->
     <v-main class="app-main">
+      <!-- fond, derrière tout -->
       <v-img v-if="showBg" :src="bg" class="app-bg" cover />
       <router-view />
     </v-main>
 
-    <!-- Footer (transparent, texte noir) -->
+    <!-- FOOTER -->
     <v-footer app elevation="0" class="footer" role="contentinfo">
       <v-container class="footer__container px-4 py-3">
         <v-row class="align-center" no-gutters>
           <v-col cols="12" md="6" class="copyright">
-            <div class="text-caption">
-              © {{ year }} {{ brand }} — Tous droits réservés.
-            </div>
-            <div class="text-caption meta">
-              Application interne de pointage (non commerciale).
-            </div>
+            <div class="text-caption">© {{ year }} {{ brand }} — Tous droits réservés.</div>
+            <div class="text-caption meta">Application interne de pointage (non commerciale).</div>
           </v-col>
 
           <v-col cols="12" md="6">
             <nav class="links" aria-label="Liens de bas de page">
-              <v-btn
-                variant="text"
-                size="small"
-                prepend-icon="mdi-scale-balance"
-                :to="'/legal'"
-                class="link"
-              >
+              <v-btn variant="text" size="small" prepend-icon="mdi-scale-balance" :to="'/legal'" class="link">
                 Mentions légales
               </v-btn>
-              <v-btn
-                variant="text"
-                size="small"
-                prepend-icon="mdi-shield-lock"
-                :to="'/privacy'"
-                class="link"
-              >
+              <v-btn variant="text" size="small" prepend-icon="mdi-shield-lock" :to="'/privacy'" class="link">
                 Confidentialité
               </v-btn>
-              <v-btn
-                variant="text"
-                size="small"
-                prepend-icon="mdi-cookie"
-                :to="'/cookies'"
-                class="link"
-              >
+              <v-btn variant="text" size="small" prepend-icon="mdi-cookie" :to="'/cookies'" class="link">
                 Cookies
               </v-btn>
-              <v-btn
-                variant="text"
-                size="small"
-                prepend-icon="mdi-email"
-                :to="'/contact'"
-                class="link"
-              >
+              <v-btn variant="text" size="small" prepend-icon="mdi-email" :to="'/contact'" class="link">
                 Contact
               </v-btn>
             </nav>
@@ -341,14 +302,20 @@ html, body, #app { font-family: var(--font-ui); }
   position: relative;
   min-height: 100svh;
   isolation: isolate;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .app-bg {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 0;
   opacity: 0.1;
   object-position: center 40%;
   pointer-events: none;
+}
+
+.app-main :deep(> *:not(.app-bg)) {
+  position: relative;
+  z-index: 1;
 }
 @media (max-width: 600px) { .app-bg { opacity: 0.12; object-position: center 30%; } }
 @media (min-width: 1280px) { .app-bg { object-position: center 45%; } }
@@ -360,6 +327,7 @@ html, body, #app { font-family: var(--font-ui); }
   border-top: none;
   color: #111; /* texte noir */
   font-size: 0.9rem;
+  padding-bottom: env(safe-area-inset-bottom);
 }
 .footer__container {
   max-width: 1100px;
