@@ -211,7 +211,8 @@ const currentPath = computed(() => route.name ?? route.path)
 
       <!-- PROF CONNECTÉ -->
       <template v-else-if="isLoggedIn && !isAdmin">
-        <v-badge :content="classCount ?? '—'" inline>
+        <v-badge :content="classCount ?? '—'" color="primary" floating location="top end"    offset-x="45"
+    offset-y="30">
           <v-btn :to="'/classes'" :aria-current="route.path === '/classes' ? 'page' : undefined">
             <v-icon>mdi-account-music</v-icon>
             <span>Mes classes</span>
