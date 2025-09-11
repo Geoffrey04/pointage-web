@@ -78,7 +78,7 @@
               >
                 <div class="slide-center">
                   <v-card
-                    class="date-slide px-4 py-3 d-flex flex-column align-center justify-center"
+                    class="date-slide px-8 py-3 d-flex flex-column align-center justify-center"
                     width="220"
                   >
                     <div class="text-caption text-medium-emphasis mb-2 d-flex align-center">
@@ -223,7 +223,7 @@
                             >
                               <v-icon>mdi-file-check-outline</v-icon>
                             </v-btn>
-                            <div class="text-caption mt-1">Excusé(e)</div>
+                            <div class="text-caption mt-1">Excusé</div>
                           </v-col>
                           <v-col cols="4" class="text-center">
                             <v-btn
@@ -923,7 +923,7 @@ function schoolStartYear(dateStr: string) {
 }
 function inSchoolWindow(dateStr: string) {
   const y0 = schoolStartYear(dateStr)
-  const lower = `${y0}-09-01`,
+  const lower = `${y0}-09-15`,
     upper = `${y0 + 1}-07-14`
   return dateStr >= lower && dateStr <= upper
 }
