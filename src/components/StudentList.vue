@@ -20,7 +20,7 @@
           <v-text-field
             v-model="q"
             prepend-inner-icon="mdi-magnify"
-            label="Rechercher (nom, prénom, téléphone)"
+            label="Rechercher (nom, prénom)"
             variant="outlined"
             density="comfortable"
             clearable
@@ -107,16 +107,7 @@
                   :title="`SMS ${st.firstname}`"
                 >
                   <v-icon>mdi-message-text</v-icon>
-                </v-btn>
-                <v-btn
-                  size="small"
-                  icon
-                  variant="text"
-                  @click="openInfo(st)"
-                  :title="`Infos ${st.firstname}`"
-                >
-                  <v-icon>mdi-information-outline</v-icon>
-                </v-btn>
+              </v-btn>
               </div>
             </v-card-text>
           </v-card>
@@ -207,7 +198,6 @@ const page = ref(1)
 const sortOptions = [
   { key: 'lastname', label: 'Nom' },
   { key: 'firstname', label: 'Prénom' },
-  { key: 'phone', label: 'Téléphone' },
 ]
 
 // Dialog infos
