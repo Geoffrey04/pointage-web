@@ -122,7 +122,7 @@
               <span class="text-subtitle-2">{{ initials(st) }}</span>
             </v-avatar>
           </template>
-          <v-list-item-title class="font-weight-medium">
+            <v-list-item-title class="font-weight-medium">
             {{ st.lastname }} {{ st.firstname }}
           </v-list-item-title>
           <v-list-item-subtitle class="text-medium-emphasis">
@@ -152,20 +152,38 @@
   </v-card>
 
   <!-- Dialog infos -->
-  <v-dialog v-model="infoDialog" max-width="420">
-    <v-card>
-      <v-card-title class="text-h6">Infos élève</v-card-title>
-      <v-card-text v-if="selected">
-        <div class="mb-2"><strong>Nom :</strong> {{ selected.lastname }}</div>
-        <div class="mb-2"><strong>Prénom :</strong> {{ selected.firstname }}</div>
-        <div class="mb-2"><strong>Téléphone :</strong> {{ selected.phone || '—' }}</div>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="infoDialog = false">Fermer</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+ <v-dialog v-model="infoDialog" max-width="420">
+  <v-card>
+    <v-card-title class="text-h6">Infos élève</v-card-title>
+    <v-card-text v-if="selected">
+      <div class="mb-2"><strong>Nom :</strong> {{ selected.lastname }}</div>
+      <div class="mb-2"><strong>Prénom :</strong> {{ selected.firstname }}</div>
+
+      <!-- Champ editable téléphone -->
+      <v-text-field
+        label="Téléphone"
+        v-model="selected.phone"
+        density="compact"
+        variant="outlined"
+        placeholder="Ajouter un numéro"
+      />
+    </v-card-text>
+
+    <v-card-actions>
+      <v-spacer />
+
+      <!-- Bouton enregistrer -->
+      <v-btn color="primary" variant="text" @click="updatePhone">
+        Enregistrer
+      </v-btn>
+
+      <v-btn variant="text" @click="infoDialog = false">
+        Fermer
+      </v-btn>
+    </v-card-actions>
+  </v-card>
+</v-dialog>
+
 </template>
 
 <script setup>
@@ -285,6 +303,31 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+const updatePhone = async () => {
+  if (!selected.value?.id) return
+
+  try {
+    const token = localStorage.getItem('token')
+    const { data } = await axios.patch(
+      `${API}/api/students/${selected.value.id}`,
+      { phone: selected.value.phone || null },
+      {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }
+    )
+
+    // Met à jour la liste locale des élèves
+    const index = students.value.findIndex((s) => s.id === selected.value.id)
+    if (index !== -1) {
+      students.value[index] = data
+    }
+
+    infoDialog.value = false
+  } catch (error) {
+    console.error('Erreur lors de la mise à jour du téléphone :', error)
+  }
+}
 </script>
 
 <style scoped>
