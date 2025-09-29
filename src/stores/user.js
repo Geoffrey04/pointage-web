@@ -2,8 +2,7 @@
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
-export const API_BASE =
-  import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 // ── Axios sans auth (uniquement pour /login)
 export const httpNoAuth = axios.create({
@@ -21,11 +20,12 @@ export const useUserStore = defineStore('user', {
   state: () => ({
     user: null,
     token: null,
+    bootstrapped: false, // ← pour ne pas recharger à chaque navigation
   }),
 
   getters: {
-    isLoggedIn: (s) => !!s.token,
-    isAdmin: (s) => s.user?.role === 'admin',
+    isLoggedIn: (s) => !!s.token || !!localStorage.getItem('token'),
+    isAdmin:    (s) => s.user?.role === 'admin',
   },
 
   actions: {
@@ -41,7 +41,7 @@ export const useUserStore = defineStore('user', {
 
     initialize() {
       const token = localStorage.getItem('token')
-      const user = localStorage.getItem('user')
+      const user  = localStorage.getItem('user')
 
       if (token) this._applyToken(token)
       if (user) {
@@ -89,9 +89,52 @@ export const useUserStore = defineStore('user', {
     logout() {
       this.user = null
       localStorage.removeItem('user')
-
       localStorage.removeItem('token')
       this._applyToken(null)
+      this.bootstrapped = false
+    },
+
+    /**
+     * Bootstrap de session (appelé par le router) :
+     * - si token présent → charge /me + /classes une seule fois
+     * - sinon → nettoie l’état
+     */
+    async bootstrapOnce() {
+      if (this.bootstrapped) return
+
+      // 1) Récupère/Installe le token
+      const token = localStorage.getItem('token')
+      if (!token) {
+        this.user = null
+        this._applyToken(null)
+        this.bootstrapped = true
+        return
+      }
+      // Si le store n'a pas encore l'Authorization appliqué
+      if (!this.token) this._applyToken(token)
+
+      try {
+        // 2) Charge /me et /classes en parallèle
+        const [{ data: me }, { data: classes }] = await Promise.all([
+          api.get('/api/me'),
+          api.get('/api/classes'),
+        ])
+
+        // 3) Alimente le store user
+        this.user = me || null
+        localStorage.setItem('user', JSON.stringify(this.user))
+
+        // 4) Alimente le store students avec les classes
+        const { useStudentsStore } = await import('@/stores/Students')
+        const studentsStore = useStudentsStore()
+        studentsStore.setClasses(classes || [])
+      } catch (e) {
+        console.error('bootstrapOnce failed:', e?.response?.data || e?.message)
+        // Token invalide → clean
+        this.logout()
+      } finally {
+        this.bootstrapped = true
+      }
     },
   },
 })
