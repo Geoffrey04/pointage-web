@@ -210,19 +210,25 @@ const currentPath = computed(() => route.name ?? route.path)
       </template>
 
       <!-- PROF CONNECTÉ -->
-      <template v-else-if="isLoggedIn && !isAdmin">
-        <v-badge :content="classCount ?? '—'" color="primary" floating location="top end"    offset-x="45"
-    offset-y="30">
-          <v-btn :to="'/classes'" :aria-current="route.path === '/classes' ? 'page' : undefined">
-            <v-icon>mdi-account-music</v-icon>
-            <span>Mes classes</span>
-          </v-btn>
-        </v-badge>
-        <v-btn @click="askLogout">
-          <v-icon>mdi-logout</v-icon>
-          <span>Se déconnecter</span>
-        </v-btn>
-      </template>
+    <template v-else-if="isLoggedIn && !isAdmin">
+  <v-badge :content="classCount ?? '—'" color="primary" floating location="top end" offset-x="45" offset-y="30">
+    <v-btn :to="'/classes'" :aria-current="route.path === '/classes' ? 'page' : undefined">
+      <v-icon>mdi-account-music</v-icon>
+      <span>Mes classes</span>
+    </v-btn>
+  </v-badge>
+
+  <v-btn :to="'/fiches'" :aria-current="route.path.startsWith('/fiches') ? 'page' : undefined">
+    <v-icon>mdi-book-music</v-icon>
+    <span>Fiches</span>
+  </v-btn>
+
+  <v-btn @click="askLogout">
+    <v-icon>mdi-logout</v-icon>
+    <span>Se déconnecter</span>
+  </v-btn>
+</template>
+
 
       <!-- ADMIN CONNECTÉ (admin pur) -->
       <template v-else>
@@ -297,6 +303,8 @@ html, body, #app { font-family: var(--font-ui); }
 </style>
 
 <style scoped>
+
+
 /* -------- Top bar -------- */
 .appbar {
   --appbar-base: #1E88E5;
@@ -360,6 +368,7 @@ html, body, #app { font-family: var(--font-ui); }
 
 /* -------- Bottom navigation -------- */
 .bottomnav {
+  font-size: 26px;
   background: rgba(255,255,255,0.92) !important;
   backdrop-filter: blur(10px);
   border-top: 1px solid rgba(0,0,0,.06);
@@ -380,6 +389,6 @@ html, body, #app { font-family: var(--font-ui); }
 /* Icône au-dessus, label en dessous (lire/cliquer confort) */
 .bottomnav :deep(.v-btn .v-btn__content){
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 </style>

@@ -9,6 +9,9 @@ const AdminView                = () => import('@/views/AdminView.vue')
 const AdminAttendanceRatesView = () => import('@/views/AdminAttendanceRatesView.vue')
 const ClassesView              = () => import('@/views/ClassesView.vue')
 const NotFound                 = () => import('@/views/NotFound.vue')
+const FichesView              = () => import('@/views/FichesView.vue')
+const FicheViewerView         = () => import('@/views/FicheViewerView.vue')
+
 
 const routes = [
   { path: '/', redirect: '/login' },
@@ -51,6 +54,21 @@ const routes = [
     component: () => import('@/views/CookiesView.vue'),
     meta: { public: true, title: 'Politique cookies' }
   },
+
+    // FICHES (communes)
+  {
+    path: '/fiches',
+    name: 'Fiches',
+    component: FichesView,
+    meta: { requiresAuth: true, roles: ['prof','admin'], title: 'Fiches de solfège' },
+  },
+  {
+    path: '/fiches/:id',
+    name: 'FicheViewer',
+    component: FicheViewerView,
+    meta: { requiresAuth: true, roles: ['prof','admin'], title: 'Fiches' },
+  },
+
 
   // Toujours EN DERNIER
   { path: '/:catchAll(.*)', name: 'NotFound', component: NotFound },
