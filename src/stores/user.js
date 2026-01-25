@@ -68,8 +68,13 @@ export const useUserStore = defineStore('user', {
           password: String(password ?? ''),
         })
 
+        console.log('[LOGIN DEBUG] Sending request to:', API_BASE + '/login')
+        console.log('[LOGIN DEBUG] Body:', Object.fromEntries(body))
+
+        // ⚠️ N'utiliser withCredentials que si nécessaire (cause des problèmes CORS)
         const { data } = await httpNoAuth.post('/login', body, {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          withCredentials: false, // Désactiver pour le login
         })
 
         // Stockage + activation de l'axios authentifié
@@ -81,8 +86,19 @@ export const useUserStore = defineStore('user', {
 
         return true
       } catch (err) {
-        console.error('Login error:', err?.response?.data || err?.message)
-        return false
+        const status = err?.response?.status
+        const msg = err?.response?.data?.message || err?.message || 'Erreur inconnue'
+        console.error('[LOGIN FAILED] Full error:', {
+          status,
+          message: msg,
+          code: err?.code,
+          isNetwork: err?.isAxiosError && !err?.response,
+          details: err?.response?.data,
+          originalError: err
+        })
+        
+        // Retourner le message d'erreur spécifique
+        return { error: msg }
       }
     },
 

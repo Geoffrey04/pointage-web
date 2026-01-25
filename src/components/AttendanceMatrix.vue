@@ -683,7 +683,7 @@ async function doDeleteStudent() {
       const status = e.response?.status
       const serverMsg =
         (e.response?.data as { error?: string; message?: string } | undefined)?.error ??
-        (e.response?.data as any)?.message
+        (e.response?.data as { message?: string } | undefined)?.message
 
       if (status === 404) msg = serverMsg || 'Endpoint introuvable (base API incorrecte ?)'
       else if (status === 401 || status === 403) msg = 'Action non autorisée'
@@ -739,7 +739,7 @@ function isoDowFromYmd(ymd: string): number {
 
 /** Jour personnel élève (1..7) si défini, sinon null */
 function studentIsoWeekday(st: Student): number | null {
-  const w = Number((st as any).weekday ?? 0)
+  const w = Number((st as Student & { weekday?: number }).weekday ?? 0)
   return w >= 1 && w <= 7 ? w : null
 }
 
@@ -897,12 +897,14 @@ async function saveSessionStatus() {
       }
     sessionDialog.value.show = false
     snackbar.value = { show: true, text: 'Statut de séance mis à jour', color: 'success' }
-  } catch (e: any) {
-    const msg =
-      e?.response?.data?.message ||
-      (e?.response?.status === 409
-        ? 'Des pointages existent. Cochez "Supprimer les pointages…" pour forcer.'
-        : 'Erreur de mise à jour.')
+  } catch (e: unknown) {
+    let msg = 'Erreur de mise à jour.'
+    if (isAxiosError(e)) {
+      const responseData = (e.response?.data as { message?: string } | undefined)?.message
+      if (responseData) msg = responseData
+      else if (e.response?.status === 409)
+        msg = 'Des pointages existent. Cochez "Supprimer les pointages…" pour forcer.'
+    }
     snackbar.value = { show: true, text: msg, color: 'error' }
   } finally {
     d.saving = false

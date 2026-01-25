@@ -81,14 +81,19 @@ async function handleLogin() {
     })
 
     // ✅ Si ton store ne throw pas en cas d'erreur, on force une erreur
-    if (res === false || res?.error) throw new Error(res?.error || 'BAD_CREDENTIALS')
+    if (res === false || res?.error) {
+      snack.text = res?.error || 'Identifiants invalides'
+      snack.color = 'error'
+      snack.show = true
+      return
+    }
 
     const isAdmin = userStore.user?.role === 'admin'
     router.push(isAdmin ? '/admin' : '/classes')
   } catch (e) {
     console.error('Erreur login:', e)
     // ✅ on met à jour les champs sans réassigner l'objet
-    snack.text = 'Identifiants invalides'
+    snack.text = e?.message || 'Identifiants invalides'
     snack.color = 'error'
     snack.show = true
   } finally {

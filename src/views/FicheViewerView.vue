@@ -116,6 +116,7 @@ watch(ficheId, loadAll)
   line-height: 1.15;
   display: -webkit-box;
   -webkit-line-clamp: 2;     /* 2 lignes max */
+  line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
