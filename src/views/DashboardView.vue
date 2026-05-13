@@ -145,33 +145,21 @@
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import axios from 'axios'
+import { api } from '@/stores/user'
 import AttendanceMatrix from '@/components/AttendanceMatrix.vue'
 import AddStudentForm from '@/components/AddStudentForm.vue'
 import StudentList from '@/components/StudentList.vue'
-// import { useDisplay } from 'vuetify'
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const route = useRoute()
-// const { smAndDown } = useDisplay()
 
-const authHeaders = () => {
-  const token = localStorage.getItem('token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
-// ID de la classe depuis l’URL
 const currentClassId = computed(() => Number(route.params.id))
 
-/* ────────────────────────────────────────────
-   Paramètres de classe (dialog + état)
-   ──────────────────────────────────────────── */
-const dialogClassParams = ref(false) // ← NEW: ouverture/fermeture du dialog
+// ─── Paramètres de classe ────────────────────────────────────
+const dialogClassParams = ref(false)
 const savingWeekday = ref(false)
-const lastSavedAt = ref(null) // number | null
+const lastSavedAt = ref(null)
 const classWeekday = ref(null) // 1..7 (lun..dim) ou null
 
-// items pour les chips (1..7)
 const weekdayChips = [
   { title: 'Lundi', short: 'Lun', value: 1 },
   { title: 'Mardi', short: 'Mar', value: 2 },
@@ -182,86 +170,66 @@ const weekdayChips = [
   { title: 'Dimanche', short: 'Dim', value: 7 },
 ]
 
-// Reset du badge “Sauvegardé” quand on change de sélection
+// Réinitialise le badge “Sauvegardé” dès qu'on change la sélection
 watch(classWeekday, () => {
   lastSavedAt.value = null
 })
 
-// Snackbar
 const snackbar = ref({ show: false, text: '', color: 'success' })
-
-// dialogs (ajout élève / liste élèves)
 const dialogAddStudent = ref(false)
 const dialogStudentList = ref(false)
 
-// Ref vers la matrice pour déclencher reload()
 const attendanceRef = ref(null)
 function refreshMatrix() {
   attendanceRef.value?.reload?.()
 }
 
-/* Charger le weekday actuel de la classe */
 async function fetchClassWeekday() {
   try {
-    const { data } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
-    const cls = (Array.isArray(data) ? data : []).find((c) => Number(c.id) === currentClassId.value)
-    classWeekday.value = cls ? Number(cls.weekday ?? 0) || null : null
+    const { data } = await api.get(`/api/classes/${currentClassId.value}`)
+    classWeekday.value = Number(data?.weekday ?? 0) || null
   } catch (e) {
-    console.error('fetchClassWeekday', e)
+    console.error('fetchClassWeekday :', e)
     classWeekday.value = null
   }
 }
 
-/* Ouvrir le dialog Paramètres (charge la valeur à jour) */
 async function openClassParams() {
   await fetchClassWeekday()
   lastSavedAt.value = null
   dialogClassParams.value = true
 }
 
-/* Sauvegarde + régénération des sessions + refresh tableau + badge */
 async function saveWeekday() {
   try {
     savingWeekday.value = true
-    await axios.patch(
-      `${API}/api/classes/${currentClassId.value}/weekday`,
-      { weekday: classWeekday.value }, // ← on ne force plus startYear ici
-      { headers: authHeaders() },
-    )
+    await api.patch(`/api/classes/${currentClassId.value}/weekday`, {
+      weekday: classWeekday.value,
+    })
     lastSavedAt.value = Date.now()
     snackbar.value = { show: true, text: 'Jour de classe mis à jour', color: 'success' }
-    dialogClassParams.value = false // ← fermer le dialog après succès
+    dialogClassParams.value = false
     refreshMatrix()
   } catch (e) {
-    console.error('saveWeekday', e)
+    console.error('saveWeekday :', e)
     snackbar.value = { show: true, text: 'Erreur de mise à jour', color: 'error' }
   } finally {
     savingWeekday.value = false
   }
 }
 
-// évènement du formulaire d’ajout
 function onStudentAdded() {
   refreshMatrix()
   dialogAddStudent.value = false
 }
 
-// Recharger le jour quand la classe change (navigation)
-watch(currentClassId, () => {
-  fetchClassWeekday()
-})
+// Recharge le jour si la classe change (navigation entre classes)
+watch(currentClassId, fetchClassWeekday)
 
 onMounted(fetchClassWeekday)
 </script>
 
 <style scoped>
-.control-bar {
-  background: rgb(var(--v-theme-surface));
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: var(--v-shadow-2);
-}
-
-/* scroll horizontal propre en mobile */
 .chip-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -273,58 +241,5 @@ onMounted(fetchClassWeekday)
 .chip-scroll::-webkit-scrollbar-thumb {
   background: rgba(0, 0, 0, 0.15);
   border-radius: 999px;
-}
-
-.control-bar {
-  background: rgb(var(--v-theme-surface));
-  border: 1px solid rgba(var(--v-border-color), 0.25);
-  box-shadow: var(--v-shadow-2);
-}
-
-.control-row {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: center;
-}
-
-.control-days {
-  display: flex;
-  align-items: center;
-  min-width: 0; /* permet le scroll du groupe */
-}
-
-.label {
-  margin-right: 8px;
-  white-space: nowrap;
-}
-
-.days-scroll {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.days-scroll :deep(.v-slide-group__content) {
-  padding: 0 2px;
-}
-
-/* Actions : bouton plein largeur en mobile */
-.control-actions {
-  display: flex;
-  align-items: center;
-}
-.save-btn {
-  min-width: 160px;
-}
-
-@media (max-width: 600px) {
-  .control-row {
-    grid-template-columns: 1fr; /* empile jours + bouton */
-  }
-  .control-actions {
-    width: 100%;
-  }
-  .save-btn {
-    width: 100%;
-  }
 }
 </style>

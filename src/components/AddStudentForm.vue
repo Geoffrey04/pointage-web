@@ -62,32 +62,32 @@
       class="mb-4"
     />
 
-    <v-btn type="submit" color="primary" :disabled="!formValid" block> Ajouter l’élève </v-btn>
+    <v-alert v-if="submitError" type="error" variant="tonal" class="mb-3">
+      {{ submitError }}
+    </v-alert>
+
+    <v-btn type="submit" color="primary" :disabled="!formValid" block> Ajouter l'élève </v-btn>
   </v-form>
 </template>
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import axios from 'axios'
+import { api } from '@/stores/user'
 import { useStudentsStore } from '@/stores/Students'
 
-/* Emits */
 const emit = defineEmits(['student-added'])
 
-/* Constantes / stores */
 const route = useRoute()
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const studentStore = useStudentsStore()
 
-/* Champs formulaire */
 const firstname = ref('')
 const lastname = ref('')
 const phone = ref('')
-const class_id = ref(null) // id num. en base
-const studentWeekday = ref(null) // 1..7 (lun..dim) ou null
+const class_id = ref(null)
+const studentWeekday = ref(null)
+const submitError = ref(null)
 
-/* Items */
 const weekdayItems = [
   { title: 'Par défaut (jour de la classe)', value: null },
   { title: 'Lundi', value: 1 },
@@ -98,42 +98,36 @@ const weekdayItems = [
   { title: 'Samedi', value: 6 },
   { title: 'Dimanche', value: 7 },
 ]
-const classes = ref([]) // [{ id, name }]
+const classes = ref([])
 
-/* Validation */
 const formRef = ref(null)
 const formValid = ref(false)
 const rules = {
   required: (v) => !!(v && String(v).trim()) || 'Champ requis',
   onlyLetters: (v) =>
     /^[a-zA-ZÀ-ÿ\s\-']+$/.test(v || '') || 'Uniquement lettres, espaces, tirets et apostrophes',
-  // Téléphone facultatif : OK si vide, sinon exactement 10 chiffres
+  // Le téléphone est facultatif : valide si vide, ou exactement 10 chiffres
   phoneLength: (v) => {
     const digits = (v || '').replace(/\D/g, '')
     return digits.length === 0 || digits.length === 10 || '10 chiffres requis'
   },
 }
 
-/* Helpers */
 function formatPhone(e) {
-  let digits = (e.target.value || '').replace(/\D/g, '').slice(0, 10)
+  const digits = (e.target.value || '').replace(/\D/g, '').slice(0, 10)
   const parts = digits.match(/.{1,2}/g) || []
   phone.value = parts.join(' ')
 }
+
 const routeClassId = computed(() => Number(route.params.classId ?? route.params.id))
 const lockClass = computed(() => !!routeClassId.value)
-function authHeaders() {
-  const token = localStorage.getItem('token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 
-/* Chargement des classes */
 onMounted(async () => {
   try {
-    const { data } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
+    const { data } = await api.get('/api/classes')
     classes.value = Array.isArray(data) ? data.map((c) => ({ id: Number(c.id), name: c.name })) : []
 
-    // Pré-sélectionne la classe de l'URL si elle existe
+    // Pré-sélectionne la classe issue de l'URL si elle est dans la liste
     if (routeClassId.value) {
       const exists = classes.value.some((c) => c.id === routeClassId.value)
       if (exists) class_id.value = routeClassId.value
@@ -143,25 +137,24 @@ onMounted(async () => {
   }
 })
 
-/* Soumission */
 async function submitForm() {
   const res = await formRef.value?.validate()
   const valid = typeof res === 'object' ? res.valid : !!res
   if (!valid) return
 
-  const cid = Number(class_id.value)
+  submitError.value = null
+
   try {
     await studentStore.addStudent({
       firstname: firstname.value.trim(),
       lastname: lastname.value.trim(),
       phone: phone.value.trim(),
-      class_id: cid,
-      weekday: studentWeekday.value ?? null, // ⬅️ backend gère et génère les séances
+      class_id: Number(class_id.value),
+      weekday: studentWeekday.value ?? null,
     })
 
     emit('student-added')
 
-    // Reset (on garde la classe si verrouillée)
     firstname.value = ''
     lastname.value = ''
     phone.value = ''
@@ -169,6 +162,7 @@ async function submitForm() {
     if (!lockClass.value) class_id.value = null
   } catch (e) {
     console.error('Erreur ajout élève :', e)
+    submitError.value = e?.response?.data?.message || "Erreur lors de l'ajout de l'élève."
   }
 }
 </script>

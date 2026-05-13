@@ -9,7 +9,7 @@
     <v-divider />
 
     <v-card-text>
-      <!-- Erreur d’accès / classe non autorisée -->
+      <!-- Erreur d'accès / classe non autorisée -->
       <v-alert v-if="error" type="error" variant="tonal" class="mb-3">
         {{ error }}
       </v-alert>
@@ -151,7 +151,7 @@
     </v-card-text>
   </v-card>
 
-  <!-- Dialog infos -->
+  <!-- Dialog infos élève -->
  <v-dialog v-model="infoDialog" max-width="420">
   <v-card>
     <v-card-title class="text-h6">Infos élève</v-card-title>
@@ -159,7 +159,6 @@
       <div class="mb-2"><strong>Nom :</strong> {{ selected.lastname }}</div>
       <div class="mb-2"><strong>Prénom :</strong> {{ selected.firstname }}</div>
 
-      <!-- Champ editable téléphone -->
       <v-text-field
         label="Téléphone"
         v-model="selected.phone"
@@ -171,15 +170,8 @@
 
     <v-card-actions>
       <v-spacer />
-
-      <!-- Bouton enregistrer -->
-      <v-btn color="primary" variant="text" @click="updatePhone">
-        Enregistrer
-      </v-btn>
-
-      <v-btn variant="text" @click="infoDialog = false">
-        Fermer
-      </v-btn>
+      <v-btn color="primary" variant="text" @click="updatePhone">Enregistrer</v-btn>
+      <v-btn variant="text" @click="infoDialog = false">Fermer</v-btn>
     </v-card-actions>
   </v-card>
 </v-dialog>
@@ -189,24 +181,21 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import axios from 'axios'
+import { api } from '@/stores/user'
 
-// Props (optionnel) : forcer une classe si fournie
 const props = defineProps({
   classId: { type: [Number, String], required: false },
 })
 
 const route = useRoute()
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 const loading = ref(true)
 const error = ref(null)
 
-const classes = ref([]) // classes autorisées du user
-const currentClass = ref(null) // { id, name, description }
-const students = ref([]) // élèves de la classe
+const classes = ref([])
+const currentClass = ref(null)
+const students = ref([])
 
-// UI state
 const q = ref('')
 const sortKey = ref('lastname')
 const sortAsc = ref(true)
@@ -218,7 +207,6 @@ const sortOptions = [
   { key: 'firstname', label: 'Prénom' },
 ]
 
-// Dialog infos
 const infoDialog = ref(false)
 const selected = ref(null)
 const openInfo = (st) => {
@@ -226,14 +214,13 @@ const openInfo = (st) => {
   infoDialog.value = true
 }
 
-// Utils
 const plainPhone = (p) => (p || '').replace(/\D/g, '')
 const initials = (st) =>
   (st?.lastname?.[0] || '').toUpperCase() + (st?.firstname?.[0] || '').toUpperCase()
 
-const effectiveClassId = computed(() => {
-  return Number(props.classId ?? route.params.classId ?? route.params.id)
-})
+const effectiveClassId = computed(() =>
+  Number(props.classId ?? route.params.classId ?? route.params.id),
+)
 
 const filtered = computed(() => {
   const term = q.value.trim().toLowerCase()
@@ -260,22 +247,17 @@ const paged = computed(() => {
 })
 
 async function fetchAuthorizedClasses() {
-  const token = localStorage.getItem('token')
-  const { data } = await axios.get(`${API}/api/classes`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-  })
+  const { data } = await api.get('/api/classes')
   classes.value = Array.isArray(data) ? data : []
 }
 
 async function fetchStudents() {
   const cid = effectiveClassId.value
   if (!cid) throw new Error('ID de classe manquant.')
-  // sécurité : vérifier appartenance
+  // Vérification côté client que la classe appartient au user (le serveur la refait aussi)
   const allowed = classes.value.some((c) => Number(c.id) === Number(cid))
-  if (!allowed) {
-    throw new Error('Accès refusé à cette classe.')
-  }
-  const { data } = await axios.get(`${API}/api/students/${cid}`)
+  if (!allowed) throw new Error('Accès refusé à cette classe.')
+  const { data } = await api.get(`/api/students/${cid}`)
   students.value = Array.isArray(data) ? data : []
 }
 
@@ -284,17 +266,12 @@ onMounted(async () => {
     loading.value = true
     error.value = null
 
-    // 1) Charger classes autorisées (prof/admin)
     await fetchAuthorizedClasses()
 
-    // 2) Retenir la classe courante
     const cid = effectiveClassId.value
     currentClass.value = classes.value.find((c) => Number(c.id) === Number(cid)) || null
-    if (!currentClass.value) {
-      throw new Error('Classe introuvable ou non autorisée.')
-    }
+    if (!currentClass.value) throw new Error('Classe introuvable ou non autorisée.')
 
-    // 3) Charger élèves de la classe
     await fetchStudents()
   } catch (e) {
     console.error('StudentList error:', e)
@@ -306,26 +283,15 @@ onMounted(async () => {
 
 const updatePhone = async () => {
   if (!selected.value?.id) return
-
   try {
-    const token = localStorage.getItem('token')
-    const { data } = await axios.patch(
-      `${API}/api/students/${selected.value.id}`,
-      { phone: selected.value.phone || null },
-      {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      }
-    )
-
-    // Met à jour la liste locale des élèves
+    const { data } = await api.patch(`/api/students/${selected.value.id}`, {
+      phone: selected.value.phone || null,
+    })
     const index = students.value.findIndex((s) => s.id === selected.value.id)
-    if (index !== -1) {
-      students.value[index] = data
-    }
-
+    if (index !== -1) students.value[index] = data
     infoDialog.value = false
-  } catch (error) {
-    console.error('Erreur lors de la mise à jour du téléphone :', error)
+  } catch (e) {
+    console.error('Erreur mise à jour téléphone :', e)
   }
 }
 </script>
@@ -344,7 +310,6 @@ const updatePhone = async () => {
   white-space: nowrap;
 }
 
-/* Petits affinages responsives */
 @media (max-width: 600px) {
   .v-card-title .text-caption {
     display: none;

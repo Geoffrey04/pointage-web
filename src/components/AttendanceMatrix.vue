@@ -51,7 +51,7 @@
         </div>
       </div>
 
-      <!-- ====== MOBILE : Carrousel par élève (cache les séances “hors jour” de l’élève) ====== -->
+      <!-- ====== MOBILE : Carrousel par élève (cache les séances “hors jour” de l'élève) ====== -->
       <div v-if="smAndDown" class="d-flex flex-column ga-3">
         <v-skeleton-loader v-if="loading" type="card@3" />
         <v-card v-else v-for="st in students" :key="st.id" class="rounded-xl border-thin">
@@ -173,7 +173,7 @@
                           :color="colorOf(getStatus(st.id, s.id))"
                           variant="flat"
                           class="status-pill mb-1"
-                          @click="toggleEdit(st.id, s.id)"
+                          @click="resetCell(st.id, s.id)"
                         >
                           <v-icon :icon="iconOf(getStatus(st.id, s.id))" start />
                           {{ shortLabel(getStatus(st.id, s.id)) }}
@@ -189,12 +189,7 @@
                         </v-btn>
                       </template>
 
-                      <!-- À valider : on cache simplement le hors-jour sur mobile -->
-                      <template v-else-if="!isPointableForStudent(st.id, s.id)">
-                        <div v-if="false" class="text-disabled text-caption mt-2">
-                          — hors jour —
-                        </div>
-                      </template>
+                      <template v-else-if="!isPointableForStudent(st.id, s.id)" />
 
                       <!-- Choix des 3 statuts -->
                       <template v-else>
@@ -350,7 +345,7 @@
                     :color="colorOf(getStatus(st.id, s.id))"
                     variant="flat"
                     class="status-pill"
-                    @click="toggleEdit(st.id, s.id)"
+                    @click="resetCell(st.id, s.id)"
                   >
                     <v-icon :icon="iconOf(getStatus(st.id, s.id))" start />
                     {{ shortLabel(getStatus(st.id, s.id)) }}
@@ -566,9 +561,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted, watch, computed } from 'vue'
 import { useDisplay } from 'vuetify'
-import axios,{ isAxiosError, AxiosError } from 'axios'
+import { isAxiosError } from 'axios'
+import { api } from '@/stores/user'
 
-/* ===== Types ===== */
 type Student = {
   id: number
   firstname: string
@@ -585,18 +580,18 @@ type AttendanceRow = {
   comment?: string | null
 }
 
-/* ===== Consts / refs ===== */
+// Statuts de séance qui interdisent tout pointage
 const NON_POINTABLE = new Set<SessionStatus>(['cancelled', 'holiday', 'vacation'])
 
 const props = defineProps<{ classId: number | string }>()
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 const { smAndDown } = useDisplay()
 
-const classWeekday = ref<number | null>(null) // jour par défaut de la classe (fallback)
+// Jour de cours par défaut de la classe (utilisé si l'élève n'en a pas de spécifique)
+const classWeekday = ref<number | null>(null)
 const students = ref<Student[]>([])
 const sessions = ref<Session[]>([])
 
-/** Map réactive : studentId -> sessionId -> { status, comment } */
+// Map réactive : studentId → sessionId → { status, comment }
 const attendanceMap = reactive<
   Record<
     number,
@@ -612,10 +607,10 @@ const snackbar = ref<{ show: boolean; text: string; color: string }>({
   color: 'success',
 })
 
-/** Mobile : session active PAR élève */
+// Identifiant de la slide active par élève (vue mobile)
 const activeSlide = ref<Record<number, number>>({})
 
-/* ===== Dialogs ===== */
+// ─── Dialogs ────────────────────────────────────────────────
 const studentDialog = ref(false)
 const selectedStudent = ref<Student | null>(null)
 function openStudentInfo(st: Student) {
@@ -653,7 +648,6 @@ async function confirmExcuse() {
   closeExcuseDialog()
 }
 
-/* Suppression élève */
 const deleteDialog = ref<{ show: boolean; loading: boolean; student: Student | null }>({
   show: false,
   loading: false,
@@ -665,42 +659,35 @@ async function doDeleteStudent() {
   deleteDialog.value.loading = true
 
   try {
-    await axios.delete(`${API}/api/students/${st.id}`, { headers: authHeaders() })
+    await api.delete(`/api/students/${st.id}`)
 
-    // MAJ UI locale
     students.value = students.value.filter((x) => x.id !== st.id)
     delete attendanceMap[st.id]
     delete activeSlide.value[st.id]
     restoreActiveSessionForAllStudents()
 
-    // Ferme les dialogs + feedback
     deleteDialog.value = { show: false, loading: false, student: null }
     studentDialog.value = false
-    snackbar.value = { show: true, text: '🗑️ Élève supprimé', color: 'success' }
+    snackbar.value = { show: true, text: 'Élève supprimé', color: 'success' }
   } catch (e: unknown) {
-    let msg = '❌ Échec suppression'
+    let msg = 'Échec de la suppression'
     if (isAxiosError(e)) {
       const status = e.response?.status
       const serverMsg =
         (e.response?.data as { error?: string; message?: string } | undefined)?.error ??
         (e.response?.data as { message?: string } | undefined)?.message
 
-      if (status === 404) msg = serverMsg || 'Endpoint introuvable (base API incorrecte ?)'
-      else if (status === 401 || status === 403) msg = 'Action non autorisée'
+      if (status === 401 || status === 403) msg = 'Action non autorisée'
       else msg = serverMsg || msg
     }
-    console.error('Suppression élève échouée', e)
+    console.error('Suppression élève échouée :', e)
     snackbar.value = { show: true, text: msg, color: 'error' }
   } finally {
     deleteDialog.value.loading = false
   }
 }
 
-/* ===== Utils ===== */
-function authHeaders() {
-  const t = localStorage.getItem('token')
-  return t ? { Authorization: `Bearer ${t}` } : {}
-}
+// ─── Utilitaires ────────────────────────────────────────────
 function formatDate(d?: string) {
   if (!d) return '—'
   const [y, m, dd] = d.split('-')
@@ -722,35 +709,31 @@ function resetCell(studentId: number, sessionId: number) {
   ensureKey(studentId, sessionId)
   attendanceMap[studentId][sessionId] = { status: null, comment: null }
 }
-function toggleEdit(studentId: number, sessionId: number) {
-  resetCell(studentId, sessionId)
-}
 function hasStatus(studentId: number, sessionId: number) {
   const s = getStatus(studentId, sessionId)
   return s === 'present' || s === 'absent' || s === 'excused'
 }
 
-/** ISO (1..7) depuis YYYY-MM-DD (UTC) */
+// Retourne le jour ISO (1=lun..7=dim) depuis une date YYYY-MM-DD, calculé en UTC
 function isoDowFromYmd(ymd: string): number {
-  const d = new Date(ymd + 'T12:00:00Z')
-  const js = d.getUTCDay() // 0..6, 0=dim
+  const d = new Date(ymd + "T12:00:00Z")
+  const js = d.getUTCDay()
   return js === 0 ? 7 : js
 }
 
-/** Jour personnel élève (1..7) si défini, sinon null */
 function studentIsoWeekday(st: Student): number | null {
   const w = Number((st as Student & { weekday?: number }).weekday ?? 0)
   return w >= 1 && w <= 7 ? w : null
 }
 
-/** Sessions affichées en MOBILE pour l’élève (filtrage “hors jour”) */
+// En mobile, on ne montre que les séances correspondant au jour de l'élève
 function mobileSessionsFor(st: Student): Session[] {
   const w = studentIsoWeekday(st)
   if (!w) return sortedSessions.value
   return sortedSessions.value.filter((s) => isoDowFromYmd(s.date) === w)
 }
 
-/* Couleurs / labels / icônes pour boutons d’élève */
+// ─── Couleurs / labels / icônes des statuts élève ───────────
 function colorOf(status: 'present' | 'absent' | 'excused' | null) {
   return status === 'present'
     ? 'green'
@@ -779,7 +762,7 @@ function iconOf(status: 'present' | 'absent' | 'excused' | null) {
         : 'mdi-help-circle-outline'
 }
 
-/* ===== Statut / note de séance + pointabilité ===== */
+// ─── Statut / note de séance & pointabilité ─────────────────
 function sessionStatus(id: number): SessionStatus {
   const s = sessions.value.find((x) => x.id === id)
   return (s?.status as SessionStatus) ?? 'scheduled'
@@ -791,12 +774,12 @@ function isSessionPointable(id: number) {
   return !NON_POINTABLE.has(sessionStatus(id))
 }
 
-/** Jour attendu pour l’élève (priorité: élève > classe) */
+/** Jour attendu pour l'élève (priorité: élève > classe) */
 function expectedIsoForStudent(stId: number): number | null {
   const st = students.value.find((x) => x.id === stId)
   return st?.weekday ?? classWeekday.value ?? null
 }
-/** Cette séance correspond-elle au jour attendu de l’élève ? */
+/** Cette séance correspond-elle au jour attendu de l'élève ? */
 function isExpectedForStudent(stId: number, seId: number): boolean {
   const se = sessions.value.find((x) => x.id === seId)
   if (!se) return false
@@ -805,7 +788,7 @@ function isExpectedForStudent(stId: number, seId: number): boolean {
   if (!expected || !iso) return true // pas de restriction si aucun jour paramétré
   return iso === expected
 }
-/** Pointable pour l’élève = bon jour & séance pointable */
+/** Pointable pour l'élève = bon jour & séance pointable */
 function isPointableForStudent(stId: number, seId: number): boolean {
   if (!isExpectedForStudent(stId, seId)) return false
   return isSessionPointable(seId)
@@ -885,9 +868,7 @@ async function saveSessionStatus() {
     d.saving = true
     const params = d.force ? '?force=true' : ''
     const body = { status: d.status, note: d.note?.trim() || null }
-    const { data } = await axios.patch(`${API}/sessions/${d.id}/status${params}`, body, {
-      headers: authHeaders(),
-    })
+    const { data } = await api.patch(`/sessions/${d.id}/status${params}`, body)
     const idx = sessions.value.findIndex((s) => s.id === d.id)
     if (idx >= 0)
       sessions.value[idx] = {
@@ -917,7 +898,7 @@ function askDeleteStudent(st: Student) {
 }
 
 
-/* ===== Tri & fenêtre scolaire ===== */
+// ─── Tri & fenêtre scolaire ─────────────────────────────────
 function schoolStartYear(dateStr: string) {
   const y = Number(dateStr.slice(0, 4)),
     m = Number(dateStr.slice(5, 7))
@@ -935,15 +916,10 @@ const sortedSessions = computed<Session[]>(() =>
     .sort((a, b) => a.date.localeCompare(b.date)),
 )
 
-/* ===== Avancement (mobile) ===== */
+// ─── Avancement (mobile) ────────────────────────────────────
 function isValidated(studentId: number, sessionId: number) {
   if (!isSessionPointable(sessionId)) return true // une séance non pointable est “validée”
   return !!getStatus(studentId, sessionId)
-}
-function isSessionFullyValidated(sessionId: number) {
-  const concerned = students.value.filter((st) => isPointableForStudent(st.id, sessionId))
-  if (!concerned.length) return true
-  return concerned.every((st) => !!getStatus(st.id, sessionId))
 }
 const progressKeyForStudent = (studentId: number) =>
   `attendance_progress_class_${String(props.classId)}_student_${studentId}`
@@ -984,7 +960,7 @@ function restoreActiveSessionForAllStudents() {
   }
 }
 
-/* ===== Dédup + init nouvel élève ===== */
+// ─── Déduplication & init nouvel élève ──────────────────────
 function dedupeSessions(list: Session[]) {
   const seen = new Set<number>()
   return list.filter((s) => !seen.has(s.id) && seen.add(s.id))
@@ -1003,30 +979,27 @@ watch(
   { deep: false },
 )
 
-/* ===== Fetch ===== */
+// ─── Chargement des données ──────────────────────────────────
 async function fetchAll() {
   loading.value = true
   error.value = null
   try {
-    const auth = authHeaders()
     const classIdNum = Number(props.classId)
 
-    // (0) fallback weekday de la classe
+    // Récupère le jour par défaut de la classe (fallback si l'élève n'en a pas)
     try {
-      const clRes = await axios.get(`${API}/api/classes/${classIdNum}`, { headers: auth })
+      const clRes = await api.get(`/api/classes/${classIdNum}`)
       classWeekday.value = Number(clRes.data?.weekday ?? 0) || null
     } catch {
       classWeekday.value = null
     }
 
-    // (1) élèves
-    const stRes = await axios.get<Student[]>(`${API}/api/students/${classIdNum}`, { headers: auth })
+    const stRes = await api.get<Student[]>(`/api/students/${classIdNum}`)
     students.value = Array.isArray(stRes.data) ? stRes.data : []
 
-    // (2) sessions
-    const seRes = await axios.get<
+    const seRes = await api.get<
       { id: number; date: string; status?: SessionStatus; note?: string | null }[]
-    >(`${API}/sessions/${classIdNum}`, { headers: auth })
+    >(`/sessions/${classIdNum}`)
     const raw = Array.isArray(seRes.data) ? seRes.data : []
     sessions.value = dedupeSessions(
       raw
@@ -1039,11 +1012,8 @@ async function fetchAll() {
         })),
     )
 
-    // (3) présences
-    const atRes = await axios.get<AttendanceRow[]>(`${API}/attendance/${classIdNum}`, {
-      headers: auth,
-    })
-    for (const sid in attendanceMap) delete attendanceMap[+sid] // reset
+    const atRes = await api.get<AttendanceRow[]>(`/attendance/${classIdNum}`)
+    for (const sid in attendanceMap) delete attendanceMap[+sid]
     for (const row of atRes.data || []) {
       ensureKey(row.student_id, row.session_id)
       attendanceMap[row.student_id][row.session_id] = {
@@ -1051,26 +1021,26 @@ async function fetchAll() {
         comment: row.comment ?? null,
       }
     }
-    // pré-créer cellules vides
     for (const st of students.value) for (const s of sessions.value) ensureKey(st.id, s.id)
 
     restoreActiveSessionForAllStudents()
   } catch (e) {
-    console.error('[AttendanceMatrix] fetchAll error', e)
+    console.error('fetchAll error :', e)
     error.value = 'Impossible de charger élèves / sessions.'
   } finally {
     loading.value = false
   }
 }
 
-/* ===== Save présence (avec rollback fiable) ===== */
+// ─── Enregistrement d'une présence ──────────────────────────
+// Applique une mise à jour optimiste immédiate et effectue un rollback
+// sur l'état précédent en cas d'échec de la requête.
 async function onSetStatus(
   studentId: number,
   sessionId: number,
   status: 'present' | 'absent' | 'excused',
   comment: string | null = null,
 ) {
-  // garde-fou : pas de pointage sur séance non pointable
   if (!isSessionPointable(sessionId)) {
     snackbar.value = {
       show: true,
@@ -1082,17 +1052,14 @@ async function onSetStatus(
 
   ensureKey(studentId, sessionId)
 
-  // excusé => commentaire requis (ouvrir le dialog si vide)
   if (status === 'excused' && (!comment || !comment.trim())) {
     return openExcuseDialog(studentId, sessionId)
   }
 
-  // snapshot pour rollback
   const prevStatus = attendanceMap[studentId][sessionId].status
   const prevComment = attendanceMap[studentId][sessionId].comment
 
   try {
-    // MAJ optimiste
     if (status === 'present' || status === 'absent') {
       attendanceMap[studentId][sessionId].status = status
       attendanceMap[studentId][sessionId].comment = null
@@ -1101,34 +1068,29 @@ async function onSetStatus(
       attendanceMap[studentId][sessionId].comment = (comment ?? '').trim()
     }
 
-    await axios.post(
-      `${API}/attendance`,
-      {
-        student_id: studentId,
-        session_id: sessionId,
-        status,
-        comment: status === 'excused' ? (comment ?? '').trim() : null,
-      },
-      { headers: authHeaders() },
-    )
+    await api.post('/attendance', {
+      student_id: studentId,
+      session_id: sessionId,
+      status,
+      comment: status === 'excused' ? (comment ?? '').trim() : null,
+    })
 
-    snackbar.value = { show: true, text: '✅ Enregistré', color: 'success' }
+    snackbar.value = { show: true, text: 'Enregistré', color: 'success' }
 
-    // auto-avance (mobile)
+    // Sur mobile, on avance automatiquement vers la prochaine séance à saisir
     if (smAndDown.value) {
       const next = nextUnvalidatedFromForStudent(studentId, sessionId)
       setActiveSessionForStudent(studentId, next)
     }
   } catch (e) {
     console.error('Erreur sauvegarde présence :', e)
-    // rollback fidèle
     attendanceMap[studentId][sessionId].status = prevStatus ?? null
     attendanceMap[studentId][sessionId].comment = prevComment ?? null
-    snackbar.value = { show: true, text: '❌ Erreur enregistrement', color: 'error' }
+    snackbar.value = { show: true, text: 'Erreur enregistrement', color: 'error' }
   }
 }
 
-/* ===== Exposition au parent & lifecycle ===== */
+// ─── Exposition au parent & lifecycle ───────────────────────
 function reload() {
   return fetchAll()
 }

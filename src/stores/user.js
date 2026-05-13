@@ -1,16 +1,15 @@
-// stores/user.js
 import { defineStore } from 'pinia'
 import axios from 'axios'
 
 export const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
-// ── Axios sans auth (uniquement pour /login)
+// Instance axios sans Authorization — réservée à /login pour éviter tout pré-vol CORS
 export const httpNoAuth = axios.create({
   baseURL: API_BASE,
   headers: { Accept: 'application/json' },
 })
 
-// ── Axios avec auth (pour tout le reste)
+// Instance axios authentifiée — utilisée pour toutes les routes protégées
 export const api = axios.create({
   baseURL: API_BASE,
   headers: { Accept: 'application/json' },
@@ -20,16 +19,16 @@ export const useUserStore = defineStore('user', {
   state: () => ({
     user: null,
     token: null,
-    bootstrapped: false, // ← pour ne pas recharger à chaque navigation
+    bootstrapped: false,
   }),
 
   getters: {
     isLoggedIn: (s) => !!s.token || !!localStorage.getItem('token'),
-    isAdmin:    (s) => s.user?.role === 'admin',
+    isAdmin: (s) => s.user?.role === 'admin',
   },
 
   actions: {
-    // Applique / retire le token sur l'instance "api"
+    // Applique ou retire le token Bearer sur l'instance axios authentifiée
     _applyToken(token) {
       this.token = token || null
       if (token) {
@@ -39,9 +38,10 @@ export const useUserStore = defineStore('user', {
       }
     },
 
+    // Restaure la session depuis le localStorage (appelé au démarrage de l'app)
     initialize() {
       const token = localStorage.getItem('token')
-      const user  = localStorage.getItem('user')
+      const user = localStorage.getItem('user')
 
       if (token) this._applyToken(token)
       if (user) {
@@ -53,51 +53,27 @@ export const useUserStore = defineStore('user', {
       }
     },
 
-    /**
-     * Login sans pré-vol CORS :
-     * - aucun header Authorization
-     * - Content-Type: application/x-www-form-urlencoded
-     */
     async login({ username, password }) {
       try {
-        // S'assurer qu'un éventuel Authorization global ne fuit pas
-        delete axios.defaults.headers.common?.Authorization
-
+        // Le login utilise application/x-www-form-urlencoded pour éviter le pré-vol CORS
         const body = new URLSearchParams({
           username: String(username ?? '').trim(),
           password: String(password ?? ''),
         })
 
-        console.log('[LOGIN DEBUG] Sending request to:', API_BASE + '/login')
-        console.log('[LOGIN DEBUG] Body:', Object.fromEntries(body))
-
-        // ⚠️ N'utiliser withCredentials que si nécessaire (cause des problèmes CORS)
         const { data } = await httpNoAuth.post('/login', body, {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          withCredentials: false, // Désactiver pour le login
         })
 
-        // Stockage + activation de l'axios authentifié
         this.user = data.user
         localStorage.setItem('user', JSON.stringify(this.user))
-
         localStorage.setItem('token', data.token)
         this._applyToken(data.token)
 
         return true
       } catch (err) {
-        const status = err?.response?.status
         const msg = err?.response?.data?.message || err?.message || 'Erreur inconnue'
-        console.error('[LOGIN FAILED] Full error:', {
-          status,
-          message: msg,
-          code: err?.code,
-          isNetwork: err?.isAxiosError && !err?.response,
-          details: err?.response?.data,
-          originalError: err
-        })
-        
-        // Retourner le message d'erreur spécifique
+        console.error('Échec de la connexion :', msg)
         return { error: msg }
       }
     },
@@ -110,15 +86,11 @@ export const useUserStore = defineStore('user', {
       this.bootstrapped = false
     },
 
-    /**
-     * Bootstrap de session (appelé par le router) :
-     * - si token présent → charge /me + /classes une seule fois
-     * - sinon → nettoie l’état
-     */
+    // Charge le profil utilisateur et les classes autorisées une seule fois par session.
+    // Appelé par le guard de navigation du router à chaque changement de route.
     async bootstrapOnce() {
       if (this.bootstrapped) return
 
-      // 1) Récupère/Installe le token
       const token = localStorage.getItem('token')
       if (!token) {
         this.user = null
@@ -126,27 +98,23 @@ export const useUserStore = defineStore('user', {
         this.bootstrapped = true
         return
       }
-      // Si le store n'a pas encore l'Authorization appliqué
+
       if (!this.token) this._applyToken(token)
 
       try {
-        // 2) Charge /me et /classes en parallèle
         const [{ data: me }, { data: classes }] = await Promise.all([
           api.get('/api/me'),
           api.get('/api/classes'),
         ])
 
-        // 3) Alimente le store user
         this.user = me || null
         localStorage.setItem('user', JSON.stringify(this.user))
 
-        // 4) Alimente le store students avec les classes
         const { useStudentsStore } = await import('@/stores/Students')
         const studentsStore = useStudentsStore()
         studentsStore.setClasses(classes || [])
       } catch (e) {
-        console.error('bootstrapOnce failed:', e?.response?.data || e?.message)
-        // Token invalide → clean
+        console.error('Échec du bootstrap de session :', e?.response?.data || e?.message)
         this.logout()
       } finally {
         this.bootstrapped = true

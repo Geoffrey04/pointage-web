@@ -160,7 +160,6 @@
     <!-- Dialog gestion des profs -->
     <v-dialog v-model="managersDialog.show" max-width="640">
       <v-card>
-        <!-- ✅ Titre simple sans sélecteur de classe -->
         <v-card-title class="text-subtitle-1 font-weight-600">
           Gestionnaires — {{ managersDialog.className }}
         </v-card-title>
@@ -223,24 +222,12 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { useRouter } from 'vue-router'
-import axios from 'axios'
+import { api } from '@/stores/user'
 
-const router = useRouter()
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
-
-/* Helpers */
-const authHeaders = () => {
-  const token = localStorage.getItem('token')
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
-
-/* Loading flags */
 const loading = ref({ kpis: true, classes: true, profs: true })
 const saving = ref(false)
 const deleting = ref(false)
 
-/* KPIs */
 const kpis = ref([
   { label: 'Professeurs', value: 0, icon: 'mdi-account-group', color: 'primary' },
   { label: 'Élèves', value: 0, icon: 'mdi-account-school', color: 'teal' },
@@ -248,40 +235,33 @@ const kpis = ref([
   { label: 'Cours', value: 0, icon: 'mdi-calendar-multiple', color: 'orange' },
 ])
 
-/* Data */
 const classes = ref([])
 const profs = ref([])
 
-/* Table headers (sans ID, avec actions) */
 const classHeaders = [
   { title: 'Nom', key: 'name' },
-  { title: 'Description', key: 'description', value:'description'},
+  { title: 'Description', key: 'description', value: 'description' },
   { title: 'Prof responsable', key: 'owner_username', value: 'owner_username', width: 180 },
   { title: '', key: 'actions', value: 'actions', width: 90, sortable: false },
 ]
 
-/* Snackbar */
 const snackbar = ref({ show: false, text: '', color: 'success' })
 
-/* Form dialog */
 const dialog = ref({ open: false, mode: 'create', id: null })
 const formRef = ref(null)
 const formValid = ref(false)
 const form = ref({ name: '', description: '', owner_id: null })
 const rules = { required: (v) => !!(v && String(v).trim()) || 'Requis' }
 
-/* Confirm delete */
 const confirm = ref({ open: false, item: null })
 
-/* Dialog gestion des profs */
 const managersDialog = ref({
   show: false,
   classId: null,
   className: '',
   loading: false,
-  classes: [], // conservé si besoin ultérieur, mais plus affiché
-  managers: [], // [{ id, username, role, is_owner }]
-  allProfs: [], // [{ id, username }]
+  managers: [],
+  allProfs: [],
   selectedProfId: null,
 })
 
@@ -289,42 +269,32 @@ async function openManagersDialog(cls) {
   try {
     managersDialog.value.show = true
     managersDialog.value.loading = true
-
-    // On reçoit toujours la classe depuis le bouton de la ligne
     managersDialog.value.classId = cls.id
     managersDialog.value.className = cls.name || ''
 
-    // Profs disponibles
-    const resProfs = await axios.get(`${API}/api/admin/profs`, { headers: authHeaders() })
+    const [resProfs, resMgrs] = await Promise.all([
+      api.get('/api/admin/profs'),
+      api.get('/api/admin/class-users', { params: { class_id: cls.id } }),
+    ])
     managersDialog.value.allProfs = Array.isArray(resProfs.data) ? resProfs.data : []
-
-    // Managers de la classe
-    const resMgrs = await axios.get(`${API}/api/admin/class-users`, {
-      headers: authHeaders(),
-      params: { class_id: managersDialog.value.classId },
-    })
     managersDialog.value.managers = Array.isArray(resMgrs.data) ? resMgrs.data : []
   } catch (e) {
-    console.error('openManagersDialog error:', e)
+    console.error('openManagersDialog :', e)
   } finally {
     managersDialog.value.loading = false
   }
 }
 
-/* Si jamais classId change (peu probable sans sélecteur), on garde le rechargement en place */
 watch(
   () => managersDialog.value.classId,
   async (cid) => {
     if (!cid) return
     try {
       managersDialog.value.loading = true
-      const res = await axios.get(`${API}/api/admin/class-users`, {
-        headers: authHeaders(),
-        params: { class_id: cid },
-      })
+      const res = await api.get('/api/admin/class-users', { params: { class_id: cid } })
       managersDialog.value.managers = Array.isArray(res.data) ? res.data : []
     } catch (e) {
-      console.error('reload managers on class change', e)
+      console.error('rechargement managers :', e)
     } finally {
       managersDialog.value.loading = false
     }
@@ -336,17 +306,12 @@ async function addCoProf() {
   const uid = managersDialog.value.selectedProfId
   if (!cid || !uid) return
   try {
-    await axios.post(
-      `${API}/api/admin/class-users`,
-      { class_id: cid, user_id: uid },
-      { headers: authHeaders() },
-    )
-    // ✅ Fermer le dialog et reset le champ
+    await api.post('/api/admin/class-users', { class_id: cid, user_id: uid })
     managersDialog.value.selectedProfId = null
     managersDialog.value.show = false
     snackbar.value = { show: true, text: 'Co-prof ajouté', color: 'success' }
   } catch (e) {
-    console.error('addCoProf error:', e)
+    console.error('addCoProf :', e)
     snackbar.value = { show: true, text: "Erreur lors de l'ajout", color: 'error' }
   }
 }
@@ -354,27 +319,19 @@ async function addCoProf() {
 async function removeCoProf(userId) {
   const cid = managersDialog.value.classId
   if (!cid || !userId) return
-
   try {
     managersDialog.value.loading = true
-    await axios.delete(`${API}/api/admin/class-users`, {
-      headers: authHeaders(),
-      data: { class_id: cid, user_id: userId },
-    })
-    // On recharge la liste (on garde le dialog ouvert ici)
-    const resMgrs = await axios.get(`${API}/api/admin/class-users`, {
-      headers: authHeaders(),
-      params: { class_id: cid },
-    })
+    await api.delete('/api/admin/class-users', { data: { class_id: cid, user_id: userId } })
+    // Dialog reste ouvert — on recharge la liste à jour
+    const resMgrs = await api.get('/api/admin/class-users', { params: { class_id: cid } })
     managersDialog.value.managers = Array.isArray(resMgrs.data) ? resMgrs.data : []
   } catch (e) {
-    console.error('removeCoProf error:', e)
+    console.error('removeCoProf :', e)
   } finally {
     managersDialog.value.loading = false
   }
 }
 
-/* Utils */
 function ownerName(id) {
   if (id == null) return '—'
   const u = profs.value.find((p) => Number(p.id) === Number(id))
@@ -392,10 +349,9 @@ function confirmDelete(item) {
   confirm.value = { open: true, item }
 }
 
-/* API calls */
 async function loadKPIs() {
   try {
-    const { data } = await axios.get(`${API}/api/admin/stats`, { headers: authHeaders() })
+    const { data } = await api.get('/api/admin/stats')
     kpis.value[0].value = Number(data.users || 0)
     kpis.value[1].value = Number(data.students || 0)
     kpis.value[2].value = Number(data.classes || 0)
@@ -406,7 +362,7 @@ async function loadKPIs() {
 }
 async function loadProfs() {
   try {
-    const { data } = await axios.get(`${API}/api/admin/profs`, { headers: authHeaders() })
+    const { data } = await api.get('/api/admin/profs')
     profs.value = Array.isArray(data) ? data : []
   } finally {
     loading.value.profs = false
@@ -414,7 +370,7 @@ async function loadProfs() {
 }
 async function loadClasses() {
   try {
-    const { data } = await axios.get(`${API}/api/admin/classes`, { headers: authHeaders() })
+    const { data } = await api.get('/api/admin/classes')
     classes.value = Array.isArray(data) ? data : []
   } finally {
     loading.value.classes = false
@@ -427,21 +383,18 @@ async function saveClass() {
   if (!valid) return
 
   saving.value = true
-  const payload = { ...form.value }
   try {
     if (dialog.value.mode === 'create') {
-      await axios.post(`${API}/api/admin/classes`, payload, { headers: authHeaders() })
+      await api.post('/api/admin/classes', { ...form.value })
       snackbar.value = { show: true, text: 'Classe créée', color: 'success' }
     } else {
-      await axios.patch(`${API}/api/admin/classes/${dialog.value.id}`, payload, {
-        headers: authHeaders(),
-      })
+      await api.patch(`/api/admin/classes/${dialog.value.id}`, { ...form.value })
       snackbar.value = { show: true, text: 'Classe mise à jour', color: 'success' }
     }
     dialog.value.open = false
     await loadClasses()
   } catch (e) {
-    console.error('saveClass', e)
+    console.error('saveClass :', e)
     snackbar.value = {
       show: true,
       text: e?.response?.data?.message || 'Erreur sauvegarde',
@@ -456,14 +409,12 @@ async function deleteClass() {
   if (!confirm.value.item) return
   deleting.value = true
   try {
-    await axios.delete(`${API}/api/admin/classes/${confirm.value.item.id}`, {
-      headers: authHeaders(),
-    })
+    await api.delete(`/api/admin/classes/${confirm.value.item.id}`)
     confirm.value.open = false
     snackbar.value = { show: true, text: 'Classe supprimée', color: 'success' }
     await loadClasses()
   } catch (e) {
-    console.error('deleteClass', e)
+    console.error('deleteClass :', e)
     snackbar.value = {
       show: true,
       text: e?.response?.data?.message || 'Erreur suppression',
@@ -474,17 +425,11 @@ async function deleteClass() {
   }
 }
 
-/* Navigation vers le tableau de présence d’une classe */
-function goToClass(id) {
-  router.push({ name: 'DashboardView', params: { id: String(id) } })
-}
-
-/* Init */
 onMounted(async () => {
   try {
     await Promise.all([loadKPIs(), loadProfs(), loadClasses()])
   } catch (e) {
-    console.error('Admin init', e)
+    console.error('Admin init :', e)
     snackbar.value = { show: true, text: 'Erreur de chargement', color: 'error' }
   }
 })

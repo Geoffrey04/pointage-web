@@ -15,11 +15,10 @@ const vuetify = createVuetify({ components, directives })
 
 app.use(pinia)
 app.use(router)
-app.use(createPinia())
-app.use(router)
 app.use(vuetify)
 
+// Restaure le token JWT et l'utilisateur depuis le localStorage avant le montage
 const userStore = useUserStore()
-userStore.initialize() // ← Initialisation avant le montage
+userStore.initialize()
 
 app.mount('#app')
