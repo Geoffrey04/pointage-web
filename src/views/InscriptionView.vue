@@ -85,10 +85,10 @@
             <v-card-text>
               <v-row dense>
                 <v-col cols="12" sm="6">
-                  <v-text-field v-model="eleve.nom" label="Nom *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="off" />
+                  <v-text-field v-model="eleve.nom" label="Nom *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="off" maxlength="60" @input="eleve.nom = sanitizeName(eleve.nom, 60)" />
                 </v-col>
                 <v-col cols="12" sm="6">
-                  <v-text-field v-model="eleve.prenom" label="Prénom *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="off" />
+                  <v-text-field v-model="eleve.prenom" label="Prénom *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="off" maxlength="60" @input="eleve.prenom = sanitizeName(eleve.prenom, 60)" />
                 </v-col>
                 <v-col cols="12" sm="6">
                   <v-text-field
@@ -103,7 +103,7 @@
                   />
                 </v-col>
                 <v-col cols="12" sm="6">
-                  <v-text-field v-model="eleve.lieuNaissance" label="Lieu de naissance *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="off" />
+                  <v-text-field v-model="eleve.lieuNaissance" label="Lieu de naissance *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="off" maxlength="80" @input="eleve.lieuNaissance = sanitizeName(eleve.lieuNaissance, 80)" />
                 </v-col>
               </v-row>
             </v-card-text>
@@ -113,26 +113,26 @@
           <v-card class="rounded-xl mb-4" elevation="2">
             <v-card-title class="section-title">Coordonnées</v-card-title>
             <v-card-text>
-              <v-text-field v-model="parents.pere" label="Nom et prénom du père / tuteur légal *" :rules="[req]" variant="outlined" density="comfortable" class="mb-2" autocomplete="off" />
-              <v-text-field v-model="parents.mere" label="Nom et prénom de la mère / tutrice légale *" :rules="[req]" variant="outlined" density="comfortable" class="mb-2" autocomplete="off" />
+              <v-text-field v-model="parents.pere" label="Nom et prénom du père / tuteur légal *" :rules="[req]" variant="outlined" density="comfortable" class="mb-2" autocomplete="off" maxlength="80" @input="parents.pere = sanitizeName(parents.pere, 80)" />
+              <v-text-field v-model="parents.mere" label="Nom et prénom de la mère / tutrice légale *" :rules="[req]" variant="outlined" density="comfortable" class="mb-2" autocomplete="off" maxlength="80" @input="parents.mere = sanitizeName(parents.mere, 80)" />
               <v-row dense>
                 <v-col cols="3" sm="2">
-                  <v-text-field v-model="parents.adresseNumero" label="N° *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="off" />
+                  <v-text-field v-model="parents.adresseNumero" label="N° *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="off" maxlength="10" @input="parents.adresseNumero = formatNumero(parents.adresseNumero)" />
                 </v-col>
                 <v-col cols="9" sm="10">
-                  <v-text-field v-model="parents.adresseRue" label="Rue *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="street-address" />
+                  <v-text-field v-model="parents.adresseRue" label="Rue *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="street-address" maxlength="150" />
                 </v-col>
                 <v-col cols="5" sm="4">
                   <v-text-field v-model="parents.codePostal" label="Code postal *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="postal-code" maxlength="5" @input="parents.codePostal = formatPostal(parents.codePostal)" />
                 </v-col>
                 <v-col cols="7" sm="8">
-                  <v-text-field v-model="parents.ville" label="Ville *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="address-level2" />
+                  <v-text-field v-model="parents.ville" label="Ville *" :rules="[req]" variant="outlined" density="comfortable" autocomplete="address-level2" maxlength="80" @input="parents.ville = sanitizeName(parents.ville, 80)" />
                 </v-col>
                 <v-col cols="12" sm="6">
                   <v-text-field v-model="parents.telephone" label="Téléphone *" :rules="[req, reqPhone]" variant="outlined" density="comfortable" autocomplete="tel" type="tel" hint="0X XX XX XX XX ou +33 X XX XX XX XX" @input="parents.telephone = formatPhone(parents.telephone)" />
                 </v-col>
                 <v-col cols="12" sm="6">
-                  <v-text-field v-model="parents.email" label="Email *" :rules="[req, reqEmail]" variant="outlined" density="comfortable" autocomplete="email" type="email" />
+                  <v-text-field v-model="parents.email" label="Email *" :rules="[req, reqEmail]" variant="outlined" density="comfortable" autocomplete="email" type="email" maxlength="150" />
                 </v-col>
               </v-row>
 
@@ -158,22 +158,22 @@
                   </v-btn-toggle>
                   <v-row dense>
                     <v-col cols="3" sm="2">
-                      <v-text-field v-model="parents2.adresseNumero" label="N°" variant="outlined" density="comfortable" autocomplete="off" />
+                      <v-text-field v-model="parents2.adresseNumero" label="N°" variant="outlined" density="comfortable" autocomplete="off" maxlength="10" @input="parents2.adresseNumero = formatNumero(parents2.adresseNumero)" />
                     </v-col>
                     <v-col cols="9" sm="10">
-                      <v-text-field v-model="parents2.adresseRue" label="Rue" variant="outlined" density="comfortable" />
+                      <v-text-field v-model="parents2.adresseRue" label="Rue" variant="outlined" density="comfortable" maxlength="150" />
                     </v-col>
                     <v-col cols="5" sm="4">
                       <v-text-field v-model="parents2.codePostal" label="Code postal" variant="outlined" density="comfortable" maxlength="5" @input="parents2.codePostal = formatPostal(parents2.codePostal)" />
                     </v-col>
                     <v-col cols="7" sm="8">
-                      <v-text-field v-model="parents2.ville" label="Ville" variant="outlined" density="comfortable" />
+                      <v-text-field v-model="parents2.ville" label="Ville" variant="outlined" density="comfortable" maxlength="80" @input="parents2.ville = sanitizeName(parents2.ville, 80)" />
                     </v-col>
                     <v-col cols="12" sm="6">
                       <v-text-field v-model="parents2.telephone" label="Téléphone" :rules="[reqPhone]" variant="outlined" density="comfortable" type="tel" @input="parents2.telephone = formatPhone(parents2.telephone)" />
                     </v-col>
                     <v-col cols="12" sm="6">
-                      <v-text-field v-model="parents2.email" label="Email" variant="outlined" density="comfortable" type="email" />
+                      <v-text-field v-model="parents2.email" label="Email" variant="outlined" density="comfortable" type="email" maxlength="150" />
                     </v-col>
                   </v-row>
                 </div>
@@ -452,6 +452,8 @@
                   hint="Nom et prénom du parent ou tuteur légal"
                   persistent-hint
                   autocomplete="off"
+                  maxlength="80"
+                  @input="signataire = sanitizeName(signataire, 80)"
                 />
               </v-col>
               <v-col cols="12" sm="5">
@@ -462,6 +464,8 @@
                   variant="outlined"
                   density="comfortable"
                   autocomplete="off"
+                  maxlength="80"
+                  @input="faita = sanitizeName(faita, 80)"
                 />
               </v-col>
             </v-row>
@@ -706,6 +710,14 @@ function formatPhone(raw) {
 
 function formatPostal(raw) {
   return String(raw || '').replace(/\D/g, '').slice(0, 5)
+}
+
+function sanitizeName(raw, max) {
+  return String(raw || '').replace(/[^a-zA-ZÀ-ÿ\s\-']/g, '').slice(0, max || 80)
+}
+
+function formatNumero(raw) {
+  return String(raw || '').replace(/[^0-9a-zA-Z\s]/g, '').slice(0, 10)
 }
 
 // ─── Instruments par préférence ──────────────────────────────
