@@ -22,6 +22,7 @@ async function loadAttendance() {
     ])
     attendance.value = Array.isArray(r1.data) ? r1.data : []
     monthlyRaw.value = Array.isArray(r2.data) ? r2.data : []
+    selectedClasses.value = [...new Set(monthlyRaw.value.map(r => r.name))]
   } catch (e) {
     console.error('loadAttendance :', e)
   } finally {
@@ -34,6 +35,8 @@ onMounted(loadAttendance)
 // ── Graphique ────────────────────────────────────────────────
 const MONTHS_FR = ['Jan', 'Fev', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aou', 'Sep', 'Oct', 'Nov', 'Dec']
 
+const selectedClasses = ref([])
+
 const chartSeries = computed(() => {
   const byClass = {}
   monthlyRaw.value.forEach(row => {
@@ -45,6 +48,25 @@ const chartSeries = computed(() => {
   })
   return Object.values(byClass)
 })
+
+const allClassNames = computed(() => chartSeries.value.map(s => s.name))
+
+const filteredChartSeries = computed(() =>
+  chartSeries.value.filter(s => selectedClasses.value.includes(s.name))
+)
+
+function toggleClass(name) {
+  const idx = selectedClasses.value.indexOf(name)
+  if (idx === -1) selectedClasses.value.push(name)
+  else selectedClasses.value.splice(idx, 1)
+}
+
+function toggleAll() {
+  selectedClasses.value =
+    selectedClasses.value.length === allClassNames.value.length
+      ? []
+      : [...allClassNames.value]
+}
 
 const chartOptions = {
   chart: { type: 'line', toolbar: { show: false }, zoom: { enabled: false } },
@@ -108,13 +130,36 @@ const chartOptions = {
         <div v-if="chartSeries.length === 0" class="text-center text-medium-emphasis py-8">
           Aucune donnée disponible
         </div>
-        <VueApexCharts
-          v-else
-          type="line"
-          height="320"
-          :options="chartOptions"
-          :series="chartSeries"
-        />
+        <template v-else>
+          <!-- Filtre classes -->
+          <div class="d-flex flex-wrap align-center ga-2 mb-3">
+            <v-btn
+              size="x-small"
+              variant="outlined"
+              color="grey"
+              @click="toggleAll"
+            >
+              {{ selectedClasses.length === allClassNames.length ? 'Tout désélectionner' : 'Tout sélectionner' }}
+            </v-btn>
+            <v-chip
+              v-for="name in allClassNames"
+              :key="name"
+              size="small"
+              :variant="selectedClasses.includes(name) ? 'tonal' : 'outlined'"
+              :color="selectedClasses.includes(name) ? 'primary' : 'grey'"
+              class="cursor-pointer"
+              @click="toggleClass(name)"
+            >
+              {{ name }}
+            </v-chip>
+          </div>
+          <VueApexCharts
+            type="line"
+            height="320"
+            :options="chartOptions"
+            :series="filteredChartSeries"
+          />
+        </template>
       </v-card-text>
     </v-card>
 
