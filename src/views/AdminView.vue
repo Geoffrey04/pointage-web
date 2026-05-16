@@ -20,86 +20,159 @@
       </v-col>
     </v-row>
 
-    <!-- Classes -->
-    <v-row>
-      <v-col cols="12" md="8">
+    <!-- Tabs: Classes / Dossiers -->
+    <v-tabs v-model="activeTab" color="primary" class="mb-4">
+      <v-tab value="classes">
+        <v-icon start>mdi-google-classroom</v-icon>
+        Classes
+      </v-tab>
+      <v-tab value="dossiers">
+        <v-icon start>mdi-file-document-multiple-outline</v-icon>
+        Dossiers
+        <v-chip v-if="dossiers.length" size="x-small" color="primary" variant="tonal" class="ml-2">
+          {{ dossiers.length }}
+        </v-chip>
+      </v-tab>
+    </v-tabs>
+
+    <v-tabs-window v-model="activeTab">
+      <!-- ── Onglet Classes ── -->
+      <v-tabs-window-item value="classes">
+        <v-row>
+          <v-col cols="12" md="8">
+            <v-card class="rounded-xl elevation-2">
+              <v-card-title class="d-flex align-center justify-space-between">
+                <span class="text-subtitle-1">Classes</span>
+                <v-btn
+                  size="small"
+                  variant="tonal"
+                  color="primary"
+                  @click="openCreate"
+                  prepend-icon="mdi-account-multiple-outline"
+                >
+                  Nouvelle classe
+                </v-btn>
+              </v-card-title>
+
+              <v-divider />
+
+              <v-card-text>
+                <v-skeleton-loader v-if="loading.classes" type="table" class="rounded-lg" />
+                <v-data-table
+                  v-else
+                  :headers="classHeaders"
+                  :items="classes"
+                  item-key="id"
+                  density="comfortable"
+                  class="rounded-lg"
+                >
+                  <template #item.name="{ item }">
+                    <RouterLink
+                      :to="{ name: 'DashboardView', params: { id: String(item.id) } }"
+                      class="linkish"
+                    >
+                      {{ item.name }}
+                    </RouterLink>
+                  </template>
+                  <template #item.owner_id="{ item }">
+                    <span class="text-medium-emphasis">{{ ownerName(item.owner_id) }}</span>
+                  </template>
+                  <template #item.description="{ item }">
+                    <span>{{ item.description || '—' }}</span>
+                  </template>
+                  <template #item.actions="{ item }">
+                    <v-btn
+                      icon
+                      variant="text"
+                      :title="`Gérer les profs de ${item.name}`"
+                      @click="openManagersDialog(item)"
+                    >
+                      <v-icon>mdi-account-multiple-outline</v-icon>
+                    </v-btn>
+                    <v-btn icon variant="text" @click="openEdit(item)" :title="`Éditer ${item.name}`">
+                      <v-icon>mdi-pencil</v-icon>
+                    </v-btn>
+                    <v-btn
+                      icon
+                      variant="text"
+                      color="red"
+                      @click="confirmDelete(item)"
+                      :title="`Supprimer ${item.name}`"
+                    >
+                      <v-icon>mdi-delete</v-icon>
+                    </v-btn>
+                  </template>
+                  <template #no-data>
+                    <v-alert type="info" variant="tonal">Aucune classe.</v-alert>
+                  </template>
+                </v-data-table>
+              </v-card-text>
+            </v-card>
+          </v-col>
+        </v-row>
+      </v-tabs-window-item>
+
+      <!-- ── Onglet Dossiers ── -->
+      <v-tabs-window-item value="dossiers">
         <v-card class="rounded-xl elevation-2">
           <v-card-title class="d-flex align-center justify-space-between">
-            <span class="text-subtitle-1">Classes</span>
-            <div class="d-flex ga-2">
-              <v-btn
-                size="small"
-                variant="tonal"
-                color="primary"
-                @click="openCreate"
-                prepend-icon="mdi-account-multiple-outline"
-              >
-                Nouvelle classe
-              </v-btn>
-            </div>
+            <span class="text-subtitle-1">Dossiers reçus</span>
+            <v-btn
+              size="small"
+              variant="tonal"
+              prepend-icon="mdi-refresh"
+              @click="loadDossiers"
+              :loading="loading.dossiers"
+            >
+              Actualiser
+            </v-btn>
           </v-card-title>
 
           <v-divider />
 
           <v-card-text>
-            <v-skeleton-loader v-if="loading.classes" type="table" class="rounded-lg" />
+            <v-skeleton-loader v-if="loading.dossiers" type="table" class="rounded-lg" />
             <v-data-table
               v-else
-              :headers="classHeaders"
-              :items="classes"
+              :headers="dossierHeaders"
+              :items="dossiers"
               item-key="id"
               density="comfortable"
               class="rounded-lg"
+              :sort-by="[{ key: 'submitted_at', order: 'desc' }]"
             >
-              <template #item.name="{ item }">
-  <RouterLink
-    :to="{ name: 'DashboardView', params: { id: String(item.id) } }"
-    class="linkish"
-  >
-    {{ item.name }}
-  </RouterLink>
-</template>
-              <template #item.owner_id="{ item }">
-                <span class="text-medium-emphasis">{{ ownerName(item.owner_id) }}</span>
+              <template #item.type="{ item }">
+                <v-chip
+                  size="small"
+                  :color="item.type === 'inscription' ? 'teal' : 'indigo'"
+                  variant="tonal"
+                >
+                  {{ item.type === 'inscription' ? 'Inscription' : 'Réinscription' }}
+                </v-chip>
               </template>
-
-              <template #item.description="{ item }">
-                <span>{{ item.description || '—' }}</span>
+              <template #item.submitted_at="{ item }">
+                {{ formatDate(item.submitted_at) }}
               </template>
-
               <template #item.actions="{ item }">
-                <!-- Gérer les profs -->
                 <v-btn
                   icon
                   variant="text"
-                  :title="`Gérer les profs de ${item.name}`"
-                  @click="openManagersDialog(item)"
+                  color="primary"
+                  title="Télécharger le PDF"
+                  :loading="downloadingId === item.id"
+                  @click="downloadPdf(item)"
                 >
-                  <v-icon>mdi-account-multiple-outline</v-icon>
-                </v-btn>
-
-                <v-btn icon variant="text" @click="openEdit(item)" :title="`Éditer ${item.name}`">
-                  <v-icon>mdi-pencil</v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  variant="text"
-                  color="red"
-                  @click="confirmDelete(item)"
-                  :title="`Supprimer ${item.name}`"
-                >
-                  <v-icon>mdi-delete</v-icon>
+                  <v-icon>mdi-file-pdf-box</v-icon>
                 </v-btn>
               </template>
-
               <template #no-data>
-                <v-alert type="info" variant="tonal">Aucune classe.</v-alert>
+                <v-alert type="info" variant="tonal">Aucun dossier reçu pour l'instant.</v-alert>
               </template>
             </v-data-table>
           </v-card-text>
         </v-card>
-      </v-col>
-    </v-row>
+      </v-tabs-window-item>
+    </v-tabs-window>
 
     <!-- Dialog Création / Édition -->
     <v-dialog v-model="dialog.open" max-width="560">
@@ -224,9 +297,11 @@
 import { ref, onMounted, watch } from 'vue'
 import { api } from '@/stores/user'
 
-const loading = ref({ kpis: true, classes: true, profs: true })
+const activeTab = ref('classes')
+const loading = ref({ kpis: true, classes: true, profs: true, dossiers: false })
 const saving = ref(false)
 const deleting = ref(false)
+const downloadingId = ref(null)
 
 const kpis = ref([
   { label: 'Professeurs', value: 0, icon: 'mdi-account-group', color: 'primary' },
@@ -237,12 +312,21 @@ const kpis = ref([
 
 const classes = ref([])
 const profs = ref([])
+const dossiers = ref([])
 
 const classHeaders = [
   { title: 'Nom', key: 'name' },
   { title: 'Description', key: 'description', value: 'description' },
   { title: 'Prof responsable', key: 'owner_username', value: 'owner_username', width: 180 },
   { title: '', key: 'actions', value: 'actions', width: 90, sortable: false },
+]
+
+const dossierHeaders = [
+  { title: 'Type', key: 'type', width: 140 },
+  { title: 'Nom', key: 'nom_eleve', width: 140 },
+  { title: 'Prénom', key: 'prenom_eleve', width: 140 },
+  { title: 'Reçu le', key: 'submitted_at' },
+  { title: '', key: 'actions', width: 60, sortable: false },
 ]
 
 const snackbar = ref({ show: false, text: '', color: 'success' })
@@ -377,6 +461,47 @@ async function loadClasses() {
   }
 }
 
+async function loadDossiers() {
+  loading.value.dossiers = true
+  try {
+    const { data } = await api.get('/api/admin/dossiers')
+    dossiers.value = Array.isArray(data) ? data : []
+  } catch (e) {
+    console.error('loadDossiers :', e)
+  } finally {
+    loading.value.dossiers = false
+  }
+}
+
+async function downloadPdf(item) {
+  downloadingId.value = item.id
+  try {
+    const { data } = await api.get(`/api/admin/dossiers/${item.id}/pdf`, { responseType: 'blob' })
+    const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }))
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `dossier-${item.type}-${item.prenom_eleve}-${item.nom_eleve}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    console.error('downloadPdf :', e)
+    snackbar.value = { show: true, text: 'Erreur lors du téléchargement', color: 'error' }
+  } finally {
+    downloadingId.value = null
+  }
+}
+
+function formatDate(iso) {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleDateString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
 async function saveClass() {
   const res = await formRef.value?.validate()
   const valid = typeof res === 'object' ? res.valid : !!res
@@ -427,7 +552,7 @@ async function deleteClass() {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadKPIs(), loadProfs(), loadClasses()])
+    await Promise.all([loadKPIs(), loadProfs(), loadClasses(), loadDossiers()])
   } catch (e) {
     console.error('Admin init :', e)
     snackbar.value = { show: true, text: 'Erreur de chargement', color: 'error' }

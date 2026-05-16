@@ -21,6 +21,8 @@ const routes = [
   { path: '/admin', name: 'Admin', component: AdminView, meta: { requiresAuth: true, roles: ['admin'] } },
   { path: '/admin/attendance-rates', name: 'AdminAttendanceRates', component: AdminAttendanceRatesView, meta: { requiresAuth: true, roles: ['admin'] } },
 
+  { path: '/inscription', name: 'Inscription', component: () => import('@/views/InscriptionView.vue'), meta: { public: true, title: 'Dossier inscription' } },
+
   { path: '/mentions-legales', name: 'mentions-legales', component: () => import('@/views/MentionsLegalesView.vue'), meta: { public: true, title: 'Mentions légales' } },
   { path: '/privacy', name: 'privacy', component: () => import('@/views/ConfidentialiteView.vue'), meta: { public: true, title: 'Politique de confidentialité' } },
   { path: '/cookies', name: 'cookies', component: () => import('@/views/CookiesView.vue'), meta: { public: true, title: 'Politique cookies' } },

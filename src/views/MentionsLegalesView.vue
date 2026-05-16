@@ -45,8 +45,9 @@
         <section id="objet" class="mb-6">
           <h2 class="text-h5 mb-3">Objet du site</h2>
           <p>
-            <strong>École de Musique de Marpent</strong> — Application interne de pointage, à usage non commercial,
-            destinée à la gestion des classes et de la présence des élèves.
+            <strong>École de Musique de Marpent</strong> — Application à usage non commercial destinée à la gestion
+            des classes, du pointage de présence des élèves, et au traitement des dossiers d'inscription
+            et de réinscription (formulaire public).
           </p>
         </section>
 
@@ -119,8 +120,6 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-
-const dev = import.meta.env.DEV
 
 onMounted(() => {
   document.title = 'Mentions légales — EMM Pointage'

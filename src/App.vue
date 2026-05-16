@@ -16,7 +16,7 @@ const year = new Date().getFullYear()
 const orgName = import.meta.env.VITE_ORG_NAME ?? 'École de Musique de Marpent'
 const brand = computed(() => `${orgName}`)
 
-// Couleur fixe de l’app bar
+// Couleur fixe de l'app bar
 const APPBAR_BLUE = '#1E88E5'
 
 // Init auth
@@ -47,7 +47,7 @@ const showBg = computed(() => {
   return p.startsWith('/admin') || p.startsWith('/classes') || p.startsWith('/dashboard')
 })
 
-// Home selon l’état
+// Home selon l'état
 const homeRoute = computed(() => {
   if (!isLoggedIn.value) return '/login'
   return isAdmin.value ? '/admin' : '/classes'
@@ -114,12 +114,18 @@ watchEffect(() => {
 })
 
 // --------- Bottom navigation logic ---------
-const bottomSheet = ref(false) // “Plus” (liens légaux)
+const bottomSheet = ref(false) // "Plus" (liens légaux)
 const openSheet = () => (bottomSheet.value = true)
 const closeSheet = () => (bottomSheet.value = false)
 
 // Pour aria-current éventuel
 const currentPath = computed(() => route.name ?? route.path)
+
+// Pages publiques : pas de bottom nav
+const PUBLIC_PATHS = ['/inscription', '/privacy', '/mentions-legales', '/cookies']
+const isPublicPage = computed(() =>
+  PUBLIC_PATHS.some(p => route.path.toLowerCase().startsWith(p))
+)
 </script>
 
 <template>
@@ -134,7 +140,7 @@ const currentPath = computed(() => route.name ?? route.path)
       :style="{ '--appbar-base': APPBAR_BLUE }"
     >
       <v-container class="appbar__container px-3">
-        <!-- Logo cliquable vers “home” selon l’état -->
+        <!-- Logo cliquable vers "home" selon l'état -->
         <v-btn variant="text" class="mr-1 px-0 min-w-0" :ripple="false" @click="go(homeRoute)">
           <v-avatar size="28" variant="tonal">
             <v-img :src="logo" alt="Logo" cover />
@@ -165,13 +171,13 @@ const currentPath = computed(() => route.name ?? route.path)
     </v-app-bar>
 
     <!-- CONTENU -->
-    <v-main class="app-main flex-grow-1 with-bottomnav">
+    <v-main :class="['app-main', 'flex-grow-1', { 'with-bottomnav': !isPublicPage }]">
       <v-img v-if="showBg" :src="bg" class="app-bg" cover />
       <router-view />
     </v-main>
 
-    <!-- FOOTER GLOBAL (détaché du “Plus”) -->
-    <v-footer elevation="0" class="footer" role="contentinfo">
+    <!-- FOOTER GLOBAL (détaché du "Plus") -->
+    <v-footer elevation="0" :class="['footer', { 'footer--no-nav': isPublicPage }]" role="contentinfo">
       <v-container class="footer__container px-4 py-3">
         <v-row class="align-center" no-gutters>
           <v-col cols="12" md="6" class="copyright">
@@ -196,7 +202,7 @@ const currentPath = computed(() => route.name ?? route.path)
     </v-footer>
 
     <!-- ====== BARRE DE NAVIGATION BASSE ====== -->
-    <v-bottom-navigation app :height="64" class="bottomnav" active>
+    <v-bottom-navigation v-if="!isPublicPage" app :height="64" class="bottomnav" active>
       <!-- DÉCONNECTÉ -->
       <template v-if="!isLoggedIn">
         <v-btn :to="homeRoute" :aria-current="currentPath === 'login' ? 'page' : undefined">
@@ -247,7 +253,7 @@ const currentPath = computed(() => route.name ?? route.path)
       </template>
     </v-bottom-navigation>
 
-    <!-- ====== PANNEAU “PLUS” (LÉGAL UNIQUEMENT) ====== -->
+    <!-- ====== PANNEAU "PLUS" (LÉGAL UNIQUEMENT) ====== -->
     <v-bottom-sheet v-model="bottomSheet" inset>
       <v-card class="rounded-t-2xl">
         <v-card-title class="d-flex align-center justify-space-between">
@@ -274,7 +280,7 @@ const currentPath = computed(() => route.name ?? route.path)
       <v-card class="rounded-xl">
         <v-card-title class="text-h6">Se déconnecter ?</v-card-title>
         <v-card-text class="text-body-2">
-          Vous allez être déconnecté de l’application. Confirmez-vous cette action ?
+          Vous allez être déconnecté de l'application. Confirmez-vous cette action ?
         </v-card-text>
         <v-card-actions class="justify-end">
           <v-btn variant="text" :disabled="confirming" @click="cancelLogout">Annuler</v-btn>
@@ -327,13 +333,13 @@ html, body, #app { font-family: var(--font-ui); }
 .appbar__container { max-width: 1100px; margin-inline: auto; display: flex; align-items: center; }
 .appbar__titles { min-width: 0; display: flex; flex-direction: column; line-height: 1.1; }
 .brand { font-family: var(--font-title); font-weight: 700; letter-spacing: .25px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.brand__org { display: none; opacity: .9; }
+.brand__org { display: inline; opacity: .9; }
 .subtitle { font-family: var(--font-ui); font-weight: 600; letter-spacing: .15px; color: rgba(255,255,255,.98); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .avatar__monogram { font-weight: 700; font-size: .9rem; color: white; }
 .userpill .username { max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ≥ md */
-@media (min-width: 960px) { .brand__org { display: inline; } .brand { font-size: 1.05rem; } }
+@media (min-width: 960px) { .brand { font-size: 1.05rem; } }
 /* Ultra compact */
 @media (max-width: 360px) { .subtitle { display: none; } }
 
@@ -361,7 +367,7 @@ html, body, #app { font-family: var(--font-ui); }
 }
 /* ➜ Réserver la place pour la bottom-nav côté FOOTER (évite le chevauchement) */
 @media (max-width: 960px){
-  .footer{
+  .footer:not(.footer--no-nav){
     padding-bottom: calc(var(--bottomnav-h) + 8px + env(safe-area-inset-bottom));
   }
 }
@@ -373,13 +379,13 @@ html, body, #app { font-family: var(--font-ui); }
   backdrop-filter: blur(10px);
   border-top: 1px solid rgba(0,0,0,.06);
   z-index: 10;
-  /* Assure un centrage stable quel que soit le nombre d’items */
+  /* Assure un centrage stable quel que soit le nombre d'items */
   display: flex;
   align-items: center;
   justify-content: space-evenly;
   padding-bottom: env(safe-area-inset-bottom);
 }
-/* Tous les boutons partagent l’espace équitablement, centrés, sans bavure */
+/* Tous les boutons partagent l'espace équitablement, centrés, sans bavure */
 .bottomnav :deep(.v-btn){
   flex: 1 1 0;
   min-width: 0;

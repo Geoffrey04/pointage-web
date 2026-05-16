@@ -28,6 +28,12 @@
             <li><strong>Comptes utilisateurs (profs / admin)</strong> : nom, prénom, identifiants.</li>
             <li><strong>Élèves</strong> : prénom, nom, classe(s), commentaires d’assiduité.</li>
             <li><strong>Présences</strong> : dates de séance, statut (présent/absent/excusé), commentaire associé.</li>
+            <li>
+              <strong>Dossiers d’inscription / réinscription</strong> : nom, prénom, date et lieu de naissance
+              de l’élève ; noms, adresse(s), téléphone et e-mail des responsables légaux ;
+              antécédents musicaux, instruments souhaités, signature numérique, choix relatif au droit à l’image.
+              Ces données concernent des mineurs — elles sont fournies et signées par le responsable légal.
+            </li>
             <li><strong>Aucun suivi marketing</strong> : pas d’analytics tiers, pas de prospection.</li>
           </ul>
         </section>
@@ -38,6 +44,7 @@
           <h2 class="text-h5 mb-3">Finalités</h2>
           <ul class="list">
             <li>Gestion des classes, séances et pointage de présence.</li>
+            <li>Traitement des dossiers d'inscription et de réinscription à l'école de musique.</li>
             <li>Administration des accès (professeur / administrateur) et sécurité.</li>
             <li>Production de vues de synthèse (taux de présence par classe, historique).</li>
             <li>Maintenance applicative et amélioration continue (logs techniques).</li>
@@ -50,6 +57,7 @@
           <h2 class="text-h5 mb-3">Base légale (RGPD art. 6)</h2>
           <ul class="list">
             <li><strong>Exécution d’un contrat</strong> ou mesures précontractuelles (organisation pédagogique).</li>
+            <li><strong>Consentement (art. 6.1.a RGPD)</strong> : pour le droit à l’image et la signature numérique, recueillis explicitement lors de la soumission du dossier d’inscription par le responsable légal.</li>
             <li><strong>Intérêt légitime</strong> de l’école : gestion interne de l’assiduité et de l’organisation des cours.</li>
             <li><strong>Obligations légales</strong> éventuelles (justificatifs internes, conformité associative/éducative).</li>
           </ul>
@@ -62,6 +70,7 @@
           <ul class="list">
             <li>Accès restreint aux <strong>administrateurs</strong> et <strong>professeurs</strong> concernés.</li>
             <li><strong>Hébergeur</strong> (sous-traitant technique) : 1hebergement.com — accès limité et encadré.</li>
+            <li><strong>Service d'envoi d'e-mail</strong> : Gmail / Google (USA) — utilisé uniquement pour notifier l'administrateur de la réception d'un dossier. Seuls le nom et prénom de l'élève transitent dans ces notifications.</li>
             <li>Pas de cession de données à des tiers à des fins commerciales.</li>
           </ul>
         </section>
@@ -82,9 +91,10 @@
         <section id="durees" class="mb-6">
           <h2 class="text-h5 mb-3">Durées de conservation</h2>
           <ul class="list">
-            <li><strong>Élèves &amp; classes</strong> : durée de l’année scolaire + <strong>3 ans</strong> d’archives pédagogiques .</li>
-            <li><strong>Présences</strong> : <strong>3 ans</strong> (historique pédagogique interne) .</li>
-            <li><strong>Logs techniques</strong> : jusqu’à <strong>12 mois</strong> maximum .</li>
+            <li><strong>Élèves &amp; classes</strong> : durée de l’année scolaire + <strong>3 ans</strong> d’archives pédagogiques.</li>
+            <li><strong>Présences</strong> : <strong>3 ans</strong> (historique pédagogique interne).</li>
+            <li><strong>Dossiers d’inscription / réinscription</strong> : durée de scolarité de l’élève + <strong>3 ans</strong>, puis suppression ou anonymisation.</li>
+            <li><strong>Logs techniques</strong> : jusqu’à <strong>12 mois</strong> maximum.</li>
           </ul>
           <p class="text-body-2 text-medium-emphasis mt-2">
             Au-delà, les données sont supprimées ou anonymisées lorsque cela est possible.
@@ -142,7 +152,7 @@
             La présente politique peut évoluer. Toute modification substantielle sera signalée dans l’application.
           </p>
           <p class="text-body-2 text-medium-emphasis mt-4">
-            <em>Dernière mise à jour : 10/09/2025 — Version 1.0</em>
+            <em>Dernière mise à jour : 15/05/2026 — Version 1.1</em>
           </p>
         </section>
       </v-card-text>
@@ -152,7 +162,6 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
-const dev = import.meta.env.DEV
 
 onMounted(() => {
   document.title = 'Politique de confidentialité — EMM Pointage'
