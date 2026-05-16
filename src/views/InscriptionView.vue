@@ -279,10 +279,30 @@
                   <v-btn :value="true">Oui</v-btn>
                   <v-btn :value="false">Non</v-btn>
                 </v-btn-toggle>
-                <v-row v-if="observations.autresActivitesOui" dense>
-                  <v-col cols="6"><v-text-field v-model="observations.autresActivitesDetail" label="Lesquelles" variant="outlined" density="comfortable" /></v-col>
-                  <v-col cols="6"><v-text-field v-model="observations.autresActivitesEndroit" label="Endroit" variant="outlined" density="comfortable" /></v-col>
-                </v-row>
+                <div v-if="observations.autresActivitesOui">
+                  <div
+                    v-for="(act, idx) in observations.autresActivites"
+                    :key="idx"
+                    class="d-flex align-center ga-2 mb-2"
+                  >
+                    <v-text-field v-model="act.activite" label="Activité" variant="outlined" density="comfortable" style="flex:1" />
+                    <v-text-field v-model="act.endroit" label="Endroit" variant="outlined" density="comfortable" style="flex:1" />
+                    <v-btn
+                      v-if="observations.autresActivites.length > 1"
+                      icon variant="text" color="red" size="small"
+                      @click="removeActivite(idx)"
+                    >
+                      <v-icon>mdi-close</v-icon>
+                    </v-btn>
+                  </div>
+                  <v-btn
+                    variant="text" color="#C41E3A" size="small"
+                    prepend-icon="mdi-plus" class="mt-1"
+                    @click="addActivite"
+                  >
+                    Ajouter une activité
+                  </v-btn>
+                </div>
                 <v-textarea v-model="observations.complement" label="Informations complémentaires" variant="outlined" density="comfortable" rows="2" auto-grow class="mt-2" />
               </v-card-text>
             </v-card>
@@ -615,7 +635,7 @@ const adresse2Visible = ref(false)
 const parents2Referent = ref('pere')
 const antecedents = ref({ formationOui: false, formationDuree: '', formationEndroit: '', instrumentOui: false, instrumentNom: '', instrumentDuree: '', instrumentEndroit: '' })
 const instrumentPrefs = ref([''])
-const observations = ref({ autresActivitesOui: false, autresActivitesDetail: '', autresActivitesEndroit: '', complement: '' })
+const observations = ref({ autresActivitesOui: false, autresActivites: [{ activite: '', endroit: '' }], complement: '' })
 const avis = ref('')
 const reglementAccepte = ref(false)
 const autorisationImage = ref(null)
@@ -730,6 +750,13 @@ function addInstrumentPref() {
 }
 function removeInstrumentPref(idx) {
   instrumentPrefs.value.splice(idx, 1)
+}
+
+function addActivite() {
+  observations.value.autresActivites.push({ activite: '', endroit: '' })
+}
+function removeActivite(idx) {
+  observations.value.autresActivites.splice(idx, 1)
 }
 
 // ─── Navigation formulaire ───────────────────────────────────
