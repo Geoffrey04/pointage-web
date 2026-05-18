@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <v-card class="rounded-xl elevation-2">
     <v-card-title class="text-h6 d-flex justify-space-between align-center">
       <span>Présences</span>
@@ -51,7 +51,7 @@
         </div>
       </div>
 
-      <!-- ====== MOBILE : Carrousel par élève (cache les séances “hors jour” de l'élève) ====== -->
+      <!-- ====== MOBILE : Carrousel par élève (cache les séances "hors jour" de l'élève) ====== -->
       <div v-if="smAndDown" class="d-flex flex-column ga-3">
         <v-skeleton-loader v-if="loading" type="card@3" />
         <v-card v-else v-for="st in students" :key="st.id" class="rounded-xl border-thin">
@@ -918,7 +918,7 @@ const sortedSessions = computed<Session[]>(() =>
 
 // ─── Avancement (mobile) ────────────────────────────────────
 function isValidated(studentId: number, sessionId: number) {
-  if (!isSessionPointable(sessionId)) return true // une séance non pointable est “validée”
+  if (!isSessionPointable(sessionId)) return true // une séance non pointable est "validée"
   return !!getStatus(studentId, sessionId)
 }
 const progressKeyForStudent = (studentId: number) =>
@@ -1076,6 +1076,7 @@ async function onSetStatus(
     })
 
     snackbar.value = { show: true, text: 'Enregistré', color: 'success' }
+    window.umami?.track('pointage-marque', { status })
 
     // Sur mobile, on avance automatiquement vers la prochaine séance à saisir
     if (smAndDown.value) {

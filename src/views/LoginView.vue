@@ -1,4 +1,4 @@
-<!-- LoginView.vue -->
+﻿<!-- LoginView.vue -->
 <template>
   <v-main class="login-page">
     <!-- FOND (mobile / petites tailles) -->
@@ -12,7 +12,7 @@
             <v-form ref="formRef" @submit.prevent="handleLogin">
               <v-text-field
                 v-model="username"
-                label="Nom d’utilisateur"
+                label="Nom d'utilisateur"
                 prepend-inner-icon="mdi-account"
                 variant="outlined"
                 color="white"
@@ -85,17 +85,19 @@ async function handleLogin() {
       snack.text = res?.error || 'Identifiants invalides'
       snack.color = 'error'
       snack.show = true
+      window.umami?.track('login-failure')
       return
     }
 
+    window.umami?.track('login-success', { role: userStore.user?.role })
     const isAdmin = userStore.user?.role === 'admin'
     router.push(isAdmin ? '/admin' : '/classes')
   } catch (e) {
     console.error('Erreur login:', e)
-    // ✅ on met à jour les champs sans réassigner l'objet
     snack.text = e?.message || 'Identifiants invalides'
     snack.color = 'error'
     snack.show = true
+    window.umami?.track('login-failure')
   } finally {
     loading.value = false
   }

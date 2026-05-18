@@ -816,6 +816,7 @@ async function next() {
     if (!signataire.value) signataire.value = parents.value.pere
   }
   step.value++
+  window.umami?.track('inscription-etape', { etape: step.value, type: type.value })
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -854,6 +855,7 @@ async function submit() {
       signature,
     })
     submitted.value = true
+    window.umami?.track('inscription-soumise', { type: type.value })
   } catch (e) {
     submitError.value = e?.response?.data?.message || 'Une erreur est survenue. Veuillez réessayer.'
   } finally {
