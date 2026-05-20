@@ -27,7 +27,9 @@ jobs:
         run: npm ci --no-audit --no-fund || npm i --legacy-peer-deps
 
       - name: Inject prod env
-        run: echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" > .env.production
+        run: |
+          echo "VITE_API_URL=${{ secrets.VITE_API_URL }}" > .env.production
+          echo "VITE_VAPID_PUBLIC_KEY=${{ secrets.VITE_VAPID_PUBLIC_KEY }}" >> .env.production
 
       - name: Build
         run: npm run build
