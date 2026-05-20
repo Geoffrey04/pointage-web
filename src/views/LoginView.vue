@@ -53,6 +53,7 @@
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
+import { registerPushNotifications } from '@/utils/push'
 import logo from '@/assets/logo-master.png'
 
 const router = useRouter()
@@ -90,6 +91,7 @@ async function handleLogin() {
     }
 
     window.umami?.track('login-success', { role: userStore.user?.role })
+    registerPushNotifications()
     const isAdmin = userStore.user?.role === 'admin'
     router.push(isAdmin ? '/admin' : '/classes')
   } catch (e) {
