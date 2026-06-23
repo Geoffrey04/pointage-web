@@ -118,10 +118,10 @@
             variant="tonal"
             prepend-icon="mdi-account-multiple-plus"
             :loading="cls.loading"
-            :disabled="cls.reconduited || cls.students.length === 0"
+            :disabled="cls.reconduited || selectedCount(cls) === 0"
             @click="reconduire(cls)"
           >
-            Reconduire la classe
+            Reconduire ({{ selectedCount(cls) }})
           </v-btn>
         </v-card-title>
 
@@ -131,20 +131,43 @@
           <v-list-item
             v-for="s in cls.students"
             :key="s.student_id"
-            :title="`${s.firstname} ${s.lastname}`"
-            prepend-icon="mdi-account-school"
           >
+            <template #prepend>
+              <v-checkbox-btn
+                v-model="s.selected"
+                density="compact"
+                :ripple="false"
+                class="mr-1"
+              />
+            </template>
+
+            <v-list-item-title class="text-body-2">
+              {{ s.firstname }} {{ s.lastname }}
+            </v-list-item-title>
+
             <template #append>
               <v-btn
+                icon
                 size="x-small"
-                variant="tonal"
-                prepend-icon="mdi-swap-horizontal"
+                variant="text"
+                title="Changer de classe"
                 @click="openMove(s, cls)"
               >
-                Changer de classe
+                <v-icon>mdi-swap-horizontal</v-icon>
+              </v-btn>
+              <v-btn
+                icon
+                size="x-small"
+                variant="text"
+                color="error"
+                title="Supprimer l'élève"
+                @click="openDelete(s, cls)"
+              >
+                <v-icon>mdi-delete-outline</v-icon>
               </v-btn>
             </template>
           </v-list-item>
+
           <v-list-item v-if="cls.students.length === 0" class="text-medium-emphasis text-caption">
             Aucun élève inscrit
           </v-list-item>
@@ -169,7 +192,7 @@
           <v-select
             v-model="moveDialog.targetClassId"
             :items="allClasses"
-            item-title="nom"
+            item-title="name"
             item-value="id"
             label="Classe cible *"
             variant="outlined"
@@ -177,7 +200,7 @@
           />
           <v-checkbox
             v-model="moveDialog.updateCurrent"
-            label="Mettre à jour la classe courante de l'élève (students.class_id)"
+            label="Mettre à jour la classe courante de l'élève"
             density="compact"
             hide-details
             class="mt-1"
@@ -198,6 +221,25 @@
       </v-card>
     </v-dialog>
 
+    <!-- Dialog : supprimer un élève -->
+    <v-dialog v-model="deleteDialog.show" max-width="400">
+      <v-card class="rounded-xl">
+        <v-card-title class="pt-4 px-4">Supprimer l'élève</v-card-title>
+        <v-card-text class="px-4">
+          Supprimer définitivement
+          <strong>{{ deleteDialog.student?.firstname }} {{ deleteDialog.student?.lastname }}</strong> ?
+          Cette action est irréversible.
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer />
+          <v-btn variant="text" @click="deleteDialog.show = false">Annuler</v-btn>
+          <v-btn color="error" :loading="deleteDialog.loading" @click="confirmDelete">
+            Supprimer
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="2000">
       {{ snackbar.text }}
     </v-snackbar>
@@ -209,7 +251,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { api } from '@/stores/user'
 
 const loading = ref({ years: true, enrollments: false })
-const years    = ref([])
+const years      = ref([])
 const allClasses = ref([])
 const fromYearId = ref(null)
 const toYearId   = ref(null)
@@ -217,17 +259,17 @@ const classesList = ref([])
 const snackbar = ref({ show: false, text: '', color: 'success' })
 
 const moveDialog = ref({
-  show: false,
-  student: null,
-  sourceClass: null,
-  targetClassId: null,
-  updateCurrent: false,
-  saving: false,
+  show: false, student: null, sourceClass: null,
+  targetClassId: null, updateCurrent: false, saving: false,
+})
+
+const deleteDialog = ref({
+  show: false, student: null, cls: null, loading: false,
 })
 
 // ─── Computed ───────────────────────────────────────────────
 const ready = computed(
-  () => fromYearId.value && toYearId.value && fromYearId.value !== toYearId.value && !loading.enrollments,
+  () => fromYearId.value && toYearId.value && fromYearId.value !== toYearId.value && !loading.value.enrollments,
 )
 
 const toYearLabel = computed(
@@ -240,17 +282,20 @@ const progress = computed(() =>
   classesList.value.length ? (doneCount.value / classesList.value.length) * 100 : 0,
 )
 
+function selectedCount(cls) {
+  return cls.students.filter((s) => s.selected).length
+}
+
 // ─── Chargement initial ─────────────────────────────────────
 onMounted(async () => {
   const [resYears, resClasses] = await Promise.all([
     api.get('/api/admin/school-years'),
     api.get('/api/admin/classes'),
   ])
-  years.value     = Array.isArray(resYears.data)   ? resYears.data   : []
+  years.value      = Array.isArray(resYears.data)   ? resYears.data   : []
   allClasses.value = Array.isArray(resClasses.data) ? resClasses.data : []
   loading.value.years = false
 
-  // Pré-sélection : année courante → suivante si possible
   const current = years.value.find((y) => y.is_current)
   if (current) {
     fromYearId.value = current.id
@@ -259,7 +304,7 @@ onMounted(async () => {
   }
 })
 
-// ─── Chargement des enrollments quand les années changent ───
+// ─── Chargement des enrollments ─────────────────────────────
 watch([fromYearId, toYearId], async ([from, to]) => {
   classesList.value = []
   if (!from || !to || from === to) return
@@ -273,26 +318,22 @@ watch([fromYearId, toYearId], async ([from, to]) => {
 
     const fromRows = Array.isArray(resFrom.data) ? resFrom.data : []
     const toRows   = Array.isArray(resTo.data)   ? resTo.data   : []
+    const toKeys   = new Set(toRows.map((r) => `${r.student_id}-${r.class_id}`))
 
-    // Clés déjà inscrites dans l'année cible
-    const toKeys = new Set(toRows.map((r) => `${r.student_id}-${r.class_id}`))
-
-    // Grouper par classe
     const map = new Map()
     for (const row of fromRows) {
       if (!map.has(row.class_id)) {
         map.set(row.class_id, {
-          class_id:   row.class_id,
-          class_name: row.class_name,
-          students:   [],
-          loading:    false,
+          class_id:    row.class_id,
+          class_name:  row.class_name,
+          students:    [],
+          loading:     false,
           reconduited: false,
         })
       }
-      map.get(row.class_id).students.push(row)
+      map.get(row.class_id).students.push({ ...row, selected: true })
     }
 
-    // Marquer les classes déjà reconductées (tous les élèves déjà dans to_year)
     for (const cls of map.values()) {
       if (cls.students.length > 0) {
         cls.reconduited = cls.students.every((s) =>
@@ -312,19 +353,31 @@ watch([fromYearId, toYearId], async ([from, to]) => {
   }
 })
 
-// ─── Reconduire une classe entière ─────────────────────────
+// ─── Reconduire les élèves sélectionnés ─────────────────────
 async function reconduire(cls) {
+  const selected = cls.students.filter((s) => s.selected)
+  if (!selected.length) return
+
   cls.loading = true
+  let count = 0
   try {
-    const { data } = await api.post('/api/admin/enrollments/bulk', {
-      from_year_id: fromYearId.value,
-      to_year_id:   toYearId.value,
-      class_id:     cls.class_id,
-    })
+    for (const s of selected) {
+      try {
+        await api.post('/api/admin/enrollments', {
+          student_id:     s.student_id,
+          class_id:       cls.class_id,
+          school_year_id: toYearId.value,
+        })
+        count++
+      } catch (e) {
+        if (e?.response?.status === 409) count++ // déjà inscrit = OK
+        else throw e
+      }
+    }
     cls.reconduited = true
     snackbar.value = {
       show: true,
-      text: `${cls.class_name} — ${data.enrolled} élève${data.enrolled > 1 ? 's' : ''} reconduit${data.enrolled > 1 ? 's' : ''}`,
+      text: `${cls.class_name} — ${count} élève${count > 1 ? 's' : ''} reconduit${count > 1 ? 's' : ''}`,
       color: 'success',
     }
   } catch (e) {
@@ -337,12 +390,8 @@ async function reconduire(cls) {
 // ─── Changer un élève de classe ─────────────────────────────
 function openMove(student, cls) {
   moveDialog.value = {
-    show: true,
-    student,
-    sourceClass: cls,
-    targetClassId: null,
-    updateCurrent: false,
-    saving: false,
+    show: true, student, sourceClass: cls,
+    targetClassId: null, updateCurrent: false, saving: false,
   }
 }
 
@@ -361,18 +410,47 @@ async function confirmMove() {
       })
     }
 
-    const targetName = allClasses.value.find((c) => c.id === moveDialog.value.targetClassId)?.nom ?? '?'
+    const name = allClasses.value.find((c) => c.id === moveDialog.value.targetClassId)?.name ?? '?'
     snackbar.value = {
       show: true,
-      text: `${moveDialog.value.student.firstname} inscrit en ${targetName}`,
+      text: `${moveDialog.value.student.firstname} inscrit en ${name}`,
       color: 'success',
     }
     moveDialog.value.show = false
   } catch (e) {
-    const msg = e?.response?.data?.message || 'Erreur'
-    snackbar.value = { show: true, text: msg, color: 'error' }
+    snackbar.value = {
+      show: true,
+      text: e?.response?.data?.message || 'Erreur',
+      color: 'error',
+    }
   } finally {
     moveDialog.value.saving = false
+  }
+}
+
+// ─── Supprimer un élève ─────────────────────────────────────
+function openDelete(student, cls) {
+  deleteDialog.value = { show: true, student, cls, loading: false }
+}
+
+async function confirmDelete() {
+  deleteDialog.value.loading = true
+  try {
+    await api.delete(`/api/students/${deleteDialog.value.student.student_id}`)
+    const cls = deleteDialog.value.cls
+    cls.students = cls.students.filter(
+      (s) => s.student_id !== deleteDialog.value.student.student_id,
+    )
+    deleteDialog.value.show = false
+    snackbar.value = {
+      show: true,
+      text: `${deleteDialog.value.student.firstname} ${deleteDialog.value.student.lastname} supprimé`,
+      color: 'success',
+    }
+  } catch (e) {
+    snackbar.value = { show: true, text: 'Erreur lors de la suppression', color: 'error' }
+  } finally {
+    deleteDialog.value.loading = false
   }
 }
 </script>
