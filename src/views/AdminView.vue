@@ -24,6 +24,18 @@
       </v-col>
     </v-row>
 
+    <!-- Raccourcis admin -->
+    <div class="d-flex justify-end mb-2">
+      <v-btn
+        variant="tonal"
+        size="small"
+        prepend-icon="mdi-swap-horizontal"
+        :to="{ name: 'AdminTransition' }"
+      >
+        Transition de fin d'année
+      </v-btn>
+    </div>
+
     <!-- Tabs: Classes / Dossiers -->
     <v-tabs v-model="activeTab" color="primary" class="mb-4">
       <v-tab value="classes">

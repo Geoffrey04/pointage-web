@@ -20,6 +20,7 @@ const routes = [
 
   { path: '/admin', name: 'Admin', component: AdminView, meta: { requiresAuth: true, roles: ['admin'] } },
   { path: '/admin/attendance-rates', name: 'AdminAttendanceRates', component: AdminAttendanceRatesView, meta: { requiresAuth: true, roles: ['admin'] } },
+  { path: '/admin/transition', name: 'AdminTransition', component: () => import('@/views/AdminTransitionView.vue'), meta: { requiresAuth: true, roles: ['admin'] } },
 
   { path: '/inscription', name: 'Inscription', component: () => import('@/views/InscriptionView.vue'), meta: { public: true, title: 'Dossier inscription' } },
 
