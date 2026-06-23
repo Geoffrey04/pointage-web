@@ -204,8 +204,10 @@
           </v-card-title>
           <v-card-text class="px-4 pb-4">
             <v-card variant="tonal" color="primary" class="rounded-xl mb-4 pa-5 text-center">
-              <div class="text-h4 font-weight-bold mb-1">{{ currentYear?.label || '—' }}</div>
-              <div class="text-caption text-medium-emphasis" v-if="currentYear">
+              <div class="text-h5 font-weight-bold mb-1" style="overflow-wrap: break-word">
+                {{ currentYear?.label || '—' }}
+              </div>
+              <div class="text-caption text-medium-emphasis" style="overflow-wrap: break-word" v-if="currentYear">
                 {{ formatDateShort(currentYear.start_date) }} → {{ formatDateShort(currentYear.end_date) }}
               </div>
               <v-chip size="small" color="success" variant="tonal" class="mt-2">

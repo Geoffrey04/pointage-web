@@ -96,37 +96,34 @@
         :key="cls.class_id"
         class="rounded-xl elevation-2 mb-4"
       >
-        <v-card-title class="d-flex align-center justify-space-between flex-wrap ga-2 py-3">
-          <div class="d-flex align-center ga-2 flex-wrap">
-            <span>{{ cls.class_name }}</span>
-            <v-chip size="small" variant="tonal">
-              {{ cls.students.length }} élève{{ cls.students.length > 1 ? 's' : '' }}
-            </v-chip>
-            <v-chip
-              v-if="cls.reconduited"
-              size="small"
-              color="success"
-              variant="tonal"
-              prepend-icon="mdi-check"
-            >
-              Reconduit
-            </v-chip>
-          </div>
-          <v-btn
-            color="primary"
+        <!-- En-tête classe -->
+        <v-card-title class="d-flex align-center ga-2 py-3 flex-wrap">
+          <v-checkbox-btn
+            :model-value="allSelected(cls)"
+            :indeterminate="someSelected(cls)"
+            density="compact"
+            :ripple="false"
+            title="Tout sélectionner / déselectionner"
+            @update:model-value="(v) => toggleAll(cls, v)"
+          />
+          <span>{{ cls.class_name }}</span>
+          <v-chip size="small" variant="tonal">
+            {{ cls.students.length }} élève{{ cls.students.length > 1 ? 's' : '' }}
+          </v-chip>
+          <v-chip
+            v-if="cls.reconduited"
             size="small"
+            color="success"
             variant="tonal"
-            prepend-icon="mdi-account-multiple-plus"
-            :loading="cls.loading"
-            :disabled="cls.reconduited || selectedCount(cls) === 0"
-            @click="reconduire(cls)"
+            prepend-icon="mdi-check"
           >
-            Reconduire ({{ selectedCount(cls) }})
-          </v-btn>
+            Reconduit
+          </v-chip>
         </v-card-title>
 
         <v-divider />
 
+        <!-- Liste des élèves -->
         <v-list density="compact" class="py-0">
           <v-list-item
             v-for="s in cls.students"
@@ -172,6 +169,21 @@
             Aucun élève inscrit
           </v-list-item>
         </v-list>
+
+        <!-- Bouton validation en bas à droite -->
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="primary"
+            variant="tonal"
+            prepend-icon="mdi-check"
+            :loading="cls.loading"
+            :disabled="cls.reconduited || selectedCount(cls) === 0"
+            @click="reconduire(cls)"
+          >
+            Valider ({{ selectedCount(cls) }})
+          </v-btn>
+        </v-card-actions>
       </v-card>
 
       <v-alert v-if="classesList.length === 0" type="info" variant="tonal">
@@ -284,6 +296,15 @@ const progress = computed(() =>
 
 function selectedCount(cls) {
   return cls.students.filter((s) => s.selected).length
+}
+function allSelected(cls) {
+  return cls.students.length > 0 && cls.students.every((s) => s.selected)
+}
+function someSelected(cls) {
+  return cls.students.some((s) => s.selected) && !allSelected(cls)
+}
+function toggleAll(cls, val) {
+  cls.students.forEach((s) => { s.selected = val })
 }
 
 // ─── Chargement initial ─────────────────────────────────────
