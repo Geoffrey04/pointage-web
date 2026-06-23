@@ -3,7 +3,11 @@
     <!-- KPIs -->
     <v-row class="mb-4" align="stretch">
       <v-col cols="6" sm="3" v-for="kpi in kpis" :key="kpi.label">
-        <v-card class="rounded-xl elevation-2 kpi-card">
+        <v-card
+          class="rounded-xl elevation-2 kpi-card"
+          style="cursor: pointer"
+          @click="openKpiModal(kpi)"
+        >
           <v-card-text class="d-flex align-center ga-3">
             <v-avatar size="42" :color="kpi.color" variant="tonal">
               <v-icon :icon="kpi.icon" />
@@ -174,7 +178,218 @@
       </v-tabs-window-item>
     </v-tabs-window>
 
-    <!-- Dialog Création / Édition -->
+    <!-- ─── Modal Année scolaire ─────────────────────────────── -->
+    <v-dialog v-model="schoolYearModal.show" max-width="420">
+      <v-card class="rounded-xl">
+
+        <!-- Vue : année en cours -->
+        <template v-if="schoolYearModal.step === 'view'">
+          <v-card-title class="d-flex align-center justify-space-between pt-4 px-4">
+            <span>Année scolaire</span>
+            <v-btn icon variant="text" @click="schoolYearModal.show = false">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
+          </v-card-title>
+          <v-card-text class="px-4 pb-4">
+            <v-card variant="tonal" color="primary" class="rounded-xl mb-4 pa-5 text-center">
+              <div class="text-h4 font-weight-bold mb-1">{{ currentYear?.label || '—' }}</div>
+              <div class="text-caption text-medium-emphasis" v-if="currentYear">
+                {{ formatDateShort(currentYear.start_date) }} → {{ formatDateShort(currentYear.end_date) }}
+              </div>
+              <v-chip size="small" color="success" variant="tonal" class="mt-2">
+                <v-icon start size="x-small">mdi-circle</v-icon>
+                En cours
+              </v-chip>
+            </v-card>
+
+            <v-btn
+              block
+              variant="tonal"
+              prepend-icon="mdi-format-list-bulleted"
+              class="mb-3"
+              @click="openYearList"
+            >
+              Voir toutes les années
+            </v-btn>
+
+            <v-btn block color="primary" prepend-icon="mdi-plus" @click="goToCreate">
+              Créer {{ suggestNextYear() }}
+            </v-btn>
+          </v-card-text>
+        </template>
+
+        <!-- Vue : liste des années -->
+        <template v-else-if="schoolYearModal.step === 'list'">
+          <v-card-title class="d-flex align-center pt-4 px-4">
+            <v-btn icon variant="text" size="small" @click="schoolYearModal.step = 'view'" class="mr-2">
+              <v-icon>mdi-arrow-left</v-icon>
+            </v-btn>
+            <span>Toutes les années</span>
+            <v-spacer />
+            <v-btn icon variant="text" @click="schoolYearModal.show = false">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
+          </v-card-title>
+          <v-card-text class="px-2 pb-4">
+            <v-skeleton-loader v-if="schoolYearModal.loading" type="list-item@3" />
+            <v-list v-else lines="two">
+              <v-list-item
+                v-for="year in schoolYears"
+                :key="year.id"
+                :subtitle="`${formatDateShort(year.start_date)} → ${formatDateShort(year.end_date)}`"
+              >
+                <template #title>
+                  <span class="font-weight-medium">{{ year.label }}</span>
+                  <v-chip v-if="year.is_current" size="x-small" color="success" variant="tonal" class="ml-2">
+                    En cours
+                  </v-chip>
+                </template>
+                <template #append>
+                  <v-btn
+                    v-if="!year.is_current"
+                    size="small"
+                    variant="tonal"
+                    @click="setCurrentYear(year.id)"
+                  >
+                    Activer
+                  </v-btn>
+                </template>
+              </v-list-item>
+            </v-list>
+          </v-card-text>
+        </template>
+
+        <!-- Vue : formulaire création -->
+        <template v-else-if="schoolYearModal.step === 'create'">
+          <v-card-title class="d-flex align-center pt-4 px-4">
+            <v-btn icon variant="text" size="small" @click="schoolYearModal.step = 'view'" class="mr-2">
+              <v-icon>mdi-arrow-left</v-icon>
+            </v-btn>
+            <span>Nouvelle année scolaire</span>
+            <v-spacer />
+            <v-btn icon variant="text" @click="schoolYearModal.show = false">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
+          </v-card-title>
+          <v-card-text class="px-4 pb-2">
+            <v-text-field
+              v-model="yearForm.label"
+              label="Label *"
+              hint="Format : 2026-2027"
+              persistent-hint
+              variant="outlined"
+              density="comfortable"
+              class="mb-3"
+            />
+            <v-text-field
+              v-model="yearForm.start_date"
+              label="Date de début *"
+              type="date"
+              variant="outlined"
+              density="comfortable"
+              class="mb-3"
+            />
+            <v-text-field
+              v-model="yearForm.end_date"
+              label="Date de fin *"
+              type="date"
+              variant="outlined"
+              density="comfortable"
+              class="mb-3"
+            />
+            <v-alert type="info" variant="tonal" density="compact" class="text-caption">
+              Les vacances Zone B et jours fériés seront pré-marqués automatiquement.
+            </v-alert>
+          </v-card-text>
+          <v-card-actions class="px-4 pb-4">
+            <v-spacer />
+            <v-btn variant="text" @click="schoolYearModal.step = 'view'">Annuler</v-btn>
+            <v-btn
+              color="primary"
+              :loading="schoolYearModal.creating"
+              :disabled="!yearForm.label || !yearForm.start_date || !yearForm.end_date"
+              @click="createSchoolYear"
+            >
+              Créer l'année
+            </v-btn>
+          </v-card-actions>
+        </template>
+      </v-card>
+    </v-dialog>
+
+    <!-- ─── Modal Professeurs ─────────────────────────────────── -->
+    <v-dialog v-model="profsModal.show" max-width="420">
+      <v-card class="rounded-xl">
+        <v-card-title class="d-flex align-center justify-space-between pt-4 px-4">
+          <span>Professeurs ({{ profs.length }})</span>
+          <v-btn icon variant="text" @click="profsModal.show = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="px-2 pb-4">
+          <v-list density="compact">
+            <v-list-item
+              v-for="prof in profs"
+              :key="prof.id"
+              :title="prof.username"
+              prepend-icon="mdi-account"
+            />
+          </v-list>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- ─── Modal Élèves ──────────────────────────────────────── -->
+    <v-dialog v-model="elevesModal.show" max-width="480">
+      <v-card class="rounded-xl">
+        <v-card-title class="d-flex align-center justify-space-between pt-4 px-4">
+          <span>Élèves ({{ elevesModal.items.length }})</span>
+          <v-btn icon variant="text" @click="elevesModal.show = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="px-2 pb-4">
+          <v-skeleton-loader v-if="elevesModal.loading" type="list-item@6" />
+          <v-list v-else density="compact">
+            <v-list-item
+              v-for="s in elevesModal.items"
+              :key="s.id"
+              :title="`${s.firstname} ${s.lastname}`"
+              :subtitle="s.class_name || '—'"
+              prepend-icon="mdi-account-school"
+            />
+          </v-list>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- ─── Modal Classes ─────────────────────────────────────── -->
+    <v-dialog v-model="classesModal.show" max-width="480">
+      <v-card class="rounded-xl">
+        <v-card-title class="d-flex align-center justify-space-between pt-4 px-4">
+          <span>Classes ({{ classes.length }})</span>
+          <v-btn icon variant="text" @click="classesModal.show = false">
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="px-2 pb-4">
+          <v-list density="compact">
+            <v-list-item
+              v-for="cls in classes"
+              :key="cls.id"
+              :title="cls.name"
+              :subtitle="ownerName(cls.owner_id)"
+              prepend-icon="mdi-google-classroom"
+            />
+          </v-list>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+
+    <!-- Dialog Création / Édition classe -->
     <v-dialog v-model="dialog.open" max-width="560">
       <v-card>
         <v-card-title>
@@ -243,7 +458,6 @@
           <v-skeleton-loader v-if="managersDialog.loading" type="list-item@3" />
 
           <template v-else>
-            <!-- Profs actuels -->
             <div class="text-subtitle-2 mb-2">Profs actuels</div>
             <div class="chips-wrap mb-4">
               <v-chip
@@ -261,7 +475,6 @@
 
             <v-divider class="my-4" />
 
-            <!-- Ajout co-prof -->
             <div class="text-subtitle-2 mb-2">Ajouter un co-prof</div>
             <div class="add-grid">
               <v-select
@@ -304,20 +517,141 @@ const deleting = ref(false)
 const downloadingId = ref(null)
 
 const kpis = ref([
-  { label: 'Professeurs', value: 0, icon: 'mdi-account-group', color: 'primary' },
-  { label: 'Élèves', value: 0, icon: 'mdi-account-school', color: 'teal' },
-  { label: 'Classes', value: 0, icon: 'mdi-google-classroom', color: 'indigo' },
-  { label: 'Cours', value: 0, icon: 'mdi-calendar-multiple', color: 'orange' },
+  { label: 'Professeurs',    value: 0,   icon: 'mdi-account-group',    color: 'primary', action: 'profs' },
+  { label: 'Élèves',         value: 0,   icon: 'mdi-account-school',   color: 'teal',    action: 'eleves' },
+  { label: 'Classes',        value: 0,   icon: 'mdi-google-classroom', color: 'indigo',  action: 'classes' },
+  { label: 'Année scolaire', value: '—', icon: 'mdi-calendar-star',    color: 'orange',  action: 'schoolYear' },
 ])
 
-const classes = ref([])
-const profs = ref([])
+const classes  = ref([])
+const profs    = ref([])
 const dossiers = ref([])
 
+// ─── État année scolaire ────────────────────────────────────
+const currentYear     = ref(null)
+const schoolYears     = ref([])
+const schoolYearModal = ref({ show: false, step: 'view', loading: false, creating: false })
+const yearForm        = ref({ label: '', start_date: '', end_date: '' })
+
+// ─── État modals KPI ────────────────────────────────────────
+const profsModal  = ref({ show: false })
+const elevesModal = ref({ show: false, loading: false, items: [] })
+const classesModal = ref({ show: false })
+
+// ─── Handlers ouverture modals ──────────────────────────────
+async function openKpiModal(kpi) {
+  if (kpi.action === 'schoolYear') {
+    schoolYearModal.value = { show: true, step: 'view', loading: false, creating: false }
+  } else if (kpi.action === 'profs') {
+    profsModal.value.show = true
+  } else if (kpi.action === 'eleves') {
+    elevesModal.value.show = true
+    await loadAllStudents()
+  } else if (kpi.action === 'classes') {
+    classesModal.value.show = true
+  }
+}
+
+// ─── Années scolaires ───────────────────────────────────────
+function suggestNextYear() {
+  if (currentYear.value) {
+    const [y1, y2] = currentYear.value.label.split('-').map(Number)
+    return `${y1 + 1}-${y2 + 1}`
+  }
+  const y = new Date().getFullYear()
+  return `${y}-${y + 1}`
+}
+
+function goToCreate() {
+  const label = suggestNextYear()
+  const y1 = parseInt(label.split('-')[0])
+  yearForm.value = {
+    label,
+    start_date: `${y1}-09-01`,
+    end_date:   `${y1 + 1}-06-30`,
+  }
+  schoolYearModal.value.step = 'create'
+}
+
+async function openYearList() {
+  schoolYearModal.value.step = 'list'
+  schoolYearModal.value.loading = true
+  try {
+    const { data } = await api.get('/api/admin/school-years')
+    schoolYears.value = Array.isArray(data) ? data : []
+  } finally {
+    schoolYearModal.value.loading = false
+  }
+}
+
+async function createSchoolYear() {
+  schoolYearModal.value.creating = true
+  try {
+    const { data } = await api.post('/api/admin/school-years', yearForm.value)
+    schoolYears.value.unshift(data)
+    currentYear.value = data.is_current ? data : currentYear.value
+    snackbar.value = {
+      show: true,
+      text: `Année ${data.label} créée — ${data.sessions_generated} séances générées`,
+      color: 'success',
+    }
+    schoolYearModal.value.step = 'view'
+  } catch (e) {
+    snackbar.value = {
+      show: true,
+      text: e?.response?.data?.message || 'Erreur lors de la création',
+      color: 'error',
+    }
+  } finally {
+    schoolYearModal.value.creating = false
+  }
+}
+
+async function setCurrentYear(id) {
+  try {
+    const { data } = await api.patch(`/api/admin/school-years/${id}/current`)
+    schoolYears.value = schoolYears.value.map((y) => ({ ...y, is_current: y.id === id }))
+    currentYear.value = data
+    kpis.value[3].value = data.label
+    snackbar.value = { show: true, text: `Année ${data.label} activée`, color: 'success' }
+  } catch (e) {
+    snackbar.value = { show: true, text: 'Erreur', color: 'error' }
+  }
+}
+
+async function loadCurrentYear() {
+  try {
+    const { data } = await api.get('/api/current-school-year')
+    currentYear.value = data
+    kpis.value[3].value = data.label
+  } catch {
+    kpis.value[3].value = '—'
+  }
+}
+
+// ─── Élèves (liste admin) ───────────────────────────────────
+async function loadAllStudents() {
+  elevesModal.value.loading = true
+  try {
+    const { data } = await api.get('/api/admin/students')
+    elevesModal.value.items = Array.isArray(data) ? data : []
+  } finally {
+    elevesModal.value.loading = false
+  }
+}
+
+// ─── Formatage dates ────────────────────────────────────────
+function formatDateShort(iso) {
+  if (!iso) return '—'
+  const [y, m, d] = iso.split('-')
+  return `${d}/${m}/${y}`
+}
+
+// ─── Reste du code existant ─────────────────────────────────
 const classHeaders = [
   { title: 'Nom', key: 'name' },
   { title: 'Description', key: 'description', value: 'description' },
-  { title: 'Prof responsable', key: 'owner_username', value: 'owner_username', width: 180 },
+  { title: 'Prof responsable', key: 'owner_id', width: 180 },
   { title: '', key: 'actions', value: 'actions', width: 90, sortable: false },
 ]
 
@@ -330,23 +664,16 @@ const dossierHeaders = [
 ]
 
 const snackbar = ref({ show: false, text: '', color: 'success' })
-
-const dialog = ref({ open: false, mode: 'create', id: null })
-const formRef = ref(null)
+const dialog   = ref({ open: false, mode: 'create', id: null })
+const formRef  = ref(null)
 const formValid = ref(false)
-const form = ref({ name: '', description: '', owner_id: null })
-const rules = { required: (v) => !!(v && String(v).trim()) || 'Requis' }
-
-const confirm = ref({ open: false, item: null })
+const form     = ref({ name: '', description: '', owner_id: null })
+const rules    = { required: (v) => !!(v && String(v).trim()) || 'Requis' }
+const confirm  = ref({ open: false, item: null })
 
 const managersDialog = ref({
-  show: false,
-  classId: null,
-  className: '',
-  loading: false,
-  managers: [],
-  allProfs: [],
-  selectedProfId: null,
+  show: false, classId: null, className: '', loading: false,
+  managers: [], allProfs: [], selectedProfId: null,
 })
 
 async function openManagersDialog(cls) {
@@ -355,13 +682,12 @@ async function openManagersDialog(cls) {
     managersDialog.value.loading = true
     managersDialog.value.classId = cls.id
     managersDialog.value.className = cls.name || ''
-
     const [resProfs, resMgrs] = await Promise.all([
       api.get('/api/admin/profs'),
       api.get('/api/admin/class-users', { params: { class_id: cls.id } }),
     ])
-    managersDialog.value.allProfs = Array.isArray(resProfs.data) ? resProfs.data : []
-    managersDialog.value.managers = Array.isArray(resMgrs.data) ? resMgrs.data : []
+    managersDialog.value.allProfs  = Array.isArray(resProfs.data)  ? resProfs.data  : []
+    managersDialog.value.managers  = Array.isArray(resMgrs.data)   ? resMgrs.data   : []
   } catch (e) {
     console.error('openManagersDialog :', e)
   } finally {
@@ -406,7 +732,6 @@ async function removeCoProf(userId) {
   try {
     managersDialog.value.loading = true
     await api.delete('/api/admin/class-users', { data: { class_id: cid, user_id: userId } })
-    // Dialog reste ouvert — on recharge la liste à jour
     const resMgrs = await api.get('/api/admin/class-users', { params: { class_id: cid } })
     managersDialog.value.managers = Array.isArray(resMgrs.data) ? resMgrs.data : []
   } catch (e) {
@@ -421,13 +746,14 @@ function ownerName(id) {
   const u = profs.value.find((p) => Number(p.id) === Number(id))
   return u ? u.username : '—'
 }
+
 function openCreate() {
   dialog.value = { open: true, mode: 'create', id: null }
-  form.value = { name: '', description: '', owner_id: null }
+  form.value   = { name: '', description: '', owner_id: null }
 }
 function openEdit(item) {
   dialog.value = { open: true, mode: 'edit', id: item.id }
-  form.value = { name: item.name, description: item.description, owner_id: item.owner_id ?? null }
+  form.value   = { name: item.name, description: item.description, owner_id: item.owner_id ?? null }
 }
 function confirmDelete(item) {
   confirm.value = { open: true, item }
@@ -436,14 +762,14 @@ function confirmDelete(item) {
 async function loadKPIs() {
   try {
     const { data } = await api.get('/api/admin/stats')
-    kpis.value[0].value = Number(data.users || 0)
+    kpis.value[0].value = Number(data.users    || 0)
     kpis.value[1].value = Number(data.students || 0)
-    kpis.value[2].value = Number(data.classes || 0)
-    kpis.value[3].value = Number(data.sessions || 0)
+    kpis.value[2].value = Number(data.classes  || 0)
   } finally {
     loading.value.kpis = false
   }
 }
+
 async function loadProfs() {
   try {
     const { data } = await api.get('/api/admin/profs')
@@ -452,6 +778,7 @@ async function loadProfs() {
     loading.value.profs = false
   }
 }
+
 async function loadClasses() {
   try {
     const { data } = await api.get('/api/admin/classes')
@@ -494,19 +821,15 @@ async function downloadPdf(item) {
 function formatDate(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleDateString('fr-FR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit',
   })
 }
 
 async function saveClass() {
-  const res = await formRef.value?.validate()
+  const res   = await formRef.value?.validate()
   const valid = typeof res === 'object' ? res.valid : !!res
   if (!valid) return
-
   saving.value = true
   try {
     if (dialog.value.mode === 'create') {
@@ -520,11 +843,7 @@ async function saveClass() {
     await loadClasses()
   } catch (e) {
     console.error('saveClass :', e)
-    snackbar.value = {
-      show: true,
-      text: e?.response?.data?.message || 'Erreur sauvegarde',
-      color: 'error',
-    }
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur sauvegarde', color: 'error' }
   } finally {
     saving.value = false
   }
@@ -540,11 +859,7 @@ async function deleteClass() {
     await loadClasses()
   } catch (e) {
     console.error('deleteClass :', e)
-    snackbar.value = {
-      show: true,
-      text: e?.response?.data?.message || 'Erreur suppression',
-      color: 'error',
-    }
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur suppression', color: 'error' }
   } finally {
     deleting.value = false
   }
@@ -552,7 +867,7 @@ async function deleteClass() {
 
 onMounted(async () => {
   try {
-    await Promise.all([loadKPIs(), loadProfs(), loadClasses(), loadDossiers()])
+    await Promise.all([loadKPIs(), loadProfs(), loadClasses(), loadDossiers(), loadCurrentYear()])
   } catch (e) {
     console.error('Admin init :', e)
     snackbar.value = { show: true, text: 'Erreur de chargement', color: 'error' }
@@ -575,13 +890,19 @@ onMounted(async () => {
 
 @media (max-width: 600px) {
   .add-grid {
-    grid-template-columns: 1fr; /* le bouton passe sous le select */
+    grid-template-columns: 1fr;
   }
 }
 
 .kpi-card {
   min-height: 86px;
+  transition: box-shadow 0.15s ease;
 }
+
+.kpi-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12) !important;
+}
+
 .linkish {
   color: rgb(var(--v-theme-primary));
   cursor: pointer;
