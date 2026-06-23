@@ -185,7 +185,7 @@
         <!-- Vue : année en cours -->
         <template v-if="schoolYearModal.step === 'view'">
           <v-card-title class="d-flex align-center justify-space-between pt-4 px-4">
-            <span>Année scolaire</span>
+            <span>Année en cours</span>
             <v-btn icon variant="text" @click="schoolYearModal.show = false">
               <v-icon>mdi-close</v-icon>
             </v-btn>
@@ -520,7 +520,7 @@ const kpis = ref([
   { label: 'Professeurs',    value: 0,   icon: 'mdi-account-group',    color: 'primary', action: 'profs' },
   { label: 'Élèves',         value: 0,   icon: 'mdi-account-school',   color: 'teal',    action: 'eleves' },
   { label: 'Classes',        value: 0,   icon: 'mdi-google-classroom', color: 'indigo',  action: 'classes' },
-  { label: 'Année scolaire', value: '—', icon: 'mdi-calendar-star',    color: 'orange',  action: 'schoolYear' },
+  { label: 'Année en cours', value: '—', icon: 'mdi-calendar-star',    color: 'orange',  action: 'schoolYear' },
 ])
 
 const classes  = ref([])
