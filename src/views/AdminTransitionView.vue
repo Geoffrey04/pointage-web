@@ -56,47 +56,21 @@
       </v-card-text>
     </v-card>
 
-    <!-- Progression -->
-    <v-card v-if="ready" class="rounded-xl elevation-2 mb-4">
-      <v-card-text class="d-flex align-center ga-4 py-3">
-        <div>
-          <span class="text-h6 font-weight-bold">{{ doneCount }}</span>
-          <span class="text-medium-emphasis"> / {{ classesList.length }} classes</span>
-        </div>
-        <v-progress-linear
-          :model-value="progress"
-          color="success"
-          rounded
-          class="flex-grow-1"
-          height="8"
-        />
-        <v-chip
-          v-if="doneCount === classesList.length && classesList.length > 0"
-          color="success"
-          variant="tonal"
-          size="small"
-          prepend-icon="mdi-check-all"
-        >
-          Terminé
-        </v-chip>
-      </v-card-text>
-    </v-card>
+    <!-- ── BLOC 1 : Élèves existants ───────────────────────── -->
+    <div class="text-subtitle-1 font-weight-bold mb-3">Élèves existants</div>
 
-    <!-- Squelette chargement -->
     <template v-if="loading.enrollments">
       <v-card v-for="n in 3" :key="n" class="rounded-xl elevation-2 mb-4">
         <v-skeleton-loader type="list-item-avatar-three-line" />
       </v-card>
     </template>
 
-    <!-- Liste des classes -->
     <template v-else-if="ready">
       <v-card
         v-for="cls in classesList"
         :key="cls.class_id"
         class="rounded-xl elevation-2 mb-4"
       >
-        <!-- En-tête classe -->
         <v-card-title class="d-flex align-center ga-2 py-3 flex-wrap">
           <v-checkbox-btn
             :model-value="allSelected(cls)"
@@ -123,54 +97,28 @@
 
         <v-divider />
 
-        <!-- Liste des élèves -->
         <v-list density="compact" class="py-0">
-          <v-list-item
-            v-for="s in cls.students"
-            :key="s.student_id"
-          >
+          <v-list-item v-for="s in cls.students" :key="s.student_id">
             <template #prepend>
-              <v-checkbox-btn
-                v-model="s.selected"
-                density="compact"
-                :ripple="false"
-                class="mr-1"
-              />
+              <v-checkbox-btn v-model="s.selected" density="compact" :ripple="false" class="mr-1" />
             </template>
-
             <v-list-item-title class="text-body-2">
               {{ s.firstname }} {{ s.lastname }}
             </v-list-item-title>
-
             <template #append>
-              <v-btn
-                icon
-                size="x-small"
-                variant="text"
-                title="Changer de classe"
-                @click="openMove(s, cls)"
-              >
+              <v-btn icon size="x-small" variant="text" title="Changer de classe" @click="openMove(s, cls)">
                 <v-icon>mdi-swap-horizontal</v-icon>
               </v-btn>
-              <v-btn
-                icon
-                size="x-small"
-                variant="text"
-                color="error"
-                title="Supprimer l'élève"
-                @click="openDelete(s, cls)"
-              >
+              <v-btn icon size="x-small" variant="text" color="error" title="Supprimer l'élève" @click="openDelete(s, cls)">
                 <v-icon>mdi-delete-outline</v-icon>
               </v-btn>
             </template>
           </v-list-item>
-
           <v-list-item v-if="cls.students.length === 0" class="text-medium-emphasis text-caption">
             Aucun élève inscrit
           </v-list-item>
         </v-list>
 
-        <!-- Bouton validation en bas à droite -->
         <v-card-actions>
           <v-spacer />
           <v-btn
@@ -186,10 +134,63 @@
         </v-card-actions>
       </v-card>
 
-      <v-alert v-if="classesList.length === 0" type="info" variant="tonal">
-        Aucun enrollment trouvé pour l'année source.
+      <v-alert v-if="classesList.length === 0" type="info" variant="tonal" class="mb-4">
+        Aucun élève inscrit pour l'année source.
       </v-alert>
     </template>
+
+    <v-alert v-else-if="!fromYearId || !toYearId" type="info" variant="tonal" class="mb-4">
+      Sélectionnez les deux années pour afficher les élèves.
+    </v-alert>
+
+    <!-- ── BLOC 2 : Nouveaux dossiers ──────────────────────── -->
+    <v-divider class="my-6" />
+
+    <div class="d-flex align-center ga-2 mb-3">
+      <span class="text-subtitle-1 font-weight-bold">Nouveaux dossiers</span>
+      <v-chip v-if="pendingDossiers.length" size="small" color="primary" variant="tonal">
+        {{ pendingDossiers.length }}
+      </v-chip>
+    </div>
+
+    <v-card class="rounded-xl elevation-2">
+      <v-skeleton-loader v-if="loading.dossiers" type="list-item@3" />
+      <template v-else>
+        <v-list v-if="pendingDossiers.length" class="py-0">
+          <v-list-item
+            v-for="d in pendingDossiers"
+            :key="d.id"
+            :subtitle="d.type === 'inscription' ? 'Nouvelle inscription' : 'Réinscription'"
+          >
+            <v-list-item-title>{{ d.prenom_eleve }} {{ d.nom_eleve }}</v-list-item-title>
+            <template #append>
+              <v-btn
+                icon
+                size="small"
+                variant="text"
+                title="Télécharger le PDF"
+                class="mr-1"
+                @click="downloadPdf(d)"
+              >
+                <v-icon>mdi-file-pdf-box</v-icon>
+              </v-btn>
+              <v-btn
+                size="small"
+                color="primary"
+                variant="tonal"
+                :disabled="!toYearId"
+                @click="openAccept(d)"
+              >
+                Accepter
+              </v-btn>
+            </template>
+          </v-list-item>
+        </v-list>
+        <v-card-text v-else class="text-medium-emphasis text-caption">
+          Aucun dossier en attente.
+        </v-card-text>
+      </template>
+    </v-card>
 
     <!-- Dialog : changer de classe -->
     <v-dialog v-model="moveDialog.show" max-width="440">
@@ -197,8 +198,7 @@
         <v-card-title class="pt-4 px-4">Changer de classe</v-card-title>
         <v-card-text class="px-4 pb-2">
           <div class="text-body-2 mb-4">
-            Inscrire
-            <strong>{{ moveDialog.student?.firstname }} {{ moveDialog.student?.lastname }}</strong>
+            Inscrire <strong>{{ moveDialog.student?.firstname }} {{ moveDialog.student?.lastname }}</strong>
             dans quelle classe pour <strong>{{ toYearLabel }}</strong> ?
           </div>
           <v-select
@@ -221,12 +221,7 @@
         <v-card-actions class="px-4 pb-4">
           <v-spacer />
           <v-btn variant="text" @click="moveDialog.show = false">Annuler</v-btn>
-          <v-btn
-            color="primary"
-            :loading="moveDialog.saving"
-            :disabled="!moveDialog.targetClassId"
-            @click="confirmMove"
-          >
+          <v-btn color="primary" :loading="moveDialog.saving" :disabled="!moveDialog.targetClassId" @click="confirmMove">
             Inscrire
           </v-btn>
         </v-card-actions>
@@ -245,8 +240,35 @@
         <v-card-actions class="px-4 pb-4">
           <v-spacer />
           <v-btn variant="text" @click="deleteDialog.show = false">Annuler</v-btn>
-          <v-btn color="error" :loading="deleteDialog.loading" @click="confirmDelete">
-            Supprimer
+          <v-btn color="error" :loading="deleteDialog.loading" @click="confirmDelete">Supprimer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Dialog : accepter un dossier -->
+    <v-dialog v-model="acceptDialog.show" max-width="440">
+      <v-card class="rounded-xl">
+        <v-card-title class="pt-4 px-4">Accepter le dossier</v-card-title>
+        <v-card-text class="px-4 pb-2">
+          <div class="text-body-2 mb-4">
+            Inscrire <strong>{{ acceptDialog.dossier?.prenom_eleve }} {{ acceptDialog.dossier?.nom_eleve }}</strong>
+            dans quelle classe pour <strong>{{ toYearLabel }}</strong> ?
+          </div>
+          <v-select
+            v-model="acceptDialog.classId"
+            :items="allClasses"
+            item-title="name"
+            item-value="id"
+            label="Classe *"
+            variant="outlined"
+            density="comfortable"
+          />
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer />
+          <v-btn variant="text" @click="acceptDialog.show = false">Annuler</v-btn>
+          <v-btn color="primary" :loading="acceptDialog.saving" :disabled="!acceptDialog.classId" @click="confirmAccept">
+            Accepter
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -262,60 +284,42 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { api } from '@/stores/user'
 
-const loading = ref({ years: true, enrollments: false })
-const years      = ref([])
-const allClasses = ref([])
-const fromYearId = ref(null)
-const toYearId   = ref(null)
-const classesList = ref([])
+const loading = ref({ years: true, enrollments: false, dossiers: true })
+const years        = ref([])
+const allClasses   = ref([])
+const fromYearId   = ref(null)
+const toYearId     = ref(null)
+const classesList  = ref([])
+const pendingDossiers = ref([])
 const snackbar = ref({ show: false, text: '', color: 'success' })
 
-const moveDialog = ref({
-  show: false, student: null, sourceClass: null,
-  targetClassId: null, updateCurrent: false, saving: false,
-})
-
-const deleteDialog = ref({
-  show: false, student: null, cls: null, loading: false,
-})
+const moveDialog   = ref({ show: false, student: null, sourceClass: null, targetClassId: null, updateCurrent: false, saving: false })
+const deleteDialog = ref({ show: false, student: null, cls: null, loading: false })
+const acceptDialog = ref({ show: false, dossier: null, classId: null, saving: false })
 
 // ─── Computed ───────────────────────────────────────────────
 const ready = computed(
   () => fromYearId.value && toYearId.value && fromYearId.value !== toYearId.value && !loading.value.enrollments,
 )
+const toYearLabel = computed(() => years.value.find((y) => y.id === toYearId.value)?.label ?? '—')
 
-const toYearLabel = computed(
-  () => years.value.find((y) => y.id === toYearId.value)?.label ?? '—',
-)
-
-const doneCount = computed(() => classesList.value.filter((c) => c.reconduited).length)
-
-const progress = computed(() =>
-  classesList.value.length ? (doneCount.value / classesList.value.length) * 100 : 0,
-)
-
-function selectedCount(cls) {
-  return cls.students.filter((s) => s.selected).length
-}
-function allSelected(cls) {
-  return cls.students.length > 0 && cls.students.every((s) => s.selected)
-}
-function someSelected(cls) {
-  return cls.students.some((s) => s.selected) && !allSelected(cls)
-}
-function toggleAll(cls, val) {
-  cls.students.forEach((s) => { s.selected = val })
-}
+function selectedCount(cls) { return cls.students.filter((s) => s.selected).length }
+function allSelected(cls)   { return cls.students.length > 0 && cls.students.every((s) => s.selected) }
+function someSelected(cls)  { return cls.students.some((s) => s.selected) && !allSelected(cls) }
+function toggleAll(cls, v)  { cls.students.forEach((s) => { s.selected = v }) }
 
 // ─── Chargement initial ─────────────────────────────────────
 onMounted(async () => {
-  const [resYears, resClasses] = await Promise.all([
+  const [resYears, resClasses, resDossiers] = await Promise.all([
     api.get('/api/admin/school-years'),
     api.get('/api/admin/classes'),
+    api.get('/api/admin/dossiers', { params: { status: 'pending' } }),
   ])
-  years.value      = Array.isArray(resYears.data)   ? resYears.data   : []
-  allClasses.value = Array.isArray(resClasses.data) ? resClasses.data : []
-  loading.value.years = false
+  years.value         = Array.isArray(resYears.data)    ? resYears.data    : []
+  allClasses.value    = Array.isArray(resClasses.data)  ? resClasses.data  : []
+  pendingDossiers.value = Array.isArray(resDossiers.data) ? resDossiers.data : []
+  loading.value.years   = false
+  loading.value.dossiers = false
 
   const current = years.value.find((y) => y.is_current)
   if (current) {
@@ -325,7 +329,7 @@ onMounted(async () => {
   }
 })
 
-// ─── Chargement des enrollments ─────────────────────────────
+// ─── Chargement enrollments ─────────────────────────────────
 watch([fromYearId, toYearId], async ([from, to]) => {
   classesList.value = []
   if (!from || !to || from === to) return
@@ -336,7 +340,6 @@ watch([fromYearId, toYearId], async ([from, to]) => {
       api.get('/api/admin/enrollments', { params: { year_id: from } }),
       api.get('/api/admin/enrollments', { params: { year_id: to } }),
     ])
-
     const fromRows = Array.isArray(resFrom.data) ? resFrom.data : []
     const toRows   = Array.isArray(resTo.data)   ? resTo.data   : []
     const toKeys   = new Set(toRows.map((r) => `${r.student_id}-${r.class_id}`))
@@ -344,30 +347,17 @@ watch([fromYearId, toYearId], async ([from, to]) => {
     const map = new Map()
     for (const row of fromRows) {
       if (!map.has(row.class_id)) {
-        map.set(row.class_id, {
-          class_id:    row.class_id,
-          class_name:  row.class_name,
-          students:    [],
-          loading:     false,
-          reconduited: false,
-        })
+        map.set(row.class_id, { class_id: row.class_id, class_name: row.class_name, students: [], loading: false, reconduited: false })
       }
       map.get(row.class_id).students.push({ ...row, selected: true })
     }
-
     for (const cls of map.values()) {
       if (cls.students.length > 0) {
-        cls.reconduited = cls.students.every((s) =>
-          toKeys.has(`${s.student_id}-${s.class_id}`),
-        )
+        cls.reconduited = cls.students.every((s) => toKeys.has(`${s.student_id}-${s.class_id}`))
       }
     }
-
-    classesList.value = [...map.values()].sort((a, b) =>
-      a.class_name.localeCompare(b.class_name, 'fr'),
-    )
+    classesList.value = [...map.values()].sort((a, b) => a.class_name.localeCompare(b.class_name, 'fr'))
   } catch (e) {
-    console.error('loadEnrollments :', e)
     snackbar.value = { show: true, text: 'Erreur de chargement', color: 'error' }
   } finally {
     loading.value.enrollments = false
@@ -378,29 +368,20 @@ watch([fromYearId, toYearId], async ([from, to]) => {
 async function reconduire(cls) {
   const selected = cls.students.filter((s) => s.selected)
   if (!selected.length) return
-
   cls.loading = true
   let count = 0
   try {
     for (const s of selected) {
       try {
-        await api.post('/api/admin/enrollments', {
-          student_id:     s.student_id,
-          class_id:       cls.class_id,
-          school_year_id: toYearId.value,
-        })
+        await api.post('/api/admin/enrollments', { student_id: s.student_id, class_id: cls.class_id, school_year_id: toYearId.value })
         count++
       } catch (e) {
-        if (e?.response?.status === 409) count++ // déjà inscrit = OK
+        if (e?.response?.status === 409) count++
         else throw e
       }
     }
     cls.reconduited = true
-    snackbar.value = {
-      show: true,
-      text: `${cls.class_name} — ${count} élève${count > 1 ? 's' : ''} reconduit${count > 1 ? 's' : ''}`,
-      color: 'success',
-    }
+    snackbar.value = { show: true, text: `${cls.class_name} — ${count} élève${count > 1 ? 's' : ''} reconduit${count > 1 ? 's' : ''}`, color: 'success' }
   } catch (e) {
     snackbar.value = { show: true, text: 'Erreur lors de la reconduction', color: 'error' }
   } finally {
@@ -408,70 +389,84 @@ async function reconduire(cls) {
   }
 }
 
-// ─── Changer un élève de classe ─────────────────────────────
+// ─── Changer de classe ───────────────────────────────────────
 function openMove(student, cls) {
-  moveDialog.value = {
-    show: true, student, sourceClass: cls,
-    targetClassId: null, updateCurrent: false, saving: false,
-  }
+  moveDialog.value = { show: true, student, sourceClass: cls, targetClassId: null, updateCurrent: false, saving: false }
 }
-
 async function confirmMove() {
   moveDialog.value.saving = true
   try {
-    await api.post('/api/admin/enrollments', {
-      student_id:     moveDialog.value.student.student_id,
-      class_id:       moveDialog.value.targetClassId,
-      school_year_id: toYearId.value,
-    })
-
+    await api.post('/api/admin/enrollments', { student_id: moveDialog.value.student.student_id, class_id: moveDialog.value.targetClassId, school_year_id: toYearId.value })
     if (moveDialog.value.updateCurrent) {
-      await api.patch(`/api/students/${moveDialog.value.student.student_id}`, {
-        class_id: moveDialog.value.targetClassId,
-      })
+      await api.patch(`/api/students/${moveDialog.value.student.student_id}`, { class_id: moveDialog.value.targetClassId })
     }
-
     const name = allClasses.value.find((c) => c.id === moveDialog.value.targetClassId)?.name ?? '?'
-    snackbar.value = {
-      show: true,
-      text: `${moveDialog.value.student.firstname} inscrit en ${name}`,
-      color: 'success',
-    }
+    snackbar.value = { show: true, text: `${moveDialog.value.student.firstname} inscrit en ${name}`, color: 'success' }
     moveDialog.value.show = false
   } catch (e) {
-    snackbar.value = {
-      show: true,
-      text: e?.response?.data?.message || 'Erreur',
-      color: 'error',
-    }
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur', color: 'error' }
   } finally {
     moveDialog.value.saving = false
   }
 }
 
-// ─── Supprimer un élève ─────────────────────────────────────
+// ─── Supprimer un élève ──────────────────────────────────────
 function openDelete(student, cls) {
   deleteDialog.value = { show: true, student, cls, loading: false }
 }
-
 async function confirmDelete() {
   deleteDialog.value.loading = true
   try {
     await api.delete(`/api/students/${deleteDialog.value.student.student_id}`)
     const cls = deleteDialog.value.cls
-    cls.students = cls.students.filter(
-      (s) => s.student_id !== deleteDialog.value.student.student_id,
-    )
+    cls.students = cls.students.filter((s) => s.student_id !== deleteDialog.value.student.student_id)
+    snackbar.value = { show: true, text: `${deleteDialog.value.student.firstname} ${deleteDialog.value.student.lastname} supprimé`, color: 'success' }
     deleteDialog.value.show = false
-    snackbar.value = {
-      show: true,
-      text: `${deleteDialog.value.student.firstname} ${deleteDialog.value.student.lastname} supprimé`,
-      color: 'success',
-    }
   } catch (e) {
     snackbar.value = { show: true, text: 'Erreur lors de la suppression', color: 'error' }
   } finally {
     deleteDialog.value.loading = false
+  }
+}
+
+// ─── Accepter un dossier ─────────────────────────────────────
+function openAccept(dossier) {
+  acceptDialog.value = { show: true, dossier, classId: null, saving: false }
+}
+async function confirmAccept() {
+  acceptDialog.value.saving = true
+  try {
+    await api.post(`/api/admin/dossiers/${acceptDialog.value.dossier.id}/accept`, {
+      class_id:       acceptDialog.value.classId,
+      school_year_id: toYearId.value,
+    })
+    pendingDossiers.value = pendingDossiers.value.filter((d) => d.id !== acceptDialog.value.dossier.id)
+    const name = allClasses.value.find((c) => c.id === acceptDialog.value.classId)?.name ?? '?'
+    snackbar.value = {
+      show: true,
+      text: `${acceptDialog.value.dossier.prenom_eleve} ${acceptDialog.value.dossier.nom_eleve} ajouté en ${name}`,
+      color: 'success',
+    }
+    acceptDialog.value.show = false
+  } catch (e) {
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur', color: 'error' }
+  } finally {
+    acceptDialog.value.saving = false
+  }
+}
+
+// ─── Télécharger le PDF d'un dossier ────────────────────────
+async function downloadPdf(dossier) {
+  try {
+    const res = await api.get(`/api/admin/dossiers/${dossier.id}/pdf`, { responseType: 'blob' })
+    const url = URL.createObjectURL(res.data)
+    const a   = document.createElement('a')
+    a.href = url
+    a.download = `dossier-${dossier.type}-${dossier.prenom_eleve}-${dossier.nom_eleve}.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+  } catch (e) {
+    snackbar.value = { show: true, text: 'Erreur téléchargement PDF', color: 'error' }
   }
 }
 </script>
