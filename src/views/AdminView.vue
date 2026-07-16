@@ -648,7 +648,13 @@ async function loadAllStudents() {
   elevesModal.value.loading = true
   try {
     const { data } = await api.get('/api/admin/students')
-    elevesModal.value.items = Array.isArray(data) ? data : []
+    const seen = new Set()
+    elevesModal.value.items = (Array.isArray(data) ? data : []).filter((s) => {
+      const key = `${s.firstname}|${s.lastname}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
   } finally {
     elevesModal.value.loading = false
   }
