@@ -29,62 +29,66 @@
     </v-card>
 
     <!-- Liste des dossiers -->
-    <div class="d-flex align-center ga-2 mb-3">
-      <span class="text-subtitle-1 font-weight-bold">Dossiers en attente</span>
-      <v-chip v-if="pendingDossiers.length" size="small" color="primary" variant="tonal">
-        {{ pendingDossiers.length }}
-      </v-chip>
-    </div>
+    <v-skeleton-loader v-if="loading.dossiers" type="list-item@4" class="rounded-xl" />
 
-    <v-card class="rounded-xl elevation-2">
-      <v-skeleton-loader v-if="loading.dossiers" type="list-item@4" />
-      <template v-else>
-        <v-list v-if="pendingDossiers.length" class="py-0">
-          <v-list-item
-            v-for="d in pendingDossiers"
-            :key="d.id"
-            :subtitle="formatDate(d.submitted_at)"
-          >
-            <template #prepend>
-              <v-chip
-                :color="d.type === 'inscription' ? 'primary' : 'teal'"
-                variant="tonal"
-                size="x-small"
-                class="mr-3"
-              >
-                {{ d.type === 'inscription' ? 'Nouveau' : 'Réinscription' }}
-              </v-chip>
+    <template v-else-if="pendingDossiers.length">
+      <!-- Section Nouvelles inscriptions -->
+      <template v-if="nouvelles.length">
+        <div class="d-flex align-center ga-2 mb-2">
+          <span class="text-subtitle-1 font-weight-bold">Nouvelles inscriptions</span>
+          <v-chip size="small" color="primary" variant="tonal">{{ nouvelles.length }}</v-chip>
+        </div>
+        <v-card class="rounded-xl elevation-2 mb-5">
+          <v-list class="py-0">
+            <template v-for="(d, i) in nouvelles" :key="d.id">
+              <v-divider v-if="i > 0" />
+              <v-list-item>
+                <v-list-item-title>{{ d.prenom_eleve }} {{ d.nom_eleve }}</v-list-item-title>
+                <v-list-item-subtitle>{{ formatDate(d.submitted_at) }}</v-list-item-subtitle>
+                <template #append>
+                  <v-btn icon size="small" variant="text" title="Télécharger le PDF" class="mr-1" @click="downloadPdf(d)">
+                    <v-icon>mdi-file-pdf-box</v-icon>
+                  </v-btn>
+                  <v-btn size="small" color="primary" variant="tonal" :disabled="!yearId" @click="openAccept(d)">
+                    Accepter
+                  </v-btn>
+                </template>
+              </v-list-item>
             </template>
-
-            <v-list-item-title>{{ d.prenom_eleve }} {{ d.nom_eleve }}</v-list-item-title>
-
-            <template #append>
-              <v-btn
-                icon
-                size="small"
-                variant="text"
-                title="Télécharger le PDF"
-                class="mr-1"
-                @click="downloadPdf(d)"
-              >
-                <v-icon>mdi-file-pdf-box</v-icon>
-              </v-btn>
-              <v-btn
-                size="small"
-                color="primary"
-                variant="tonal"
-                :disabled="!yearId"
-                @click="openAccept(d)"
-              >
-                Accepter
-              </v-btn>
-            </template>
-          </v-list-item>
-        </v-list>
-        <v-card-text v-else class="text-medium-emphasis text-caption">
-          Aucun dossier en attente.
-        </v-card-text>
+          </v-list>
+        </v-card>
       </template>
+
+      <!-- Section Réinscriptions -->
+      <template v-if="reinscriptions.length">
+        <div class="d-flex align-center ga-2 mb-2">
+          <span class="text-subtitle-1 font-weight-bold">Réinscriptions</span>
+          <v-chip size="small" color="teal" variant="tonal">{{ reinscriptions.length }}</v-chip>
+        </div>
+        <v-card class="rounded-xl elevation-2">
+          <v-list class="py-0">
+            <template v-for="(d, i) in reinscriptions" :key="d.id">
+              <v-divider v-if="i > 0" />
+              <v-list-item>
+                <v-list-item-title>{{ d.prenom_eleve }} {{ d.nom_eleve }}</v-list-item-title>
+                <v-list-item-subtitle>{{ formatDate(d.submitted_at) }}</v-list-item-subtitle>
+                <template #append>
+                  <v-btn icon size="small" variant="text" title="Télécharger le PDF" class="mr-1" @click="downloadPdf(d)">
+                    <v-icon>mdi-file-pdf-box</v-icon>
+                  </v-btn>
+                  <v-btn size="small" color="teal" variant="tonal" :disabled="!yearId" @click="openAccept(d)">
+                    Accepter
+                  </v-btn>
+                </template>
+              </v-list-item>
+            </template>
+          </v-list>
+        </v-card>
+      </template>
+    </template>
+
+    <v-card v-else-if="!loading.dossiers" class="rounded-xl elevation-2">
+      <v-card-text class="text-medium-emphasis text-caption">Aucun dossier en attente.</v-card-text>
     </v-card>
 
     <!-- Dialog : accepter un dossier inscription (nouveau) -->
@@ -163,9 +167,12 @@ const acceptDialog = ref({
 // ─── Computed ───────────────────────────────────────────────
 const yearLabel = computed(() => years.value.find((y) => y.id === yearId.value)?.label ?? '—')
 
+const nouvelles     = computed(() => pendingDossiers.value.filter((d) => d.type === 'inscription'))
+const reinscriptions = computed(() => pendingDossiers.value.filter((d) => d.type === 'reinscription'))
+
 function formatDate(iso) {
   if (!iso) return ''
-  return new Date(iso).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 // ─── Chargement initial ─────────────────────────────────────
