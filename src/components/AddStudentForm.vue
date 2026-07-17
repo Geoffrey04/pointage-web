@@ -47,16 +47,14 @@
       </template>
     </v-select>
 
-    <!-- Jour de cours (élève) — optionnel -->
+    <!-- Jour de cours (obligatoire) -->
     <v-select
       v-model="studentWeekday"
       :items="weekdayItems"
       item-title="title"
       item-value="value"
-      label="Jour de cours (élève — optionnel)"
-      hint="Laisse vide pour utiliser le jour par défaut de la classe"
-      persistent-hint
-      clearable
+      label="Jour de cours"
+      :rules="[rules.required]"
       variant="outlined"
       density="comfortable"
       class="mb-4"
@@ -89,7 +87,6 @@ const studentWeekday = ref(null)
 const submitError = ref(null)
 
 const weekdayItems = [
-  { title: 'Par défaut (jour de la classe)', value: null },
   { title: 'Lundi', value: 1 },
   { title: 'Mardi', value: 2 },
   { title: 'Mercredi', value: 3 },
