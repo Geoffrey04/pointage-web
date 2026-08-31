@@ -127,12 +127,13 @@
         <v-card class="rounded-xl overflow-hidden pa-0">
           <v-date-picker
             :model-value="currentSession?.date ?? null"
-            :allowed-dates="sessionDates"
+            :allowed-dates="isAllowedDate"
             show-adjacent-months
             hide-actions
             color="primary"
             @update:model-value="onCalendarPick"
           >
+            <template #title></template>
             <template #header>
               <div class="cal-slim-header">Choisir une séance</div>
             </template>
@@ -576,9 +577,27 @@ function goToday() {
 
 const calendarOpen = ref(false)
 const sessionDates = computed(() => sortedSessions.value.map((s) => s.date).filter(Boolean))
-function onCalendarPick(date: string | null) {
-  if (!date) return
-  const idx = sortedSessions.value.findIndex((s) => s.date === date)
+
+function dateToISO(v: unknown): string | null {
+  if (!v) return null
+  if (v instanceof Date) {
+    const y = v.getFullYear()
+    const m = String(v.getMonth() + 1).padStart(2, '0')
+    const d = String(v.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  return String(v).slice(0, 10)
+}
+
+function isAllowedDate(v: unknown): boolean {
+  const iso = dateToISO(v)
+  return iso ? sessionDates.value.includes(iso) : false
+}
+
+function onCalendarPick(v: unknown) {
+  const iso = dateToISO(v)
+  if (!iso) return
+  const idx = sortedSessions.value.findIndex((s) => s.date === iso)
   if (idx !== -1) {
     currentSessionIdx.value = idx
     calendarOpen.value = false
@@ -1341,13 +1360,31 @@ watch([students, sessions], () => {
 .cal-dialog .v-date-picker * {
   font-family: 'Outfit', sans-serif;
 }
+
+/* Supprimer complètement le bloc titre bleu (slot #title vidé) */
+.cal-dialog .v-picker__title {
+  display: none !important;
+}
+
+/* Header compact de remplacement */
 .cal-slim-header {
   padding: 12px 16px 6px;
   font-family: 'Outfit', sans-serif;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   color: #1e88e5;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  border-bottom: 1px solid #eef2ff;
+}
+
+/* Séparation fine entre jours de semaine et week-end (L M M J V | S D) */
+/* Semaine démarre lundi → samedi = 6e colonne, dimanche = 7e */
+.cal-dialog .v-date-picker-month__weekday:nth-child(6) {
+  border-left: 1px solid #dde3f5;
+  color: #8396c0;
+}
+.cal-dialog .v-date-picker-month__weekday:nth-child(7) {
+  color: #8396c0;
 }
 </style>

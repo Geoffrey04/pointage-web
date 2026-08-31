@@ -20,4 +20,9 @@ export default createVuetify({
     locale: 'fr',
     messages: { fr },
   },
+  date: {
+    locale: {
+      fr: 'fr-FR',
+    },
+  },
 })
