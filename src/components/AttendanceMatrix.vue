@@ -124,13 +124,14 @@
 
       <!-- Calendrier de sélection de séance -->
       <v-dialog v-model="calendarOpen" max-width="360" content-class="cal-dialog">
-        <v-card class="rounded-xl overflow-hidden pa-0">
+        <v-locale-provider locale="fr">
           <v-date-picker
             :model-value="currentSession?.date ?? null"
             :allowed-dates="isAllowedDate"
             show-adjacent-months
             hide-actions
             color="primary"
+            class="rounded-xl w-100"
             @update:model-value="onCalendarPick"
           >
             <template #title></template>
@@ -138,7 +139,7 @@
               <div class="cal-slim-header">Choisir une séance</div>
             </template>
           </v-date-picker>
-        </v-card>
+        </v-locale-provider>
       </v-dialog>
     </div>
 
