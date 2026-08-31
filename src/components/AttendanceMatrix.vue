@@ -94,7 +94,19 @@
                 aria-label="Absent"
               >&#10005;</button>
             </div>
-            <div v-else class="session-na-label">{{ chipLabel(sessionStatus(currentSession.id)) }}</div>
+            <v-btn
+              v-if="getStatus(st.id, currentSession.id) === 'excused' && getComment(st.id, currentSession.id)"
+              icon
+              size="x-small"
+              variant="text"
+              color="warning"
+              class="ml-1"
+              aria-label="Voir le motif"
+              @click="openCommentViewer(getComment(st.id, currentSession.id))"
+            >
+              <v-icon>mdi-information-outline</v-icon>
+            </v-btn>
+            <div v-else-if="!isSessionPointable(currentSession.id)" class="session-na-label">{{ chipLabel(sessionStatus(currentSession.id)) }}</div>
           </div>
         </div>
 
