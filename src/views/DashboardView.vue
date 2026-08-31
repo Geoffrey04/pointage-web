@@ -36,7 +36,7 @@
           <v-spacer />
           <v-btn icon @click="dialogStudentList = false"><v-icon>mdi-close</v-icon></v-btn>
         </v-toolbar>
-        <v-card-text>
+        <v-card-text class="pa-0">
           <StudentList />
         </v-card-text>
       </v-card>

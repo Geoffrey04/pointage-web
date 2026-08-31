@@ -1,186 +1,157 @@
 <template>
-  <v-card class="rounded-xl elevation-2">
-    <v-card-title class="d-flex align-center justify-space-between">
-      <div class="text-h6">Élèves</div>
-      <div class="text-caption text-medium-emphasis" v-if="currentClass">
-        {{ currentClass.name }} — {{ students.length }} élève{{ students.length > 1 ? 's' : '' }}
+  <div class="sl-root">
+    <!-- Bande rouge de cohérence visuelle -->
+    <div class="sl-stripe"></div>
+
+    <!-- Contrôles : tri + compteur -->
+    <div class="sl-controls">
+      <div class="sl-sort-row">
+        <v-btn
+          size="small"
+          variant="outlined"
+          color="primary"
+          rounded="lg"
+          @click="sortAsc = !sortAsc"
+        >
+          {{ sortAsc ? 'A → Z' : 'Z → A' }}
+        </v-btn>
+        <span class="sl-count text-medium-emphasis text-caption" v-if="currentClass">
+          {{ filtered.length }}&nbsp;élève{{ filtered.length !== 1 ? 's' : '' }}
+        </span>
       </div>
-    </v-card-title>
-    <v-divider />
+    </div>
 
-    <v-card-text>
-      <!-- Erreur d'accès / classe non autorisée -->
-      <v-alert v-if="error" type="error" variant="tonal" class="mb-3">
-        {{ error }}
-      </v-alert>
+    <!-- Erreur -->
+    <v-alert v-if="error" type="error" variant="tonal" class="mx-4 mb-3">{{ error }}</v-alert>
 
-      <!-- Filtres -->
-      <v-row class="mb-3" align="center">
-        <v-col cols="12" sm="7">
-          <v-text-field
-            v-model="q"
-            prepend-inner-icon="mdi-magnify"
-            label="Rechercher (nom, prénom)"
-            variant="outlined"
-            density="comfortable"
-            clearable
-          />
-        </v-col>
-        <v-col cols="7" sm="3">
-          <v-select
-            v-model="sortKey"
-            :items="sortOptions"
-            item-title="label"
-            item-value="key"
-            label="Trier par"
-            variant="outlined"
-            density="comfortable"
-          />
-        </v-col>
-        <v-col cols="5" sm="2" class="d-flex">
-          <v-switch
-            v-model="sortAsc"
-            :label="sortAsc ? 'Asc' : 'Desc'"
-            hide-details
+    <!-- Skeleton -->
+    <div v-if="loading" class="sl-list">
+      <v-skeleton-loader v-for="i in 6" :key="i" type="list-item-avatar" class="mb-2 rounded-xl" />
+    </div>
+
+    <!-- Aucun résultat -->
+    <div v-else-if="filtered.length === 0" class="text-center text-medium-emphasis pa-8">
+      Aucun élève trouvé.
+    </div>
+
+    <!-- Liste mobile -->
+    <div v-else-if="smAndDown" class="sl-list">
+      <div v-for="st in paged" :key="st.id" class="sl-card">
+        <div class="sl-avatar">{{ initials(st) }}</div>
+        <div class="sl-info">
+          <div class="sl-lastname">{{ st.lastname }}</div>
+          <div class="sl-firstname">{{ st.firstname }}</div>
+          <div v-if="st.phone" class="sl-phone">{{ st.phone }}</div>
+        </div>
+        <div class="sl-actions">
+          <v-btn
+            v-if="st.phone"
+            icon
+            size="small"
             color="primary"
-            inset
-            class="ml-auto"
-          />
-        </v-col>
-      </v-row>
-
-      <!-- Skeletons -->
-      <template v-if="loading">
-        <v-row>
-          <v-col cols="12" sm="6" md="4" v-for="i in 6" :key="'sk' + i">
-            <v-skeleton-loader type="image, text@2" class="rounded-xl" />
-          </v-col>
-        </v-row>
-      </template>
-
-      <!-- Liste vide -->
-      <v-alert v-else-if="filtered.length === 0" type="info" variant="tonal">
-        Aucun élève trouvé.
-      </v-alert>
-
-      <!-- Grille cartes (≥ sm) -->
-      <v-row v-else class="d-none d-sm-flex">
-        <v-col cols="12" sm="6" md="4" v-for="st in paged" :key="st.id">
-          <v-card class="rounded-xl hover-elevate">
-            <v-card-text class="d-flex align-center ga-3">
-              <v-avatar size="44" color="primary">
-                <span class="text-subtitle-1">
-                  {{ initials(st) }}
-                </span>
-              </v-avatar>
-
-              <div class="flex-1 overflow-hidden">
-                <div class="text-subtitle-1 font-weight-medium truncate">
-                  {{ st.lastname }} {{ st.firstname }}
-                </div>
-                <div class="text-caption text-medium-emphasis">
-                  {{ st.phone || '—' }}
-                </div>
-              </div>
-
-              <div class="d-flex ga-1">
-                <v-btn
-                  v-if="st.phone"
-                  size="small"
-                  icon
-                  color="primary"
-                  variant="tonal"
-                  :href="`tel:${plainPhone(st.phone)}`"
-                  target="_self"
-                  :title="`Appeler ${st.firstname}`"
-                >
-                  <v-icon>mdi-phone</v-icon>
-                </v-btn>
-                <v-btn
-                  v-if="st.phone"
-                  size="small"
-                  icon
-                  color="primary"
-                  variant="tonal"
-                  :href="`sms:${plainPhone(st.phone)}`"
-                  target="_self"
-                  :title="`SMS ${st.firstname}`"
-                >
-                  <v-icon>mdi-message-text</v-icon>
-              </v-btn>
-              </div>
-            </v-card-text>
-          </v-card>
-        </v-col>
-      </v-row>
-
-      <!-- Liste dense (mobile < sm) -->
-      <v-list class="d-sm-none">
-        <v-list-item v-for="st in paged" :key="st.id" class="rounded-lg mb-2 border-thin">
-          <template #prepend>
-            <v-avatar size="40" color="primary">
-              <span class="text-subtitle-2">{{ initials(st) }}</span>
-            </v-avatar>
-          </template>
-            <v-list-item-title class="font-weight-medium">
-            {{ st.lastname }} {{ st.firstname }}
-          </v-list-item-title>
-          <v-list-item-subtitle class="text-medium-emphasis">
-            {{ st.phone || '—' }}
-          </v-list-item-subtitle>
-          <template #append>
-            <v-btn-group density="comfortable" divided>
-              <v-btn v-if="st.phone" icon :href="`tel:${plainPhone(st.phone)}`">
-                <v-icon>mdi-phone</v-icon>
-              </v-btn>
-              <v-btn v-if="st.phone" icon :href="`sms:${plainPhone(st.phone)}`">
-                <v-icon>mdi-message-text</v-icon>
-              </v-btn>
-              <v-btn icon @click="openInfo(st)">
-                <v-icon>mdi-information-outline</v-icon>
-              </v-btn>
-            </v-btn-group>
-          </template>
-        </v-list-item>
-      </v-list>
-
-      <!-- Pagination -->
-      <div class="d-flex justify-end mt-3" v-if="filtered.length > perPage">
-        <v-pagination v-model="page" :length="pages" total-visible="5" density="comfortable" />
+            variant="tonal"
+            :href="`tel:${plainPhone(st.phone)}`"
+            :title="`Appeler ${st.firstname}`"
+          >
+            <v-icon size="18">mdi-phone</v-icon>
+          </v-btn>
+          <v-btn
+            v-if="st.phone"
+            icon
+            size="small"
+            color="primary"
+            variant="tonal"
+            :href="`sms:${plainPhone(st.phone)}`"
+            :title="`SMS ${st.firstname}`"
+          >
+            <v-icon size="18">mdi-message-text</v-icon>
+          </v-btn>
+          <v-btn icon size="small" variant="text" @click="openInfo(st)" title="Modifier">
+            <v-icon size="18">mdi-phone-edit</v-icon>
+          </v-btn>
+        </div>
       </div>
-    </v-card-text>
-  </v-card>
+    </div>
 
-  <!-- Dialog infos élève -->
- <v-dialog v-model="infoDialog" max-width="420">
-  <v-card>
-    <v-card-title class="text-h6">Infos élève</v-card-title>
-    <v-card-text v-if="selected">
-      <div class="mb-2"><strong>Nom :</strong> {{ selected.lastname }}</div>
-      <div class="mb-2"><strong>Prénom :</strong> {{ selected.firstname }}</div>
+    <!-- Grille desktop -->
+    <v-row v-else class="sl-grid px-4">
+      <v-col cols="12" sm="6" md="4" v-for="st in paged" :key="st.id">
+        <v-card class="rounded-xl hover-elevate" variant="outlined">
+          <v-card-text class="d-flex align-center ga-3">
+            <v-avatar size="44" color="primary">
+              <span class="text-subtitle-1 font-weight-bold text-white">{{ initials(st) }}</span>
+            </v-avatar>
+            <div class="flex-1 overflow-hidden">
+              <div class="text-subtitle-2 font-weight-bold truncate">{{ st.lastname }}</div>
+              <div class="text-body-2 truncate">{{ st.firstname }}</div>
+              <div class="text-caption text-medium-emphasis">{{ st.phone || '—' }}</div>
+            </div>
+            <div class="d-flex flex-column ga-1">
+              <v-btn
+                v-if="st.phone"
+                size="small"
+                icon
+                color="primary"
+                variant="tonal"
+                :href="`tel:${plainPhone(st.phone)}`"
+                :title="`Appeler ${st.firstname}`"
+              >
+                <v-icon size="16">mdi-phone</v-icon>
+              </v-btn>
+              <v-btn
+                v-if="st.phone"
+                size="small"
+                icon
+                color="primary"
+                variant="tonal"
+                :href="`sms:${plainPhone(st.phone)}`"
+                :title="`SMS ${st.firstname}`"
+              >
+                <v-icon size="16">mdi-message-text</v-icon>
+              </v-btn>
+              <v-btn size="small" icon variant="text" @click="openInfo(st)">
+                <v-icon size="16">mdi-phone-edit</v-icon>
+              </v-btn>
+            </div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
 
-      <v-text-field
-        label="Téléphone"
-        v-model="selected.phone"
-        density="compact"
-        variant="outlined"
-        placeholder="Ajouter un numéro"
-      />
-    </v-card-text>
+    <!-- Pagination -->
+    <div v-if="filtered.length > perPage" class="d-flex justify-center py-4">
+      <v-pagination v-model="page" :length="pages" total-visible="5" density="comfortable" />
+    </div>
+  </div>
 
-    <v-card-actions>
-      <v-spacer />
-      <v-btn color="primary" variant="text" @click="updatePhone">Enregistrer</v-btn>
-      <v-btn variant="text" @click="infoDialog = false">Fermer</v-btn>
-    </v-card-actions>
-  </v-card>
-</v-dialog>
-
+  <!-- Dialog édition -->
+  <v-dialog v-model="infoDialog" max-width="420">
+    <v-card>
+      <v-card-title class="text-h6">Infos élève</v-card-title>
+      <v-card-text v-if="selected">
+        <div class="mb-2"><strong>Nom :</strong> {{ selected.lastname }}</div>
+        <div class="mb-2"><strong>Prénom :</strong> {{ selected.firstname }}</div>
+        <v-text-field
+          label="Téléphone"
+          v-model="selected.phone"
+          density="compact"
+          variant="outlined"
+          placeholder="Ajouter un numéro"
+        />
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn color="primary" variant="text" @click="updatePhone">Enregistrer</v-btn>
+        <v-btn variant="text" @click="infoDialog = false">Fermer</v-btn>
+      </v-card-actions>
+    </v-card>
+  </v-dialog>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import { api } from '@/stores/user'
 
 const props = defineProps({
@@ -188,6 +159,7 @@ const props = defineProps({
 })
 
 const route = useRoute()
+const { smAndDown } = useDisplay()
 
 const loading = ref(true)
 const error = ref(null)
@@ -196,21 +168,14 @@ const classes = ref([])
 const currentClass = ref(null)
 const students = ref([])
 
-const q = ref('')
-const sortKey = ref('lastname')
 const sortAsc = ref(true)
 const perPage = ref(12)
 const page = ref(1)
 
-const sortOptions = [
-  { key: 'lastname', label: 'Nom' },
-  { key: 'firstname', label: 'Prénom' },
-]
-
 const infoDialog = ref(false)
 const selected = ref(null)
 const openInfo = (st) => {
-  selected.value = st
+  selected.value = { ...st }
   infoDialog.value = true
 }
 
@@ -223,16 +188,10 @@ const effectiveClassId = computed(() =>
 )
 
 const filtered = computed(() => {
-  const term = q.value.trim().toLowerCase()
-  let arr = [...students.value]
-  if (term) {
-    arr = arr.filter((s) =>
-      [s.firstname, s.lastname, s.phone].some((v) => (v || '').toLowerCase().includes(term)),
-    )
-  }
+  const arr = [...students.value]
   arr.sort((a, b) => {
-    const ka = (a[sortKey.value] || '').toString().toLowerCase()
-    const kb = (b[sortKey.value] || '').toString().toLowerCase()
+    const ka = (a.lastname || '').toLowerCase()
+    const kb = (b.lastname || '').toLowerCase()
     if (ka < kb) return sortAsc.value ? -1 : 1
     if (ka > kb) return sortAsc.value ? 1 : -1
     return 0
@@ -254,7 +213,6 @@ async function fetchAuthorizedClasses() {
 async function fetchStudents() {
   const cid = effectiveClassId.value
   if (!cid) throw new Error('ID de classe manquant.')
-  // Vérification côté client que la classe appartient au user (le serveur la refait aussi)
   const allowed = classes.value.some((c) => Number(c.id) === Number(cid))
   if (!allowed) throw new Error('Accès refusé à cette classe.')
   const { data } = await api.get(`/api/students/${cid}`)
@@ -265,13 +223,10 @@ onMounted(async () => {
   try {
     loading.value = true
     error.value = null
-
     await fetchAuthorizedClasses()
-
     const cid = effectiveClassId.value
     currentClass.value = classes.value.find((c) => Number(c.id) === Number(cid)) || null
     if (!currentClass.value) throw new Error('Classe introuvable ou non autorisée.')
-
     await fetchStudents()
   } catch (e) {
     console.error('StudentList error:', e)
@@ -297,22 +252,106 @@ const updatePhone = async () => {
 </script>
 
 <style scoped>
+.sl-root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Bande rouge cohérence visuelle */
+.sl-stripe {
+  height: 5px;
+  background: #c8102e;
+  flex-shrink: 0;
+}
+
+/* Contrôles */
+.sl-controls {
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #dde3f5;
+}
+.sl-sort-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.sl-count {
+  margin-left: auto;
+}
+
+/* Liste mobile */
+.sl-list {
+  padding: 14px 14px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Card élève (mobile) */
+.sl-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 11px 13px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  box-shadow: 0 2px 10px rgba(26, 58, 143, 0.09);
+  border: 1.5px solid #dde3f5;
+}
+.sl-avatar {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: #eef2ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e88e5;
+  flex-shrink: 0;
+}
+.sl-info {
+  flex: 1;
+  min-width: 0;
+}
+.sl-lastname {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #0d1a3a;
+  line-height: 1.3;
+}
+.sl-firstname {
+  font-size: 12px;
+  color: #4b5a7a;
+  line-height: 1.3;
+}
+.sl-phone {
+  font-size: 11px;
+  color: #6272a0;
+  margin-top: 2px;
+}
+.sl-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Grille desktop */
+.sl-grid {
+  padding-top: 12px;
+}
 .hover-elevate {
   transition: box-shadow 0.2s ease;
 }
 .hover-elevate:hover {
-  box-shadow: var(--v-shadow-4);
+  box-shadow: 0 4px 16px rgba(30, 136, 229, 0.18);
 }
-
 .truncate {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-@media (max-width: 600px) {
-  .v-card-title .text-caption {
-    display: none;
-  }
 }
 </style>
