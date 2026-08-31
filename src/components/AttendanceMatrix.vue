@@ -73,6 +73,14 @@
             <div class="student-name">
               <div class="sname">{{ st.lastname }}</div>
               <div class="ssub">{{ st.firstname }}<template v-if="st.weekday"> &middot; {{ weekdayLabel(st.weekday) }}</template></div>
+              <div
+                v-if="currentSession && getStatus(st.id, currentSession.id) === 'excused' && getComment(st.id, currentSession.id)"
+                class="excuse-hint"
+                @click.stop="openCommentViewer(getComment(st.id, currentSession.id))"
+              >
+                <v-icon size="11" color="warning">mdi-information-outline</v-icon>
+                {{ getComment(st.id, currentSession.id).slice(0, 28) }}{{ getComment(st.id, currentSession.id).length > 28 ? '…' : '' }}
+              </div>
             </div>
             <div v-if="isSessionPointable(currentSession.id)" class="status-group">
               <button
@@ -94,19 +102,7 @@
                 aria-label="Absent"
               >&#10005;</button>
             </div>
-            <v-btn
-              v-if="getStatus(st.id, currentSession.id) === 'excused' && getComment(st.id, currentSession.id)"
-              icon
-              size="x-small"
-              variant="text"
-              color="warning"
-              class="ml-1"
-              aria-label="Voir le motif"
-              @click="openCommentViewer(getComment(st.id, currentSession.id))"
-            >
-              <v-icon>mdi-information-outline</v-icon>
-            </v-btn>
-            <div v-else-if="!isSessionPointable(currentSession.id)" class="session-na-label">{{ chipLabel(sessionStatus(currentSession.id)) }}</div>
+            <div v-if="!isSessionPointable(currentSession.id)" class="session-na-label">{{ chipLabel(sessionStatus(currentSession.id)) }}</div>
           </div>
         </div>
 
@@ -1155,6 +1151,19 @@ watch([students, sessions], () => {
   font-size: 11px;
   color: #6272a0;
   margin-top: 1px;
+}
+.excuse-hint {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: #b45309;
+  font-style: italic;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Boutons statut */
