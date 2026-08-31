@@ -66,7 +66,7 @@
           >
             <v-icon size="18">mdi-message-text</v-icon>
           </v-btn>
-          <v-btn icon size="small" variant="text" @click="openInfo(st)" title="Modifier">
+          <v-btn icon size="small" variant="text" color="primary" @click="openInfo(st)" title="Modifier">
             <v-icon size="18">mdi-phone-edit</v-icon>
           </v-btn>
         </div>
