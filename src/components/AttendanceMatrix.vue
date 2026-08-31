@@ -26,6 +26,16 @@
               prepend-icon="mdi-calendar-today"
               @click="goToday"
             >Séance du jour</v-btn>
+            <v-btn
+              size="small"
+              icon
+              variant="tonal"
+              color="primary"
+              title="Choisir une date"
+              @click="calendarOpen = true"
+            >
+              <v-icon size="18">mdi-calendar-month</v-icon>
+            </v-btn>
             <span v-if="currentSession" class="session-chip">
               {{ studentsForCurrentSession.length }}&nbsp;élève{{ studentsForCurrentSession.length !== 1 ? 's' : '' }}&nbsp;&middot;&nbsp;Séance&nbsp;n&deg;{{ currentSessionIdx + 1 }}
             </span>
@@ -111,6 +121,23 @@
         </div>
 
       </template>
+
+      <!-- Calendrier de sélection de séance -->
+      <v-dialog v-model="calendarOpen" max-width="360">
+        <v-card class="rounded-xl overflow-hidden pa-0">
+          <v-card-title class="text-subtitle-1 font-weight-bold px-4 pt-3 pb-1">
+            Choisir une séance
+          </v-card-title>
+          <v-date-picker
+            :model-value="currentSession?.date ?? null"
+            :allowed-dates="sessionDates"
+            show-adjacent-months
+            hide-actions
+            color="primary"
+            @update:model-value="onCalendarPick"
+          />
+        </v-card>
+      </v-dialog>
     </div>
 
     <!-- ====== DESKTOP : Tableau ====== -->
@@ -544,6 +571,17 @@ function goToday() {
     else break
   }
   currentSessionIdx.value = best
+}
+
+const calendarOpen = ref(false)
+const sessionDates = computed(() => sortedSessions.value.map((s) => s.date).filter(Boolean))
+function onCalendarPick(date: string | null) {
+  if (!date) return
+  const idx = sortedSessions.value.findIndex((s) => s.date === date)
+  if (idx !== -1) {
+    currentSessionIdx.value = idx
+    calendarOpen.value = false
+  }
 }
 function initSessionIdx() {
   goToday()
