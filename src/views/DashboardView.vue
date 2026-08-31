@@ -43,7 +43,9 @@
     </v-dialog>
 
     <!-- Tableau de présence -->
-    <v-card class="rounded-xl elevation-2">
+    <!-- Mobile : pas de carte enveloppante, AttendanceMatrix prend toute la largeur -->
+    <AttendanceMatrix v-if="smAndDown" ref="attendanceRef" :class-id="currentClassId" />
+    <v-card v-else class="rounded-xl elevation-2">
       <v-container>
         <h2 class="text-h6 mb-2">Tableau de présence</h2>
         <AttendanceMatrix ref="attendanceRef" :class-id="currentClassId" />
@@ -68,6 +70,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { useRoute } from 'vue-router'
+import { useDisplay } from 'vuetify'
 import { useUserStore } from '@/stores/user'
 import AttendanceMatrix from '@/components/AttendanceMatrix.vue'
 import AddStudentForm from '@/components/AddStudentForm.vue'
@@ -75,6 +78,7 @@ import StudentList from '@/components/StudentList.vue'
 
 const route = useRoute()
 const userStore = useUserStore()
+const { smAndDown } = useDisplay()
 
 const currentClassId = computed(() => Number(route.params.id))
 

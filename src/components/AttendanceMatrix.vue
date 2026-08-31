@@ -1,14 +1,123 @@
-﻿<template>
-  <v-card class="rounded-xl elevation-2">
-    <v-card-title class="text-h6 d-flex justify-space-between align-center">
-      <span>Présences</span>
-      <div class="text-caption text-medium-emphasis">
-        {{ students.length }} élèves • {{ sortedSessions.length }} cours
-      </div>
-    </v-card-title>
-    <v-divider />
+<template>
+  <div class="att-root">
 
-    <v-card-text>
+    <!-- ====== MOBILE : Vue par date ====== -->
+    <div v-if="smAndDown" class="mobile-att">
+      <v-alert v-if="error" type="error" variant="tonal" class="ma-3">{{ error }}</v-alert>
+
+      <template v-else>
+        <!-- En-tête classe -->
+        <div class="att-class-header">
+          <div class="att-header-content">
+            <div class="att-class-name">{{ className || 'Présences' }}</div>
+          </div>
+          <div class="att-stripe"></div>
+        </div>
+
+        <!-- Navigateur de date -->
+        <div class="date-nav">
+          <div class="date-row">
+            <button class="btn-arrow" :disabled="currentSessionIdx <= 0" @click="goPrev">&#8249;</button>
+            <div class="date-label">{{ readableDate(currentSession?.date) }}</div>
+            <button
+              class="btn-arrow"
+              :disabled="currentSessionIdx >= sortedSessions.length - 1"
+              @click="goNext"
+            >&#8250;</button>
+          </div>
+          <div class="date-meta">
+            <button class="btn-today" @click="goToday">Aujourd'hui</button>
+            <span v-if="currentSession" class="session-chip">
+              {{ studentsForCurrentSession.length }}&nbsp;élève{{ studentsForCurrentSession.length !== 1 ? 's' : '' }}&nbsp;&middot;&nbsp;Séance&nbsp;n&deg;{{ currentSessionIdx + 1 }}
+            </span>
+            <v-chip
+              v-if="currentSession && sessionStatus(currentSession.id) !== 'scheduled'"
+              size="x-small"
+              :color="chipColor(sessionStatus(currentSession.id))"
+              variant="tonal"
+              class="ml-1"
+            >{{ chipLabel(sessionStatus(currentSession.id)) }}</v-chip>
+          </div>
+        </div>
+
+        <!-- Skeleton -->
+        <div v-if="loading" class="student-list">
+          <v-skeleton-loader v-for="i in 4" :key="i" type="list-item-avatar" class="mb-2" />
+        </div>
+
+        <!-- Liste des élèves -->
+        <div v-else-if="currentSession" class="student-list">
+          <div
+            v-if="studentsForCurrentSession.length === 0"
+            class="text-center text-medium-emphasis pa-6"
+          >
+            Aucun élève pour cette séance
+          </div>
+          <div
+            v-for="st in studentsForCurrentSession"
+            :key="st.id"
+            class="student-card"
+            :class="{
+              'is-present': getStatus(st.id, currentSession.id) === 'present',
+              'is-excused': getStatus(st.id, currentSession.id) === 'excused',
+              'is-absent':  getStatus(st.id, currentSession.id) === 'absent',
+            }"
+          >
+            <div class="student-avatar">{{ initials(st) }}</div>
+            <div class="student-name">
+              <div class="sname">{{ st.lastname }} {{ st.firstname }}</div>
+              <div v-if="st.weekday" class="ssub">{{ weekdayLabel(st.weekday) }}</div>
+            </div>
+            <div v-if="isSessionPointable(currentSession.id)" class="status-group">
+              <button
+                class="status-btn"
+                :class="{ 'active-present': getStatus(st.id, currentSession.id) === 'present' }"
+                @click="handleStatusClick(st.id, currentSession.id, 'present')"
+                aria-label="Présent"
+              >&#10003;</button>
+              <button
+                class="status-btn"
+                :class="{ 'active-excused': getStatus(st.id, currentSession.id) === 'excused' }"
+                @click="handleStatusClick(st.id, currentSession.id, 'excused')"
+                aria-label="Excusé(e)"
+              >~</button>
+              <button
+                class="status-btn"
+                :class="{ 'active-absent': getStatus(st.id, currentSession.id) === 'absent' }"
+                @click="handleStatusClick(st.id, currentSession.id, 'absent')"
+                aria-label="Absent"
+              >&#10005;</button>
+            </div>
+            <div v-else class="session-na-label">{{ chipLabel(sessionStatus(currentSession.id)) }}</div>
+          </div>
+        </div>
+
+        <div v-else class="text-center text-medium-emphasis pa-6">
+          Aucune séance disponible
+        </div>
+
+        <!-- Barre résumé -->
+        <div v-if="currentSession && !loading" class="summary-bar">
+          <div class="summary-item">
+            <span class="scount present-color">{{ summary.present }}</span>
+            <span class="slbl present-color">Présents</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-item">
+            <span class="scount excused-color">{{ summary.excused }}</span>
+            <span class="slbl excused-color">Excusés</span>
+          </div>
+          <div class="summary-divider"></div>
+          <div class="summary-item">
+            <span class="scount absent-color">{{ summary.absent }}</span>
+            <span class="slbl absent-color">Absents</span>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- ====== DESKTOP : Tableau ====== -->
+    <div v-else>
       <!-- Erreur globale -->
       <v-alert v-if="error" type="error" variant="tonal" class="mb-3">
         {{ error }}
@@ -51,201 +160,7 @@
         </div>
       </div>
 
-      <!-- ====== MOBILE : Carrousel par élève (cache les séances "hors jour" de l'élève) ====== -->
-      <div v-if="smAndDown" class="d-flex flex-column ga-3">
-        <v-skeleton-loader v-if="loading" type="card@3" />
-        <v-card v-else v-for="st in students" :key="st.id" class="rounded-xl border-thin">
-          <v-card-text class="pt-3 pb-1 pa-0">
-            <div class="d-flex align-center justify-space-between mb-2">
-              <div class="font-weight-medium pa-2">{{ st.lastname }} {{ st.firstname }}</div>
-              <v-btn size="x-small" icon variant="text" @click="openStudentInfo(st)">
-                <v-icon>mdi-information-outline</v-icon>
-              </v-btn>
-            </div>
-
-            <v-slide-group
-              v-model="activeSlide[st.id]"
-              class="attendance-slides"
-              center-active
-              show-arrows="always"
-              mandatory
-            >
-              <v-slide-group-item
-                v-for="s in mobileSessionsFor(st)"
-                :key="s.id"
-                :value="s.id"
-                class="slide-item"
-              >
-                <div class="slide-center">
-                  <v-card
-                    class="date-slide px-8 py-3 d-flex flex-column align-center justify-center"
-                    width="220"
-                  >
-                    <div class="text-caption text-medium-emphasis mb-2 d-flex align-center">
-                      {{ formatDate(s.date) }}
-
-                      <!-- Chip statut de séance -->
-                      <v-chip
-                        v-if="sessionStatus(s.id) !== 'scheduled'"
-                        size="x-small"
-                        :color="chipColor(sessionStatus(s.id))"
-                        variant="tonal"
-                        class="ml-1"
-                        :prepend-icon="chipIcon(sessionStatus(s.id))"
-                      >
-                        {{ chipLabel(sessionStatus(s.id)) }}
-                      </v-chip>
-
-                      <!-- Note éventuelle -->
-                      <v-btn
-                        v-if="sessionNote(s.id)"
-                        icon
-                        size="x-small"
-                        variant="text"
-                        class="ml-1"
-                        @click="openCommentViewer(sessionNote(s.id)!)"
-                        :title="sessionNote(s.id)!"
-                      >
-                        <v-icon>mdi-note-text-outline</v-icon>
-                      </v-btn>
-
-                      <!-- Éditer statut séance -->
-                      <v-btn
-                        icon
-                        size="x-small"
-                        variant="text"
-                        class="ml-1"
-                        @click="openSessionDialog(s)"
-                        :title="`Éditer le statut du ${formatDate(s.date)}`"
-                      >
-                        <v-icon>mdi-pencil</v-icon>
-                      </v-btn>
-                    </div>
-
-                    <!-- Contenu cellule -->
-                    <template v-if="!isSessionPointable(s.id)">
-                      <div class="text-caption text-medium-emphasis mt-1 text-center">
-                        Pointage indisponible ({{ chipLabel(sessionStatus(s.id)) }})
-                      </div>
-                    </template>
-
-                    <template v-else>
-                      <!-- Statut déjà saisi -->
-                      <template v-if="hasStatus(st.id, s.id)">
-                        <template
-                          v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)"
-                        >
-                          <v-tooltip
-                            v-if="!smAndDown"
-                            :text="getComment(st.id, s.id)"
-                            location="top"
-                          >
-                            <template #activator="{ props }">
-                              <v-btn
-                                v-bind="props"
-                                size="x-small"
-                                icon
-                                variant="text"
-                                class="mb-1"
-                                :color="colorOf(getStatus(st.id, s.id))"
-                                aria-label="Voir le motif"
-                              >
-                                <v-icon>mdi-note-text-outline</v-icon>
-                              </v-btn>
-                            </template>
-                          </v-tooltip>
-                          <v-btn
-                            v-else
-                            size="x-small"
-                            icon
-                            variant="text"
-                            class="mb-1"
-                            :color="colorOf(getStatus(st.id, s.id))"
-                            aria-label="Voir le motif"
-                            @click="openCommentViewer(getComment(st.id, s.id)!)"
-                          >
-                            <v-icon>mdi-note-text-outline</v-icon>
-                          </v-btn>
-                        </template>
-
-                        <v-btn
-                          size="large"
-                          :color="colorOf(getStatus(st.id, s.id))"
-                          variant="flat"
-                          class="status-pill mb-1"
-                          @click="resetCell(st.id, s.id)"
-                        >
-                          <v-icon :icon="iconOf(getStatus(st.id, s.id))" start />
-                          {{ shortLabel(getStatus(st.id, s.id)) }}
-                        </v-btn>
-
-                        <v-btn
-                          size="x-small"
-                          variant="text"
-                          @click="resetCell(st.id, s.id)"
-                          title="Changer"
-                        >
-                          ↺
-                        </v-btn>
-                      </template>
-
-                      <template v-else-if="!isPointableForStudent(st.id, s.id)" />
-
-                      <!-- Choix des 3 statuts -->
-                      <template v-else>
-                        <v-row class="d-flex justify-center align-center mt-2" dense>
-                          <v-col cols="4" class="text-center">
-                            <v-btn
-                              icon
-                              size="large"
-                              color="green"
-                              class="rounded-circle"
-                              @click="onSetStatus(st.id, s.id, 'present')"
-                              aria-label="Présent"
-                            >
-                              <v-icon>mdi-check</v-icon>
-                            </v-btn>
-                            <div class="text-caption mt-1">Présent</div>
-                          </v-col>
-                          <v-col cols="4" class="text-center">
-                            <v-btn
-                              icon
-                              size="large"
-                              color="orange"
-                              class="rounded-circle"
-                              @click="openExcuseDialog(st.id, s.id)"
-                              aria-label="Excusé(e)"
-                            >
-                              <v-icon>mdi-file-check-outline</v-icon>
-                            </v-btn>
-                            <div class="text-caption mt-1">Excusé</div>
-                          </v-col>
-                          <v-col cols="4" class="text-center">
-                            <v-btn
-                              icon
-                              size="large"
-                              color="red"
-                              class="rounded-circle"
-                              @click="onSetStatus(st.id, s.id, 'absent')"
-                              aria-label="Absent"
-                            >
-                              <v-icon>mdi-close</v-icon>
-                            </v-btn>
-                            <div class="text-caption mt-1">Absent</div>
-                          </v-col>
-                        </v-row>
-                      </template>
-                    </template>
-                  </v-card>
-                </div>
-              </v-slide-group-item>
-            </v-slide-group>
-          </v-card-text>
-        </v-card>
-      </div>
-
-      <!-- ====== DESKTOP : Tableau ====== -->
-      <div v-else class="table-scroll">
+      <div class="table-scroll">
         <v-table fixed-header density="comfortable" class="attendance-table">
           <thead>
             <tr>
@@ -301,17 +216,15 @@
               </td>
 
               <td v-for="s in sortedSessions" :key="`${s.id}-${st.id}`" class="text-center cell">
-                <!-- Séance non pointable -->
                 <template v-if="!isSessionPointable(s.id)">
                   <div class="text-caption text-medium-emphasis">
                     — {{ chipLabel(sessionStatus(s.id)) }} —
                   </div>
                 </template>
 
-                <!-- Statut saisi -->
                 <template v-else-if="hasStatus(st.id, s.id)">
                   <template v-if="getStatus(st.id, s.id) === 'excused' && getComment(st.id, s.id)">
-                    <v-tooltip v-if="!smAndDown" :text="getComment(st.id, s.id)" location="top">
+                    <v-tooltip :text="getComment(st.id, s.id)" location="top">
                       <template #activator="{ props }">
                         <v-btn
                           v-bind="props"
@@ -326,18 +239,6 @@
                         </v-btn>
                       </template>
                     </v-tooltip>
-                    <v-btn
-                      v-else
-                      size="x-small"
-                      icon
-                      variant="text"
-                      class="mr-1"
-                      :color="colorOf(getStatus(st.id, s.id))"
-                      aria-label="Voir le motif"
-                      @click="openCommentViewer(getComment(st.id, s.id)!)"
-                    >
-                      <v-icon>mdi-note-text-outline</v-icon>
-                    </v-btn>
                   </template>
 
                   <v-btn
@@ -357,11 +258,10 @@
                     class="ml-1"
                     @click="resetCell(st.id, s.id)"
                     title="Changer"
-                    >↺</v-btn
+                    >&#8634;</v-btn
                   >
                 </template>
 
-                <!-- À valider -->
                 <template v-else-if="!isPointableForStudent(st.id, s.id)">
                   <span class="text-disabled">—</span>
                 </template>
@@ -422,140 +322,140 @@
           </tbody>
         </v-table>
       </div>
-    </v-card-text>
-  </v-card>
+    </div>
 
-  <!-- Fiches & dialogs -->
-  <v-dialog v-model="studentDialog" max-width="420">
-    <v-card>
-      <v-card-title class="text-h6">Infos élève</v-card-title>
-      <v-card-text v-if="selectedStudent">
-        <div class="mb-2"><strong>Nom :</strong> {{ selectedStudent.lastname }}</div>
-        <div class="mb-2"><strong>Prénom :</strong> {{ selectedStudent.firstname }}</div>
-        <div class="mb-2"><strong>Téléphone :</strong> {{ selectedStudent.phone || '—' }}</div>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn color="error" variant="tonal" :disabled="!selectedStudent" @click="askDeleteStudent(selectedStudent!)"
-          >Supprimer</v-btn
-        >
-        <v-btn variant="text" @click="studentDialog = false">Fermer</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+    <!-- Fiches & dialogs -->
+    <v-dialog v-model="studentDialog" max-width="420">
+      <v-card>
+        <v-card-title class="text-h6">Infos élève</v-card-title>
+        <v-card-text v-if="selectedStudent">
+          <div class="mb-2"><strong>Nom :</strong> {{ selectedStudent.lastname }}</div>
+          <div class="mb-2"><strong>Prénom :</strong> {{ selectedStudent.firstname }}</div>
+          <div class="mb-2"><strong>Téléphone :</strong> {{ selectedStudent.phone || '—' }}</div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn color="error" variant="tonal" :disabled="!selectedStudent" @click="askDeleteStudent(selectedStudent!)"
+            >Supprimer</v-btn
+          >
+          <v-btn variant="text" @click="studentDialog = false">Fermer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-  <v-dialog v-model="deleteDialog.show" max-width="460">
-    <v-card>
-      <v-card-title class="text-h6">Supprimer l'élève ?</v-card-title>
-      <v-card-text>
-        Cette action supprimera aussi ses présences associées.
-        <div class="mt-2 text-medium-emphasis">
-          {{ deleteDialog.student?.lastname }} {{ deleteDialog.student?.firstname }}
-        </div>
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="deleteDialog.show = false" :disabled="deleteDialog.loading"
-          >Annuler</v-btn
-        >
-        <v-btn color="error" :loading="deleteDialog.loading" @click="doDeleteStudent"
-          >Supprimer</v-btn
-        >
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+    <v-dialog v-model="deleteDialog.show" max-width="460">
+      <v-card>
+        <v-card-title class="text-h6">Supprimer l'élève ?</v-card-title>
+        <v-card-text>
+          Cette action supprimera aussi ses présences associées.
+          <div class="mt-2 text-medium-emphasis">
+            {{ deleteDialog.student?.lastname }} {{ deleteDialog.student?.firstname }}
+          </div>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="deleteDialog.show = false" :disabled="deleteDialog.loading"
+            >Annuler</v-btn
+          >
+          <v-btn color="error" :loading="deleteDialog.loading" @click="doDeleteStudent"
+            >Supprimer</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-  <v-dialog v-model="excuseDialog.show" max-width="520">
-    <v-card>
-      <v-card-title class="text-h6">Motif d'absence (excusé·e)</v-card-title>
-      <v-card-text>
-        <v-textarea
-          v-model="excuseDialog.text"
-          label="Commentaire / Justificatif"
-          auto-grow
-          rows="3"
-          counter="300"
-          :rules="[(v) => !!(v && v.trim()) || 'Commentaire requis']"
-        />
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="closeExcuseDialog">Annuler</v-btn>
-        <v-btn
-          color="primary"
-          :disabled="!excuseDialog.text || !excuseDialog.text.trim()"
-          @click="confirmExcuse"
-        >
-          Enregistrer
-        </v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+    <v-dialog v-model="excuseDialog.show" max-width="520">
+      <v-card>
+        <v-card-title class="text-h6">Motif d'absence (excusé·e)</v-card-title>
+        <v-card-text>
+          <v-textarea
+            v-model="excuseDialog.text"
+            label="Commentaire / Justificatif"
+            auto-grow
+            rows="3"
+            counter="300"
+            :rules="[(v) => !!(v && v.trim()) || 'Commentaire requis']"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="closeExcuseDialog">Annuler</v-btn>
+          <v-btn
+            color="primary"
+            :disabled="!excuseDialog.text || !excuseDialog.text.trim()"
+            @click="confirmExcuse"
+          >
+            Enregistrer
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-  <v-dialog v-model="commentViewer.show" max-width="420">
-    <v-card>
-      <v-card-title class="text-h6">Motif d'absence</v-card-title>
-      <v-card-text class="text-body-2" style="white-space: pre-line">
-        {{ commentViewer.text }}
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="commentViewer.show = false">Fermer</v-btn>
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+    <v-dialog v-model="commentViewer.show" max-width="420">
+      <v-card>
+        <v-card-title class="text-h6">Motif d'absence</v-card-title>
+        <v-card-text class="text-body-2" style="white-space: pre-line">
+          {{ commentViewer.text }}
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="commentViewer.show = false">Fermer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-  <!-- Dialog édition statut de séance -->
-  <v-dialog v-model="sessionDialog.show" max-width="520">
-    <v-card>
-      <v-card-title class="text-h6">Statut de la séance</v-card-title>
-      <v-card-text>
-        <div class="mb-2 text-caption text-medium-emphasis">{{ sessionDialog.dateLabel }}</div>
+    <!-- Dialog édition statut de séance -->
+    <v-dialog v-model="sessionDialog.show" max-width="520">
+      <v-card>
+        <v-card-title class="text-h6">Statut de la séance</v-card-title>
+        <v-card-text>
+          <div class="mb-2 text-caption text-medium-emphasis">{{ sessionDialog.dateLabel }}</div>
 
-        <v-select
-          v-model="sessionDialog.status"
-          :items="sessionStatusOptions"
-          item-title="label"
-          item-value="value"
-          label="Statut"
-          density="comfortable"
-          variant="outlined"
-        />
+          <v-select
+            v-model="sessionDialog.status"
+            :items="sessionStatusOptions"
+            item-title="label"
+            item-value="value"
+            label="Statut"
+            density="comfortable"
+            variant="outlined"
+          />
 
-        <v-textarea
-          v-model="sessionDialog.note"
-          class="mt-2"
-          label="Note (optionnelle)"
-          auto-grow
-          rows="2"
-          counter="300"
-          variant="outlined"
-        />
+          <v-textarea
+            v-model="sessionDialog.note"
+            class="mt-2"
+            label="Note (optionnelle)"
+            auto-grow
+            rows="2"
+            counter="300"
+            variant="outlined"
+          />
 
-        <v-checkbox
-          v-if="['cancelled', 'holiday', 'vacation'].includes(sessionDialog.status)"
-          v-model="sessionDialog.force"
-          class="mt-1"
-          label="Supprimer les pointages existants pour cette séance"
-          density="compact"
-          hide-details
-        />
-      </v-card-text>
-      <v-card-actions>
-        <v-spacer />
-        <v-btn variant="text" @click="sessionDialog.show = false" :disabled="sessionDialog.saving"
-          >Annuler</v-btn
-        >
-        <v-btn color="primary" :loading="sessionDialog.saving" @click="saveSessionStatus"
-          >Enregistrer</v-btn
-        >
-      </v-card-actions>
-    </v-card>
-  </v-dialog>
+          <v-checkbox
+            v-if="['cancelled', 'holiday', 'vacation'].includes(sessionDialog.status)"
+            v-model="sessionDialog.force"
+            class="mt-1"
+            label="Supprimer les pointages existants pour cette séance"
+            density="compact"
+            hide-details
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="sessionDialog.show = false" :disabled="sessionDialog.saving"
+            >Annuler</v-btn
+          >
+          <v-btn color="primary" :loading="sessionDialog.saving" @click="saveSessionStatus"
+            >Enregistrer</v-btn
+          >
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-  <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
-    {{ snackbar.text }}
-  </v-snackbar>
+    <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
+      {{ snackbar.text }}
+    </v-snackbar>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -580,18 +480,16 @@ type AttendanceRow = {
   comment?: string | null
 }
 
-// Statuts de séance qui interdisent tout pointage
 const NON_POINTABLE = new Set<SessionStatus>(['cancelled', 'holiday', 'vacation'])
 
 const props = defineProps<{ classId: number | string }>()
 const { smAndDown } = useDisplay()
 
-// Jour de cours par défaut de la classe (utilisé si l'élève n'en a pas de spécifique)
 const classWeekday = ref<number | null>(null)
+const className = ref<string>('')
 const students = ref<Student[]>([])
 const sessions = ref<Session[]>([])
 
-// Map réactive : studentId → sessionId → { status, comment }
 const attendanceMap = reactive<
   Record<
     number,
@@ -607,8 +505,81 @@ const snackbar = ref<{ show: boolean; text: string; color: string }>({
   color: 'success',
 })
 
-// Identifiant de la slide active par élève (vue mobile)
-const activeSlide = ref<Record<number, number>>({})
+// ─── Vue mobile par date ─────────────────────────────────────
+const currentSessionIdx = ref<number>(0)
+
+const currentSession = computed<Session | null>(
+  () => sortedSessions.value[currentSessionIdx.value] ?? null,
+)
+
+const studentsForCurrentSession = computed<Student[]>(() => {
+  const s = currentSession.value
+  if (!s) return []
+  return students.value.filter((st) => isPointableForStudent(st.id, s.id))
+})
+
+const summary = computed(() => {
+  const s = currentSession.value
+  if (!s) return { present: 0, excused: 0, absent: 0 }
+  let present = 0,
+    excused = 0,
+    absent = 0
+  for (const st of studentsForCurrentSession.value) {
+    const status = getStatus(st.id, s.id)
+    if (status === 'present') present++
+    else if (status === 'excused') excused++
+    else if (status === 'absent') absent++
+  }
+  return { present, excused, absent }
+})
+
+function goPrev() {
+  if (currentSessionIdx.value > 0) currentSessionIdx.value--
+}
+function goNext() {
+  if (currentSessionIdx.value < sortedSessions.value.length - 1) currentSessionIdx.value++
+}
+function goToday() {
+  const today = new Date().toISOString().slice(0, 10)
+  let best = 0
+  for (let i = 0; i < sortedSessions.value.length; i++) {
+    if (sortedSessions.value[i].date <= today) best = i
+    else break
+  }
+  currentSessionIdx.value = best
+}
+function initSessionIdx() {
+  goToday()
+}
+
+const WEEKDAY_NAMES = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+function weekdayLabel(w: number | null | undefined): string {
+  return w ? (WEEKDAY_NAMES[w] ?? '') : ''
+}
+function initials(st: Student): string {
+  return `${(st.firstname[0] ?? '').toUpperCase()}${(st.lastname[0] ?? '').toUpperCase()}`
+}
+function readableDate(d?: string | null): string {
+  if (!d) return '—'
+  const date = new Date(d + 'T12:00:00Z')
+  const dayNames = ['Dim.', 'Lun.', 'Mar.', 'Mer.', 'Jeu.', 'Ven.', 'Sam.']
+  const monthNames = [
+    'janvier', 'février', 'mars', 'avril', 'mai', 'juin',
+    'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre',
+  ]
+  return `${dayNames[date.getUTCDay()]} ${date.getUTCDate()} ${monthNames[date.getUTCMonth()]} ${date.getUTCFullYear()}`
+}
+function handleStatusClick(
+  studentId: number,
+  sessionId: number,
+  status: 'present' | 'absent' | 'excused',
+) {
+  if (getStatus(studentId, sessionId) === status) {
+    resetCell(studentId, sessionId)
+  } else {
+    onSetStatus(studentId, sessionId, status)
+  }
+}
 
 // ─── Dialogs ────────────────────────────────────────────────
 const studentDialog = ref(false)
@@ -663,8 +634,6 @@ async function doDeleteStudent() {
 
     students.value = students.value.filter((x) => x.id !== st.id)
     delete attendanceMap[st.id]
-    delete activeSlide.value[st.id]
-    restoreActiveSessionForAllStudents()
 
     deleteDialog.value = { show: false, loading: false, student: null }
     studentDialog.value = false
@@ -714,9 +683,8 @@ function hasStatus(studentId: number, sessionId: number) {
   return s === 'present' || s === 'absent' || s === 'excused'
 }
 
-// Retourne le jour ISO (1=lun..7=dim) depuis une date YYYY-MM-DD, calculé en UTC
 function isoDowFromYmd(ymd: string): number {
-  const d = new Date(ymd + "T12:00:00Z")
+  const d = new Date(ymd + 'T12:00:00Z')
   const js = d.getUTCDay()
   return js === 0 ? 7 : js
 }
@@ -726,7 +694,6 @@ function studentIsoWeekday(st: Student): number | null {
   return w >= 1 && w <= 7 ? w : null
 }
 
-// En mobile, on ne montre que les séances correspondant au jour de l'élève
 function mobileSessionsFor(st: Student): Session[] {
   const w = studentIsoWeekday(st)
   if (!w) return sortedSessions.value
@@ -774,27 +741,23 @@ function isSessionPointable(id: number) {
   return !NON_POINTABLE.has(sessionStatus(id))
 }
 
-/** Jour attendu pour l'élève (priorité: élève > classe) */
 function expectedIsoForStudent(stId: number): number | null {
   const st = students.value.find((x) => x.id === stId)
   return st?.weekday ?? classWeekday.value ?? null
 }
-/** Cette séance correspond-elle au jour attendu de l'élève ? */
 function isExpectedForStudent(stId: number, seId: number): boolean {
   const se = sessions.value.find((x) => x.id === seId)
   if (!se) return false
   const iso = isoDowFromYmd(se.date)
   const expected = expectedIsoForStudent(stId)
-  if (!expected || !iso) return true // pas de restriction si aucun jour paramétré
+  if (!expected || !iso) return true
   return iso === expected
 }
-/** Pointable pour l'élève = bon jour & séance pointable */
 function isPointableForStudent(stId: number, seId: number): boolean {
   if (!isExpectedForStudent(stId, seId)) return false
   return isSessionPointable(seId)
 }
 
-/* Chips de statut séance */
 function chipLabel(s: SessionStatus) {
   return s === 'extra'
     ? 'Séance extra'
@@ -832,7 +795,6 @@ const sessionStatusOptions = [
   { value: 'extra', label: 'Séance extra (pointable)' },
 ] as { value: SessionStatus; label: string }[]
 
-/* Dialog édition statut */
 const sessionDialog = ref<{
   show: boolean
   id: number | null
@@ -897,7 +859,6 @@ function askDeleteStudent(st: Student) {
   deleteDialog.value = { show: true, loading: false, student: st }
 }
 
-
 // ─── Tri & fenêtre scolaire ─────────────────────────────────
 function schoolStartYear(dateStr: string) {
   const y = Number(dateStr.slice(0, 4)),
@@ -916,51 +877,7 @@ const sortedSessions = computed<Session[]>(() =>
     .sort((a, b) => a.date.localeCompare(b.date)),
 )
 
-// ─── Avancement (mobile) ────────────────────────────────────
-function isValidated(studentId: number, sessionId: number) {
-  if (!isSessionPointable(sessionId)) return true // une séance non pointable est "validée"
-  return !!getStatus(studentId, sessionId)
-}
-const progressKeyForStudent = (studentId: number) =>
-  `attendance_progress_class_${String(props.classId)}_student_${studentId}`
-function firstUnvalidatedForStudent(studentId: number): number {
-  const st = students.value.find((x) => x.id === studentId)
-  if (!st) return 0
-  const list = mobileSessionsFor(st)
-  for (const s of list) if (!isValidated(studentId, s.id)) return s.id
-  return list[0]?.id ?? 0
-}
-function nextUnvalidatedFromForStudent(studentId: number, sessionId: number): number {
-  const st = students.value.find((x) => x.id === studentId)
-  if (!st) return 0
-  const list = mobileSessionsFor(st)
-  if (!list.length) return 0
-  const startIdx = Math.max(
-    0,
-    list.findIndex((s) => s.id === sessionId),
-  )
-  for (let i = startIdx + 1; i < list.length; i++)
-    if (!isValidated(studentId, list[i].id)) return list[i].id
-  return firstUnvalidatedForStudent(studentId)
-}
-function setActiveSessionForStudent(studentId: number, sessionId: number) {
-  activeSlide.value[studentId] = sessionId
-  localStorage.setItem(progressKeyForStudent(studentId), String(sessionId))
-}
-function restoreActiveSessionForAllStudents() {
-  if (!students.value.length) return
-  for (const st of students.value) {
-    const list = mobileSessionsFor(st)
-    if (!list.length) continue
-    const computedId = firstUnvalidatedForStudent(st.id)
-    const saved = Number(localStorage.getItem(progressKeyForStudent(st.id)))
-    const savedExists = list.some((s) => s.id === saved)
-    const target = computedId || (savedExists ? saved : list[0].id)
-    setActiveSessionForStudent(st.id, target)
-  }
-}
-
-// ─── Déduplication & init nouvel élève ──────────────────────
+// ─── Déduplication ──────────────────────────────────────────
 function dedupeSessions(list: Session[]) {
   const seen = new Set<number>()
   return list.filter((s) => !seen.has(s.id) && seen.add(s.id))
@@ -972,7 +889,6 @@ watch(
     for (const st of newList) {
       if (!oldIds.has(st.id)) {
         for (const s of sessions.value) ensureKey(st.id, s.id)
-        setActiveSessionForStudent(st.id, firstUnvalidatedForStudent(st.id))
       }
     }
   },
@@ -986,12 +902,13 @@ async function fetchAll() {
   try {
     const classIdNum = Number(props.classId)
 
-    // Récupère le jour par défaut de la classe (fallback si l'élève n'en a pas)
     try {
       const clRes = await api.get(`/api/classes/${classIdNum}`)
       classWeekday.value = Number(clRes.data?.weekday ?? 0) || null
+      className.value = clRes.data?.name ?? ''
     } catch {
       classWeekday.value = null
+      className.value = ''
     }
 
     const stRes = await api.get<Student[]>(`/api/students/${classIdNum}`)
@@ -1023,7 +940,7 @@ async function fetchAll() {
     }
     for (const st of students.value) for (const s of sessions.value) ensureKey(st.id, s.id)
 
-    restoreActiveSessionForAllStudents()
+    initSessionIdx()
   } catch (e) {
     console.error('fetchAll error :', e)
     error.value = 'Impossible de charger élèves / sessions.'
@@ -1033,8 +950,6 @@ async function fetchAll() {
 }
 
 // ─── Enregistrement d'une présence ──────────────────────────
-// Applique une mise à jour optimiste immédiate et effectue un rollback
-// sur l'état précédent en cas d'échec de la requête.
 async function onSetStatus(
   studentId: number,
   sessionId: number,
@@ -1077,12 +992,6 @@ async function onSetStatus(
 
     snackbar.value = { show: true, text: 'Enregistré', color: 'success' }
     window.umami?.track('pointage-marque', { status })
-
-    // Sur mobile, on avance automatiquement vers la prochaine séance à saisir
-    if (smAndDown.value) {
-      const next = nextUnvalidatedFromForStudent(studentId, sessionId)
-      setActiveSessionForStudent(studentId, next)
-    }
   } catch (e) {
     console.error('Erreur sauvegarde présence :', e)
     attendanceMap[studentId][sessionId].status = prevStatus ?? null
@@ -1100,49 +1009,238 @@ defineExpose({ reload })
 onMounted(fetchAll)
 watch(() => props.classId, fetchAll)
 watch([students, sessions], () => {
-  if (students.value.length && sessions.value.length) restoreActiveSessionForAllStudents()
+  if (students.value.length && sessions.value.length) initSessionIdx()
 })
 </script>
 
 <style scoped>
-/* =========================
-   MOBILE – carrousel centré
-   ========================= */
-.attendance-slides {
-  width: 100%;
-  padding-inline: 8px;
-}
-.slide-item {
-  flex: 0 0 100% !important;
-  display: flex !important;
-}
-.slide-center {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-}
-.date-slide {
-  width: 240px;
-  max-width: 90vw;
-  margin: 0 !important;
-  overflow: visible;
-}
-.attendance-slides :deep(.v-slide-group__content) {
-  touch-action: pan-x !important;
-  user-select: none;
-  cursor: grab;
-}
-.attendance-slides :deep(.v-slide-group__content:active) {
-  cursor: grabbing;
-}
-.attendance-slides :deep(.v-slide-group__prev),
-.attendance-slides :deep(.v-slide-group__next) {
-  z-index: 3;
+/* ========================
+   ROOT
+   ======================== */
+.att-root {
+  position: relative;
 }
 
-/* =========================
-   BOUTONS / ÉTIQUETTES
-   ========================= */
+/* ========================
+   MOBILE — en-tête classe
+   ======================== */
+.mobile-att {
+  display: flex;
+  flex-direction: column;
+  min-height: 400px;
+}
+.att-class-header {
+  background: #1e88e5;
+}
+.att-header-content {
+  padding: 12px 16px 8px;
+}
+.att-class-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+}
+.att-stripe {
+  height: 5px;
+  background: #c8102e;
+}
+
+/* ========================
+   MOBILE — navigateur date
+   ======================== */
+.date-nav {
+  background: #fff;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid #dde3f5;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.date-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.btn-arrow {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #eef2ff;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1e88e5;
+  font-size: 20px;
+  font-weight: 700;
+  flex-shrink: 0;
+  font-family: inherit;
+  line-height: 1;
+}
+.btn-arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.date-label {
+  flex: 1;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0d1a3a;
+}
+.date-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.btn-today {
+  padding: 5px 14px;
+  border-radius: 999px;
+  background: #c8102e;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  font-family: inherit;
+}
+.session-chip {
+  font-size: 11.5px;
+  color: #6272a0;
+  font-weight: 500;
+}
+
+/* ========================
+   MOBILE — liste élèves
+   ======================== */
+.student-list {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  background: #fff;
+  min-height: 120px;
+}
+.student-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 11px 13px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  box-shadow: 0 2px 10px rgba(26, 58, 143, 0.09);
+  border: 1.5px solid #dde3f5;
+}
+.student-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #eef2ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #1e88e5;
+  flex-shrink: 0;
+}
+.student-card.is-present .student-avatar { background: #f0fdf4; color: #16a34a; }
+.student-card.is-excused .student-avatar { background: #fffbeb; color: #b45309; }
+.student-card.is-absent  .student-avatar { background: #fff0f2; color: #c8102e; }
+
+.student-name {
+  flex: 1;
+  min-width: 0;
+}
+.sname {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #0d1a3a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ssub {
+  font-size: 11px;
+  color: #6272a0;
+  margin-top: 1px;
+}
+
+/* Boutons statut */
+.status-group {
+  display: flex;
+  border-radius: 9px;
+  overflow: hidden;
+  border: 1.5px solid #dde3f5;
+  flex-shrink: 0;
+}
+.status-btn {
+  width: 36px;
+  height: 32px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  color: #a0aec0;
+  font-family: inherit;
+}
+.status-btn + .status-btn { border-left: 1.5px solid #dde3f5; }
+.status-btn.active-present { background: #dcfce7; color: #16a34a; }
+.status-btn.active-excused { background: #fef3c7; color: #b45309; }
+.status-btn.active-absent  { background: #ffd6dd; color: #c8102e; }
+
+.session-na-label {
+  font-size: 11px;
+  color: #6272a0;
+  text-align: right;
+}
+
+/* ========================
+   MOBILE — barre résumé
+   ======================== */
+.summary-bar {
+  background: #fff;
+  border-top: 1px solid #dde3f5;
+  padding: 13px 20px;
+  display: flex;
+  justify-content: space-around;
+}
+.summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.scount {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.slbl {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.present-color { color: #16a34a; }
+.excused-color { color: #b45309; }
+.absent-color  { color: #c8102e; }
+.summary-divider {
+  width: 1px;
+  background: #dde3f5;
+  align-self: stretch;
+}
+
+/* ========================
+   DESKTOP — boutons/labels
+   ======================== */
 .status-row {
   display: flex;
   justify-content: center;
@@ -1184,9 +1282,9 @@ watch([students, sessions], () => {
   font-weight: 600;
 }
 
-/* =========================
-   TABLE DESKTOP
-   ========================= */
+/* ========================
+   DESKTOP — tableau
+   ======================== */
 .table-scroll {
   overflow: auto;
 }
@@ -1220,44 +1318,7 @@ watch([students, sessions], () => {
   background: rgba(0, 0, 0, 0.015);
 }
 @media (max-width: 600px) {
-  .name-col {
-    min-width: 160px;
-  }
-  .date-col {
-    min-width: 120px;
-  }
-}
-.table-wrapper {
-  overflow-x: auto;
-  border-radius: 16px;
-  border: 1px solid rgb(var(--v-theme-surface-variant));
-  background: rgb(var(--v-theme-surface));
-}
-.attendance-table thead th.sticky-th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  background: rgb(var(--v-theme-surface));
-}
-.sticky-col {
-  position: sticky;
-  left: 0;
-  z-index: 3;
-  background: rgb(var(--v-theme-surface));
-  box-shadow: 1px 0 0 rgba(0, 0, 0, 0.06);
-}
-.left-col {
-  min-width: 220px;
-}
-.cell-status {
-  min-width: 160px;
-  text-align: center;
-}
-.status-select {
-  width: 140px;
-}
-.card-session {
-  background: rgb(var(--v-theme-surface));
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  .name-col { min-width: 160px; }
+  .date-col { min-width: 120px; }
 }
 </style>
