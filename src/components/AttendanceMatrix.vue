@@ -6,14 +6,6 @@
       <v-alert v-if="error" type="error" variant="tonal" class="ma-3">{{ error }}</v-alert>
 
       <template v-else>
-        <!-- En-tête classe -->
-        <div class="att-class-header">
-          <div class="att-header-content">
-            <div class="att-class-name">{{ className || 'Présences' }}</div>
-          </div>
-          <div class="att-stripe"></div>
-        </div>
-
         <!-- Navigateur de date -->
         <div class="date-nav">
           <div class="date-row">
@@ -26,7 +18,14 @@
             >&#8250;</button>
           </div>
           <div class="date-meta">
-            <button class="btn-today" @click="goToday">Aujourd'hui</button>
+            <v-btn
+              size="small"
+              rounded="pill"
+              color="error"
+              variant="flat"
+              prepend-icon="mdi-calendar-today"
+              @click="goToday"
+            >Séance du jour</v-btn>
             <span v-if="currentSession" class="session-chip">
               {{ studentsForCurrentSession.length }}&nbsp;élève{{ studentsForCurrentSession.length !== 1 ? 's' : '' }}&nbsp;&middot;&nbsp;Séance&nbsp;n&deg;{{ currentSessionIdx + 1 }}
             </span>
@@ -38,6 +37,13 @@
               class="ml-1"
             >{{ chipLabel(sessionStatus(currentSession.id)) }}</v-chip>
           </div>
+        </div>
+
+        <!-- Résumé compact -->
+        <div v-if="currentSession && !loading" class="summary-chips">
+          <v-chip size="small" color="success" variant="tonal" prepend-icon="mdi-check">{{ summary.present }} présent{{ summary.present !== 1 ? 's' : '' }}</v-chip>
+          <v-chip size="small" color="warning" variant="tonal" prepend-icon="mdi-minus-circle-outline">{{ summary.excused }} excusé{{ summary.excused !== 1 ? 's' : '' }}</v-chip>
+          <v-chip size="small" color="error" variant="tonal" prepend-icon="mdi-close">{{ summary.absent }} absent{{ summary.absent !== 1 ? 's' : '' }}</v-chip>
         </div>
 
         <!-- Skeleton -->
@@ -65,8 +71,8 @@
           >
             <div class="student-avatar">{{ initials(st) }}</div>
             <div class="student-name">
-              <div class="sname">{{ st.lastname }} {{ st.firstname }}</div>
-              <div v-if="st.weekday" class="ssub">{{ weekdayLabel(st.weekday) }}</div>
+              <div class="sname">{{ st.lastname }}</div>
+              <div class="ssub">{{ st.firstname }}<template v-if="st.weekday"> &middot; {{ weekdayLabel(st.weekday) }}</template></div>
             </div>
             <div v-if="isSessionPointable(currentSession.id)" class="status-group">
               <button
@@ -96,23 +102,6 @@
           Aucune séance disponible
         </div>
 
-        <!-- Barre résumé -->
-        <div v-if="currentSession && !loading" class="summary-bar">
-          <div class="summary-item">
-            <span class="scount present-color">{{ summary.present }}</span>
-            <span class="slbl present-color">Présents</span>
-          </div>
-          <div class="summary-divider"></div>
-          <div class="summary-item">
-            <span class="scount excused-color">{{ summary.excused }}</span>
-            <span class="slbl excused-color">Excusés</span>
-          </div>
-          <div class="summary-divider"></div>
-          <div class="summary-item">
-            <span class="scount absent-color">{{ summary.absent }}</span>
-            <span class="slbl absent-color">Absents</span>
-          </div>
-        </div>
       </template>
     </div>
 
@@ -1095,17 +1084,6 @@ watch([students, sessions], () => {
   gap: 8px;
   flex-wrap: wrap;
 }
-.btn-today {
-  padding: 5px 14px;
-  border-radius: 999px;
-  background: #c8102e;
-  border: none;
-  cursor: pointer;
-  font-size: 12px;
-  font-weight: 600;
-  color: #fff;
-  font-family: inherit;
-}
 .session-chip {
   font-size: 11.5px;
   color: #6272a0;
@@ -1159,9 +1137,7 @@ watch([students, sessions], () => {
   font-size: 13.5px;
   font-weight: 600;
   color: #0d1a3a;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.3;
 }
 .ssub {
   font-size: 11px;
@@ -1203,39 +1179,15 @@ watch([students, sessions], () => {
 }
 
 /* ========================
-   MOBILE — barre résumé
+   MOBILE — résumé chips
    ======================== */
-.summary-bar {
-  background: #fff;
-  border-top: 1px solid #dde3f5;
-  padding: 13px 20px;
+.summary-chips {
   display: flex;
-  justify-content: space-around;
-}
-.summary-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 2px;
-}
-.scount {
-  font-size: 22px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-}
-.slbl {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.present-color { color: #16a34a; }
-.excused-color { color: #b45309; }
-.absent-color  { color: #c8102e; }
-.summary-divider {
-  width: 1px;
-  background: #dde3f5;
-  align-self: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px 16px;
+  background: #f5f7ff;
+  border-bottom: 1px solid #dde3f5;
 }
 
 /* ========================
