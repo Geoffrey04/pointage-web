@@ -47,7 +47,7 @@
           <p>
             <strong>École de Musique de Marpent</strong> — Application à usage non commercial destinée à la gestion
             des classes, du pointage de présence des élèves, et au traitement des dossiers d'inscription
-            et de réinscription (formulaire public).
+            et de réinscription (formulaire public). Version 2.
           </p>
         </section>
 
@@ -110,7 +110,7 @@
             <a href="mailto:geoffrey.doh@gmail.com">geoffrey.doh@gmail.com</a>
           </p>
           <p class="text-body-2 text-medium-emphasis mt-4">
-            <em>Dernière mise à jour : 10/09/2025</em>
+            <em>Dernière mise à jour : 18/07/2026</em>
           </p>
         </section>
       </v-card-text>

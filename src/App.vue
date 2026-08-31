@@ -181,7 +181,7 @@ const isPublicPage = computed(() =>
       <v-container class="footer__container px-4 py-3">
         <v-row class="align-center" no-gutters>
           <v-col cols="12" md="6" class="copyright">
-            <div class="text-caption">© {{ year }} {{ brand }} — Tous droits réservés.</div>
+            <div class="text-caption">© {{ year }} {{ brand }} v2 — Tous droits réservés.</div>
             <div class="text-caption meta">Application interne de pointage (non commerciale).</div>
           </v-col>
           <v-col cols="12" md="6">
@@ -295,11 +295,11 @@ const isPublicPage = computed(() =>
 
 <style>
 /* Polices modernes : Inter (UI) + Poppins (titres) */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
 
 :root{
-  --font-ui: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-  --font-title: 'Poppins', var(--font-ui);
+  --font-ui: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-title: 'Outfit', var(--font-ui);
   --bottomnav-h: 64px; /* hauteur de la barre basse */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
