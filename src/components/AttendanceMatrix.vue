@@ -123,11 +123,8 @@
       </template>
 
       <!-- Calendrier de sélection de séance -->
-      <v-dialog v-model="calendarOpen" max-width="360">
+      <v-dialog v-model="calendarOpen" max-width="360" content-class="cal-dialog">
         <v-card class="rounded-xl overflow-hidden pa-0">
-          <v-card-title class="text-subtitle-1 font-weight-bold px-4 pt-3 pb-1">
-            Choisir une séance
-          </v-card-title>
           <v-date-picker
             :model-value="currentSession?.date ?? null"
             :allowed-dates="sessionDates"
@@ -135,7 +132,11 @@
             hide-actions
             color="primary"
             @update:model-value="onCalendarPick"
-          />
+          >
+            <template #header>
+              <div class="cal-slim-header">Choisir une séance</div>
+            </template>
+          </v-date-picker>
         </v-card>
       </v-dialog>
     </div>
@@ -1331,5 +1332,22 @@ watch([students, sessions], () => {
 @media (max-width: 600px) {
   .name-col { min-width: 160px; }
   .date-col { min-width: 120px; }
+}
+</style>
+
+<style>
+/* Calendrier de séance — font Outfit + header compact */
+.cal-dialog .v-date-picker,
+.cal-dialog .v-date-picker * {
+  font-family: 'Outfit', sans-serif;
+}
+.cal-slim-header {
+  padding: 12px 16px 6px;
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e88e5;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
 }
 </style>
