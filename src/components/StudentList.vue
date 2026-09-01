@@ -53,7 +53,7 @@
             :href="`tel:${plainPhone(st.phone)}`"
             :title="`Appeler ${st.firstname}`"
           >
-            <v-icon size="18" color="primary">mdi-phone</v-icon>
+            <v-icon size="18" style="color:#1E88E5">mdi-phone</v-icon>
           </v-btn>
           <v-btn
             v-if="st.phone"
@@ -64,10 +64,10 @@
             :href="`sms:${plainPhone(st.phone)}`"
             :title="`SMS ${st.firstname}`"
           >
-            <v-icon size="18" color="primary">mdi-message-text</v-icon>
+            <v-icon size="18" style="color:#1E88E5">mdi-message-text</v-icon>
           </v-btn>
           <v-btn icon size="small" variant="text" color="primary" @click="openInfo(st)" title="Modifier">
-            <v-icon size="18" color="primary">mdi-phone-edit</v-icon>
+            <v-icon size="18" style="color:#1E88E5">mdi-phone-edit</v-icon>
           </v-btn>
         </div>
       </div>
@@ -96,7 +96,7 @@
                 :href="`tel:${plainPhone(st.phone)}`"
                 :title="`Appeler ${st.firstname}`"
               >
-                <v-icon size="16" color="primary">mdi-phone</v-icon>
+                <v-icon size="16" style="color:#1E88E5">mdi-phone</v-icon>
               </v-btn>
               <v-btn
                 v-if="st.phone"
@@ -107,10 +107,10 @@
                 :href="`sms:${plainPhone(st.phone)}`"
                 :title="`SMS ${st.firstname}`"
               >
-                <v-icon size="16" color="primary">mdi-message-text</v-icon>
+                <v-icon size="16" style="color:#1E88E5">mdi-message-text</v-icon>
               </v-btn>
               <v-btn size="small" icon variant="text" color="primary" @click="openInfo(st)">
-                <v-icon size="16" color="primary">mdi-phone-edit</v-icon>
+                <v-icon size="16" style="color:#1E88E5">mdi-phone-edit</v-icon>
               </v-btn>
             </div>
           </v-card-text>
@@ -159,6 +159,10 @@
       </v-card-actions>
     </v-card>
   </v-dialog>
+
+  <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="2500">
+    {{ snackbar.text }}
+  </v-snackbar>
 </template>
 
 <script setup>
@@ -187,6 +191,7 @@ const page = ref(1)
 
 const infoDialog = ref(false)
 const selected = ref(null)
+const snackbar = ref({ show: false, text: '', color: 'success' })
 const openInfo = (st) => {
   selected.value = { ...st, weekday: st.weekday ?? null }
   infoDialog.value = true
@@ -277,9 +282,11 @@ const saveStudent = async () => {
     })
     const index = students.value.findIndex((s) => s.id === selected.value.id)
     if (index !== -1) students.value[index] = data
+    snackbar.value = { show: true, text: 'Élève mis à jour', color: 'success' }
     infoDialog.value = false
   } catch (e) {
-    console.error('Erreur mise à jour élève :', e)
+    const msg = e?.response?.data?.message || 'Erreur lors de la mise à jour'
+    snackbar.value = { show: true, text: msg, color: 'error' }
   }
 }
 </script>
