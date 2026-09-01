@@ -923,7 +923,7 @@ function schoolStartYear(dateStr: string) {
 }
 function inSchoolWindow(dateStr: string) {
   const y0 = schoolStartYear(dateStr)
-  const lower = `${y0}-09-15`,
+  const lower = `${y0}-09-01`,
     upper = `${y0 + 1}-07-14`
   return dateStr >= lower && dateStr <= upper
 }

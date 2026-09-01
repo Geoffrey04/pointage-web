@@ -259,14 +259,38 @@
                   </v-chip>
                 </template>
                 <template #append>
-                  <v-btn
-                    v-if="!year.is_current"
-                    size="small"
-                    variant="tonal"
-                    @click="setCurrentYear(year.id)"
-                  >
-                    Activer
-                  </v-btn>
+                  <div class="d-flex align-center ga-1">
+                    <v-btn
+                      v-if="!year.is_current"
+                      size="small"
+                      variant="tonal"
+                      @click="setCurrentYear(year.id)"
+                    >
+                      Activer
+                    </v-btn>
+                    <v-btn
+                      icon
+                      size="small"
+                      variant="text"
+                      color="primary"
+                      :loading="yearRegenerating === year.id"
+                      :title="`Régénérer les séances de ${year.label}`"
+                      @click="regenerateYear(year)"
+                    >
+                      <v-icon size="18">mdi-calendar-refresh</v-icon>
+                    </v-btn>
+                    <v-btn
+                      v-if="!year.is_current"
+                      icon
+                      size="small"
+                      variant="text"
+                      color="red"
+                      :title="`Supprimer ${year.label}`"
+                      @click="yearDeleteConfirm = { open: true, year, deleting: false }"
+                    >
+                      <v-icon size="18">mdi-delete</v-icon>
+                    </v-btn>
+                  </div>
                 </template>
               </v-list-item>
             </v-list>
@@ -427,6 +451,14 @@
               clearable
               :loading="loading.profs"
             />
+            <v-select
+              v-model="form.weekday"
+              :items="weekdayItems"
+              label="Jour de cours (optionnel)"
+              clearable
+              hint="Utilisé pour générer les séances de l'année scolaire"
+              persistent-hint
+            />
           </v-form>
         </v-card-text>
         <v-card-actions>
@@ -514,6 +546,24 @@
       </v-card>
     </v-dialog>
 
+    <!-- Confirm suppression année scolaire -->
+    <v-dialog v-model="yearDeleteConfirm.open" max-width="420">
+      <v-card class="rounded-xl">
+        <v-card-title>Supprimer l'année scolaire</v-card-title>
+        <v-card-text>
+          <p>Confirmer la suppression de <strong>{{ yearDeleteConfirm.year?.label }}</strong> ?</p>
+          <v-alert type="warning" variant="tonal" density="compact" class="mt-3 text-caption">
+            Toutes les séances et présences enregistrées pour cette année seront définitivement supprimées.
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="yearDeleteConfirm.open = false">Annuler</v-btn>
+          <v-btn color="red" :loading="yearDeleteConfirm.deleting" @click="deleteYear">Supprimer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
       {{ snackbar.text }}
     </v-snackbar>
@@ -546,6 +596,8 @@ const currentYear     = ref(null)
 const schoolYears     = ref([])
 const schoolYearModal = ref({ show: false, step: 'view', loading: false, creating: false })
 const yearForm        = ref({ label: '', start_date: '', end_date: '' })
+const yearDeleteConfirm = ref({ open: false, year: null, deleting: false })
+const yearRegenerating  = ref(null)
 
 // ─── État modals KPI ────────────────────────────────────────
 const profsModal  = ref({ show: false })
@@ -633,6 +685,33 @@ async function setCurrentYear(id) {
   }
 }
 
+async function deleteYear() {
+  const year = yearDeleteConfirm.value.year
+  if (!year) return
+  yearDeleteConfirm.value.deleting = true
+  try {
+    await api.delete(`/api/admin/school-years/${year.id}`)
+    schoolYears.value = schoolYears.value.filter((y) => y.id !== year.id)
+    yearDeleteConfirm.value = { open: false, year: null, deleting: false }
+    snackbar.value = { show: true, text: `Année "${year.label}" supprimée`, color: 'success' }
+  } catch (e) {
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur suppression', color: 'error' }
+    yearDeleteConfirm.value.deleting = false
+  }
+}
+
+async function regenerateYear(year) {
+  yearRegenerating.value = year.id
+  try {
+    const { data } = await api.post(`/api/admin/school-years/${year.id}/regenerate`)
+    snackbar.value = { show: true, text: data.message || `Séances régénérées pour ${year.label}`, color: 'success' }
+  } catch (e) {
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur régénération', color: 'error' }
+  } finally {
+    yearRegenerating.value = null
+  }
+}
+
 async function loadCurrentYear() {
   try {
     const { data } = await api.get('/api/current-school-year')
@@ -687,8 +766,18 @@ const snackbar = ref({ show: false, text: '', color: 'success' })
 const dialog   = ref({ open: false, mode: 'create', id: null })
 const formRef  = ref(null)
 const formValid = ref(false)
-const form     = ref({ name: '', description: '', owner_id: null })
+const form     = ref({ name: '', description: '', owner_id: null, weekday: null })
 const rules    = { required: (v) => !!(v && String(v).trim()) || 'Requis' }
+
+const weekdayItems = [
+  { title: 'Lundi',    value: 1 },
+  { title: 'Mardi',    value: 2 },
+  { title: 'Mercredi', value: 3 },
+  { title: 'Jeudi',    value: 4 },
+  { title: 'Vendredi', value: 5 },
+  { title: 'Samedi',   value: 6 },
+  { title: 'Dimanche', value: 7 },
+]
 const confirm  = ref({ open: false, item: null })
 
 const managersDialog = ref({
@@ -769,11 +858,11 @@ function ownerName(id) {
 
 function openCreate() {
   dialog.value = { open: true, mode: 'create', id: null }
-  form.value   = { name: '', description: '', owner_id: null }
+  form.value   = { name: '', description: '', owner_id: null, weekday: null }
 }
 function openEdit(item) {
   dialog.value = { open: true, mode: 'edit', id: item.id }
-  form.value   = { name: item.name, description: item.description, owner_id: item.owner_id ?? null }
+  form.value   = { name: item.name, description: item.description, owner_id: item.owner_id ?? null, weekday: item.weekday ?? null }
 }
 function confirmDelete(item) {
   confirm.value = { open: true, item }

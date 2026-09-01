@@ -104,18 +104,36 @@
           </div>
 
           <!-- Réinscription : sélectionner l'élève existant -->
-          <v-autocomplete
-            v-if="acceptDialog.dossier?.type === 'reinscription'"
-            v-model="acceptDialog.studentId"
-            :items="allStudents"
-            :item-title="(s) => `${s.firstname} ${s.lastname}`"
-            item-value="id"
-            label="Élève existant *"
-            variant="outlined"
-            density="comfortable"
-            clearable
-            class="mb-3"
-          />
+          <template v-if="acceptDialog.dossier?.type === 'reinscription'">
+            <v-alert
+              v-if="acceptDialog.autoMatched"
+              type="success"
+              variant="tonal"
+              density="compact"
+              class="mb-3 text-caption"
+            >
+              Correspondance trouvée automatiquement — vérifiez avant de confirmer
+            </v-alert>
+            <v-autocomplete
+              v-model="acceptDialog.studentId"
+              v-model:search="acceptDialog.searchQuery"
+              :items="allStudents"
+              :item-title="(s) => `${s.lastname} ${s.firstname}`"
+              item-value="id"
+              label="Élève existant *"
+              variant="outlined"
+              density="comfortable"
+              clearable
+              class="mb-3"
+            >
+              <template #item="{ props, item }">
+                <v-list-item
+                  v-bind="props"
+                  :subtitle="item.raw.class_name || 'sans classe'"
+                />
+              </template>
+            </v-autocomplete>
+          </template>
 
           <v-select
             v-model="acceptDialog.classId"
@@ -162,6 +180,7 @@ const snackbar = ref({ show: false, text: '', color: 'success' })
 
 const acceptDialog = ref({
   show: false, dossier: null, classId: null, studentId: null, saving: false,
+  searchQuery: '', autoMatched: false,
 })
 
 // ─── Computed ───────────────────────────────────────────────
@@ -200,7 +219,28 @@ onMounted(async () => {
 
 // ─── Accepter un dossier ─────────────────────────────────────
 function openAccept(dossier) {
-  acceptDialog.value = { show: true, dossier, classId: null, studentId: null, saving: false }
+  const prenom = (dossier.prenom_eleve || '').toLowerCase().trim()
+  const nom    = (dossier.nom_eleve   || '').toLowerCase().trim()
+
+  const exactMatch = allStudents.value.find(
+    (s) =>
+      s.firstname?.toLowerCase().trim() === prenom &&
+      s.lastname?.toLowerCase().trim()  === nom,
+  )
+
+  const searchQuery = exactMatch
+    ? `${exactMatch.lastname} ${exactMatch.firstname}`
+    : `${dossier.nom_eleve} ${dossier.prenom_eleve}`.trim()
+
+  acceptDialog.value = {
+    show: true,
+    dossier,
+    classId: null,
+    studentId: exactMatch?.id ?? null,
+    saving: false,
+    searchQuery,
+    autoMatched: !!exactMatch,
+  }
 }
 
 async function confirmAccept() {
