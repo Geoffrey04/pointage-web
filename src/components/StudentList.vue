@@ -53,7 +53,7 @@
             :href="`tel:${plainPhone(st.phone)}`"
             :title="`Appeler ${st.firstname}`"
           >
-            <v-icon size="18">mdi-phone</v-icon>
+            <v-icon size="18" color="primary">mdi-phone</v-icon>
           </v-btn>
           <v-btn
             v-if="st.phone"
@@ -64,10 +64,10 @@
             :href="`sms:${plainPhone(st.phone)}`"
             :title="`SMS ${st.firstname}`"
           >
-            <v-icon size="18">mdi-message-text</v-icon>
+            <v-icon size="18" color="primary">mdi-message-text</v-icon>
           </v-btn>
           <v-btn icon size="small" variant="text" color="primary" @click="openInfo(st)" title="Modifier">
-            <v-icon size="18">mdi-phone-edit</v-icon>
+            <v-icon size="18" color="primary">mdi-phone-edit</v-icon>
           </v-btn>
         </div>
       </div>
@@ -96,7 +96,7 @@
                 :href="`tel:${plainPhone(st.phone)}`"
                 :title="`Appeler ${st.firstname}`"
               >
-                <v-icon size="16">mdi-phone</v-icon>
+                <v-icon size="16" color="primary">mdi-phone</v-icon>
               </v-btn>
               <v-btn
                 v-if="st.phone"
@@ -107,10 +107,10 @@
                 :href="`sms:${plainPhone(st.phone)}`"
                 :title="`SMS ${st.firstname}`"
               >
-                <v-icon size="16">mdi-message-text</v-icon>
+                <v-icon size="16" color="primary">mdi-message-text</v-icon>
               </v-btn>
-              <v-btn size="small" icon variant="text" @click="openInfo(st)">
-                <v-icon size="16">mdi-phone-edit</v-icon>
+              <v-btn size="small" icon variant="text" color="primary" @click="openInfo(st)">
+                <v-icon size="16" color="primary">mdi-phone-edit</v-icon>
               </v-btn>
             </div>
           </v-card-text>

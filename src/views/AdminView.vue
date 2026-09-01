@@ -401,7 +401,7 @@
               <template #append>
                 <div class="d-flex align-center ga-1">
                   <v-chip
-                    v-if="duplicateStudentNames.has(`${s.firstname}|${s.lastname}`)"
+                    v-if="duplicateStudentIds.has(s.id)"
                     size="x-small"
                     color="warning"
                     variant="tonal"
@@ -684,13 +684,18 @@ const classesModal = ref({ show: false })
 const studentEditDialog = ref({ open: false, student: null, saving: false, form: { weekday: null, class_id: null, phone: '' } })
 const studentDeleteConfirm = ref({ open: false, student: null, deleting: false })
 
-const duplicateStudentNames = computed(() => {
+const duplicateStudentIds = computed(() => {
+  // Vrai doublon = même nom ET même classe (deux inscriptions dans des classes différentes sont légitimes)
   const counts = {}
   for (const s of elevesModal.value.items) {
-    const k = `${s.firstname}|${s.lastname}`
-    counts[k] = (counts[k] || 0) + 1
+    const k = `${s.firstname}|${s.lastname}|${s.class_id}`
+    counts[k] = counts[k] ? [...counts[k], s.id] : [s.id]
   }
-  return new Set(Object.entries(counts).filter(([, n]) => n > 1).map(([k]) => k))
+  const ids = new Set()
+  for (const list of Object.values(counts)) {
+    if (list.length > 1) list.forEach((id) => ids.add(id))
+  }
+  return ids
 })
 
 // ─── Handlers ouverture modals ──────────────────────────────
