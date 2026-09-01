@@ -169,17 +169,38 @@
               <template #item.submitted_at="{ item }">
                 {{ formatDate(item.submitted_at) }}
               </template>
-              <template #item.actions="{ item }">
-                <v-btn
-                  icon
-                  variant="text"
-                  color="primary"
-                  title="Télécharger le PDF"
-                  :loading="downloadingId === item.id"
-                  @click="downloadPdf(item)"
+              <template #item.status="{ item }">
+                <v-chip
+                  size="small"
+                  :color="item.status === 'pending' ? 'primary' : item.status === 'accepted' ? 'success' : 'error'"
+                  variant="tonal"
                 >
-                  <v-icon>mdi-file-pdf-box</v-icon>
-                </v-btn>
+                  {{ item.status === 'pending' ? 'En attente' : item.status === 'accepted' ? 'Accepté' : 'Refusé' }}
+                </v-chip>
+              </template>
+              <template #item.actions="{ item }">
+                <div class="d-flex align-center">
+                  <v-btn
+                    icon
+                    variant="text"
+                    color="primary"
+                    title="Télécharger le PDF"
+                    :loading="downloadingId === item.id"
+                    @click="downloadPdf(item)"
+                  >
+                    <v-icon>mdi-file-pdf-box</v-icon>
+                  </v-btn>
+                  <v-btn
+                    v-if="item.status !== 'pending'"
+                    icon
+                    variant="text"
+                    color="warning"
+                    title="Remettre en attente"
+                    @click="resetDossier(item)"
+                  >
+                    <v-icon>mdi-restore</v-icon>
+                  </v-btn>
+                </div>
               </template>
               <template #no-data>
                 <v-alert type="info" variant="tonal">Aucun dossier reçu pour l'instant.</v-alert>
@@ -896,11 +917,12 @@ const classHeaders = [
 ]
 
 const dossierHeaders = [
-  { title: 'Type', key: 'type', width: 140 },
-  { title: 'Nom', key: 'nom_eleve', width: 140 },
-  { title: 'Prénom', key: 'prenom_eleve', width: 140 },
+  { title: 'Type', key: 'type', width: 120 },
+  { title: 'Nom', key: 'nom_eleve', width: 130 },
+  { title: 'Prénom', key: 'prenom_eleve', width: 130 },
   { title: 'Reçu le', key: 'submitted_at' },
-  { title: '', key: 'actions', width: 60, sortable: false },
+  { title: 'Statut', key: 'status', width: 120 },
+  { title: '', key: 'actions', width: 90, sortable: false },
 ]
 
 const snackbar = ref({ show: false, text: '', color: 'success' })
@@ -1047,6 +1069,17 @@ async function loadDossiers() {
     console.error('loadDossiers :', e)
   } finally {
     loading.value.dossiers = false
+  }
+}
+
+async function resetDossier(item) {
+  try {
+    await api.patch(`/api/admin/dossiers/${item.id}/reset`)
+    const idx = dossiers.value.findIndex((d) => d.id === item.id)
+    if (idx >= 0) dossiers.value[idx] = { ...dossiers.value[idx], status: 'pending' }
+    snackbar.value = { show: true, text: 'Dossier remis en attente', color: 'success' }
+  } catch (e) {
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur', color: 'error' }
   }
 }
 
