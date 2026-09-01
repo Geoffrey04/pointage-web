@@ -379,7 +379,7 @@
     </v-dialog>
 
     <!-- ─── Modal Élèves ──────────────────────────────────────── -->
-    <v-dialog v-model="elevesModal.show" max-width="480">
+    <v-dialog v-model="elevesModal.show" max-width="520">
       <v-card class="rounded-xl">
         <v-card-title class="d-flex align-center justify-space-between pt-4 px-4">
           <span>Élèves ({{ elevesModal.items.length }})</span>
@@ -394,10 +394,27 @@
             <v-list-item
               v-for="s in elevesModal.items"
               :key="s.id"
-              :title="`${s.firstname} ${s.lastname}`"
-              :subtitle="s.class_name || '—'"
+              :title="`${s.lastname} ${s.firstname}`"
+              :subtitle="s.class_name || 'sans classe'"
               prepend-icon="mdi-account-school"
-            />
+            >
+              <template #append>
+                <div class="d-flex align-center ga-1">
+                  <v-chip
+                    v-if="duplicateStudentNames.has(`${s.firstname}|${s.lastname}`)"
+                    size="x-small"
+                    color="warning"
+                    variant="tonal"
+                  >doublon</v-chip>
+                  <v-btn icon size="small" variant="text" color="primary" @click="openStudentEdit(s)">
+                    <v-icon size="16">mdi-pencil</v-icon>
+                  </v-btn>
+                  <v-btn icon size="small" variant="text" color="red" @click="studentDeleteConfirm = { open: true, student: s, deleting: false }">
+                    <v-icon size="16">mdi-delete</v-icon>
+                  </v-btn>
+                </div>
+              </template>
+            </v-list-item>
           </v-list>
         </v-card-text>
       </v-card>
@@ -546,6 +563,66 @@
       </v-card>
     </v-dialog>
 
+    <!-- Dialog édition élève -->
+    <v-dialog v-model="studentEditDialog.open" max-width="440">
+      <v-card class="rounded-xl">
+        <v-card-title class="pt-4 px-4">
+          Modifier — {{ studentEditDialog.student?.lastname }} {{ studentEditDialog.student?.firstname }}
+        </v-card-title>
+        <v-card-text class="px-4 pb-2">
+          <v-select
+            v-model="studentEditDialog.form.weekday"
+            :items="weekdayItems"
+            label="Jour de cours"
+            clearable
+            variant="outlined"
+            density="comfortable"
+            class="mb-3"
+          />
+          <v-select
+            v-model="studentEditDialog.form.class_id"
+            :items="classes"
+            item-title="name"
+            item-value="id"
+            label="Classe"
+            clearable
+            variant="outlined"
+            density="comfortable"
+            class="mb-3"
+          />
+          <v-text-field
+            v-model="studentEditDialog.form.phone"
+            label="Téléphone"
+            variant="outlined"
+            density="comfortable"
+          />
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer />
+          <v-btn variant="text" @click="studentEditDialog.open = false">Annuler</v-btn>
+          <v-btn color="primary" :loading="studentEditDialog.saving" @click="saveStudentEdit">Enregistrer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Confirm suppression élève -->
+    <v-dialog v-model="studentDeleteConfirm.open" max-width="420">
+      <v-card class="rounded-xl">
+        <v-card-title>Supprimer l'élève</v-card-title>
+        <v-card-text>
+          Confirmer la suppression de <strong>{{ studentDeleteConfirm.student?.lastname }} {{ studentDeleteConfirm.student?.firstname }}</strong> ?
+          <v-alert type="warning" variant="tonal" density="compact" class="mt-3 text-caption">
+            Toutes les présences enregistrées pour cet élève seront supprimées.
+          </v-alert>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="studentDeleteConfirm.open = false">Annuler</v-btn>
+          <v-btn color="red" :loading="studentDeleteConfirm.deleting" @click="doDeleteStudent">Supprimer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <!-- Confirm suppression année scolaire -->
     <v-dialog v-model="yearDeleteConfirm.open" max-width="420">
       <v-card class="rounded-xl">
@@ -571,7 +648,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { api } from '@/stores/user'
 
 const activeTab = ref('classes')
@@ -603,6 +680,18 @@ const yearRegenerating  = ref(null)
 const profsModal  = ref({ show: false })
 const elevesModal = ref({ show: false, loading: false, items: [] })
 const classesModal = ref({ show: false })
+
+const studentEditDialog = ref({ open: false, student: null, saving: false, form: { weekday: null, class_id: null, phone: '' } })
+const studentDeleteConfirm = ref({ open: false, student: null, deleting: false })
+
+const duplicateStudentNames = computed(() => {
+  const counts = {}
+  for (const s of elevesModal.value.items) {
+    const k = `${s.firstname}|${s.lastname}`
+    counts[k] = (counts[k] || 0) + 1
+  }
+  return new Set(Object.entries(counts).filter(([, n]) => n > 1).map(([k]) => k))
+})
 
 // ─── Handlers ouverture modals ──────────────────────────────
 async function openKpiModal(kpi) {
@@ -727,15 +816,62 @@ async function loadAllStudents() {
   elevesModal.value.loading = true
   try {
     const { data } = await api.get('/api/admin/students')
-    const seen = new Set()
-    elevesModal.value.items = (Array.isArray(data) ? data : []).filter((s) => {
-      const key = `${s.firstname}|${s.lastname}`
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
+    elevesModal.value.items = Array.isArray(data) ? data : []
   } finally {
     elevesModal.value.loading = false
+  }
+}
+
+function openStudentEdit(student) {
+  studentEditDialog.value = {
+    open: true,
+    student,
+    saving: false,
+    form: { weekday: student.weekday ?? null, class_id: student.class_id ?? null, phone: student.phone ?? '' },
+  }
+}
+
+async function saveStudentEdit() {
+  studentEditDialog.value.saving = true
+  try {
+    const { student, form } = studentEditDialog.value
+    await api.patch(`/api/students/${student.id}`, {
+      weekday: form.weekday,
+      class_id: form.class_id ?? null,
+      phone: form.phone || null,
+    })
+    const cls = classes.value.find((c) => c.id === form.class_id)
+    const idx = elevesModal.value.items.findIndex((s) => s.id === student.id)
+    if (idx >= 0) {
+      elevesModal.value.items[idx] = {
+        ...elevesModal.value.items[idx],
+        weekday: form.weekday,
+        class_id: form.class_id,
+        class_name: cls?.name ?? elevesModal.value.items[idx].class_name,
+        phone: form.phone,
+      }
+    }
+    studentEditDialog.value.open = false
+    snackbar.value = { show: true, text: 'Élève mis à jour', color: 'success' }
+  } catch (e) {
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur mise à jour', color: 'error' }
+  } finally {
+    studentEditDialog.value.saving = false
+  }
+}
+
+async function doDeleteStudent() {
+  studentDeleteConfirm.value.deleting = true
+  const student = studentDeleteConfirm.value.student
+  try {
+    await api.delete(`/api/students/${student.id}`)
+    elevesModal.value.items = elevesModal.value.items.filter((s) => s.id !== student.id)
+    kpis.value[1].value = Math.max(0, Number(kpis.value[1].value) - 1)
+    studentDeleteConfirm.value = { open: false, student: null, deleting: false }
+    snackbar.value = { show: true, text: `${student.lastname} ${student.firstname} supprimé`, color: 'success' }
+  } catch (e) {
+    snackbar.value = { show: true, text: e?.response?.data?.message || 'Erreur suppression', color: 'error' }
+    studentDeleteConfirm.value.deleting = false
   }
 }
 
