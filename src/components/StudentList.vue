@@ -137,11 +137,24 @@
           density="compact"
           variant="outlined"
           placeholder="Ajouter un numéro"
+          class="mb-2"
+        />
+        <v-select
+          v-model="selected.weekday"
+          :items="weekdayItems"
+          item-title="label"
+          item-value="value"
+          label="Jour de cours"
+          density="compact"
+          variant="outlined"
+          clearable
+          :hint="classWeekdayHint"
+          persistent-hint
         />
       </v-card-text>
       <v-card-actions>
         <v-spacer />
-        <v-btn color="primary" variant="text" @click="updatePhone">Enregistrer</v-btn>
+        <v-btn color="primary" variant="text" @click="saveStudent">Enregistrer</v-btn>
         <v-btn variant="text" @click="infoDialog = false">Fermer</v-btn>
       </v-card-actions>
     </v-card>
@@ -175,9 +188,28 @@ const page = ref(1)
 const infoDialog = ref(false)
 const selected = ref(null)
 const openInfo = (st) => {
-  selected.value = { ...st }
+  selected.value = { ...st, weekday: st.weekday ?? null }
   infoDialog.value = true
 }
+
+const weekdayItems = [
+  { value: 1, label: 'Lundi' },
+  { value: 2, label: 'Mardi' },
+  { value: 3, label: 'Mercredi' },
+  { value: 4, label: 'Jeudi' },
+  { value: 5, label: 'Vendredi' },
+  { value: 6, label: 'Samedi' },
+  { value: 7, label: 'Dimanche' },
+]
+
+const weekdayLabel = (n) =>
+  weekdayItems.find((w) => w.value === Number(n))?.label ?? null
+
+const classWeekdayHint = computed(() => {
+  const cwd = currentClass.value?.weekday
+  if (!cwd) return 'Aucun jour par défaut sur la classe'
+  return `Par défaut de la classe : ${weekdayLabel(cwd)}`
+})
 
 const plainPhone = (p) => (p || '').replace(/\D/g, '')
 const initials = (st) =>
@@ -236,17 +268,18 @@ onMounted(async () => {
   }
 })
 
-const updatePhone = async () => {
+const saveStudent = async () => {
   if (!selected.value?.id) return
   try {
     const { data } = await api.patch(`/api/students/${selected.value.id}`, {
       phone: selected.value.phone || null,
+      weekday: selected.value.weekday ?? null,
     })
     const index = students.value.findIndex((s) => s.id === selected.value.id)
     if (index !== -1) students.value[index] = data
     infoDialog.value = false
   } catch (e) {
-    console.error('Erreur mise à jour téléphone :', e)
+    console.error('Erreur mise à jour élève :', e)
   }
 }
 </script>
