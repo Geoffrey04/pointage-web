@@ -11,6 +11,15 @@
           <div class="date-row">
             <button class="btn-arrow" :disabled="currentSessionIdx <= 0" @click="goPrev">&#8249;</button>
             <div class="date-label">{{ readableDate(currentSession?.date) }}</div>
+            <!-- Croix annulation : insérée entre la date et la flèche droite -->
+            <button
+              v-if="currentSession && isSessionPointable(currentSession.id)"
+              class="btn-cancel"
+              title="Annuler ce cours"
+              @click="openCancelDialog(currentSession)"
+            >
+              <v-icon size="18" color="error">mdi-close-octagon-outline</v-icon>
+            </button>
             <button
               class="btn-arrow"
               :disabled="currentSessionIdx >= sortedSessions.length - 1"
@@ -46,18 +55,7 @@
                 variant="tonal"
               >{{ chipLabel(sessionStatus(currentSession.id)) }}</v-chip>
 
-              <!-- Annuler (seulement si pointable) -->
-              <v-btn
-                v-if="isSessionPointable(currentSession.id)"
-                size="small"
-                variant="outlined"
-                color="error"
-                rounded="pill"
-                prepend-icon="mdi-close-octagon-outline"
-                @click="openCancelDialog(currentSession)"
-              >Annuler</v-btn>
-
-              <!-- Note -->
+              <!-- Note : toujours sur cette ligne, avec la séance du jour et le calendrier -->
               <v-btn
                 size="small"
                 icon
@@ -1295,11 +1293,29 @@ watch([students, sessions], () => {
   font-weight: 700;
   color: #0d1a3a;
 }
+.btn-cancel {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.75;
+  transition: opacity 0.15s, background 0.15s;
+  padding: 0;
+}
+.btn-cancel:hover {
+  opacity: 1;
+  background: rgba(198, 40, 40, 0.08);
+}
 .date-meta {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  flex-wrap: wrap;
 }
 .session-chip {
   font-size: 11.5px;
