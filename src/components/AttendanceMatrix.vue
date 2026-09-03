@@ -994,7 +994,7 @@ const cancelDialog = ref<{
 
 function openCancelDialog(s: Session) {
   cancelDialog.value = {
-    show: true, id: s.id, note: s.note ?? '', force: false, saving: false,
+    show: true, id: s.id, note: '', force: false, saving: false,
     dateLabel: `Séance du ${formatDate(s.date)}`,
   }
 }
@@ -1005,7 +1005,8 @@ async function confirmCancel() {
   try {
     d.saving = true
     const params = d.force ? '?force=true' : ''
-    const body = { status: 'cancelled', note: d.note?.trim() || null }
+    const existingNote = sessions.value.find((s) => s.id === d.id)?.note ?? null
+    const body = { status: 'cancelled', note: d.note?.trim() || existingNote }
     const { data } = await api.patch(`/sessions/${d.id}/status${params}`, body)
     const idx = sessions.value.findIndex((s) => s.id === d.id)
     if (idx >= 0)
