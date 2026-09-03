@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="att-root">
 
     <!-- ====== MOBILE : Vue par date ====== -->
@@ -1015,7 +1015,7 @@ async function confirmCancel() {
     cancelDialog.value.show = false
     snackbar.value = { show: true, text: 'Cours annulé', color: 'success' }
   } catch (e: unknown) {
-    let msg = "Erreur lors de l’annulation."
+    let msg = "Erreur lors de l'annulation."
     if (isAxiosError(e)) {
       const rd = (e.response?.data as { message?: string } | undefined)?.message
       if (rd) msg = rd
@@ -1054,7 +1054,7 @@ async function saveNote() {
     noteDialog.value.show = false
     snackbar.value = { show: true, text: 'Note enregistrée', color: 'success' }
   } catch {
-    snackbar.value = { show: true, text: "Erreur lors de l’enregistrement", color: ‘error’ }
+    snackbar.value = { show: true, text: "Erreur lors de l'enregistrement", color: 'error' }
   } finally {
     noteDialog.value.saving = false
   }
