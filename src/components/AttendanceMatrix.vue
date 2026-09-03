@@ -829,7 +829,10 @@ function studentIsoWeekday(st: Student): number | null {
 
 function mobileSessionsFor(st: Student): Session[] {
   const w = studentIsoWeekday(st)
-  if (!w) return sortedSessions.value
+  const classW = classWeekday.value
+  // Pas de jour perso, ou jour perso = jour de classe → pas de filtre supplementaire
+  if (!w || w === classW) return sortedSessions.value
+  // Jour perso vraiment different (rattrapage) → seances de ce jour uniquement
   return sortedSessions.value.filter((s) => isoDowFromYmd(s.date) === w)
 }
 
@@ -874,17 +877,19 @@ function isSessionPointable(id: number) {
   return !NON_POINTABLE.has(sessionStatus(id))
 }
 
-function expectedIsoForStudent(stId: number): number | null {
-  const st = students.value.find((x) => x.id === stId)
-  return st?.weekday ?? classWeekday.value ?? null
-}
 function isExpectedForStudent(stId: number, seId: number): boolean {
   const se = sessions.value.find((x) => x.id === seId)
   if (!se) return false
-  const iso = isoDowFromYmd(se.date)
-  const expected = expectedIsoForStudent(stId)
-  if (!expected || !iso) return true
-  return iso === expected
+  const sessionIso = isoDowFromYmd(se.date)
+  const classIso = classWeekday.value
+  // Seance sur le jour standard de la classe → toujours attendu
+  if (classIso && sessionIso === classIso) return true
+  // Aucun jour par defaut pour la classe → affiché partout
+  if (!classIso) return true
+  // Seance non-standard → seulement si correspond au jour perso de l'eleve
+  const st = students.value.find((x) => x.id === stId)
+  const personalIso = st?.weekday ?? null
+  return !!personalIso && sessionIso === personalIso
 }
 function isPointableForStudent(stId: number, seId: number): boolean {
   if (!isExpectedForStudent(stId, seId)) return false
