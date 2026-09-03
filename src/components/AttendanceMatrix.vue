@@ -1065,6 +1065,9 @@ function askDeleteStudent(st: Student) {
 }
 
 // ─── Tri & fenêtre scolaire ─────────────────────────────────
+const schoolYearStart = ref<string | null>(null)
+const schoolYearEnd   = ref<string | null>(null)
+
 function schoolStartYear(dateStr: string) {
   const y = Number(dateStr.slice(0, 4)),
     m = Number(dateStr.slice(5, 7))
@@ -1072,8 +1075,9 @@ function schoolStartYear(dateStr: string) {
 }
 function inSchoolWindow(dateStr: string) {
   const y0 = schoolStartYear(dateStr)
-  const lower = `${y0}-09-01`,
-    upper = `${y0 + 1}-07-14`
+  // Utilise la vraie start_date si disponible, sinon repli sur Sep 1
+  const lower = schoolYearStart.value ?? `${y0}-09-01`
+  const upper = schoolYearEnd.value   ?? `${y0 + 1}-07-14`
   return dateStr >= lower && dateStr <= upper
 }
 const sortedSessions = computed<Session[]>(() =>
@@ -1108,9 +1112,14 @@ async function fetchAll() {
     const classIdNum = Number(props.classId)
 
     try {
-      const clRes = await api.get(`/api/classes/${classIdNum}`)
+      const [clRes, syRes] = await Promise.all([
+        api.get(`/api/classes/${classIdNum}`),
+        api.get('/api/school-year'),
+      ])
       classWeekday.value = Number(clRes.data?.weekday ?? 0) || null
       className.value = clRes.data?.name ?? ''
+      schoolYearStart.value = syRes.data?.start_date ?? null
+      schoolYearEnd.value   = syRes.data?.end_date   ?? null
     } catch {
       classWeekday.value = null
       className.value = ''
