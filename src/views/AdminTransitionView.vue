@@ -135,15 +135,46 @@
             </v-autocomplete>
           </template>
 
-          <v-select
-            v-model="acceptDialog.classId"
-            :items="allClasses"
-            item-title="name"
-            item-value="id"
-            label="Classe *"
-            variant="outlined"
-            density="comfortable"
-          />
+          <!-- Classes : liste dynamique (multi-classe possible) -->
+          <div class="text-caption text-medium-emphasis mb-1">Classes *</div>
+          <div
+            v-for="(entry, i) in acceptDialog.classIds"
+            :key="i"
+            class="d-flex align-center ga-2 mb-2"
+          >
+            <v-select
+              v-model="acceptDialog.classIds[i]"
+              :items="allClasses"
+              item-title="name"
+              item-value="id"
+              :label="`Classe ${i + 1}`"
+              variant="outlined"
+              density="comfortable"
+              hide-details
+              class="flex-1"
+            />
+            <v-btn
+              v-if="acceptDialog.classIds.length > 1"
+              icon
+              size="small"
+              variant="text"
+              color="red"
+              @click="acceptDialog.classIds.splice(i, 1)"
+            >
+              <v-icon size="18">mdi-close</v-icon>
+            </v-btn>
+          </div>
+          <v-btn
+            size="small"
+            variant="tonal"
+            prepend-icon="mdi-plus"
+            color="primary"
+            @click="acceptDialog.classIds.push(null)"
+            :disabled="acceptDialog.classIds.length >= allClasses.length"
+            class="mb-2"
+          >
+            Ajouter une classe
+          </v-btn>
         </v-card-text>
         <v-card-actions class="px-4 pb-4">
           <v-spacer />
@@ -151,7 +182,7 @@
           <v-btn
             color="primary"
             :loading="acceptDialog.saving"
-            :disabled="!acceptDialog.classId || (acceptDialog.dossier?.type === 'reinscription' && !acceptDialog.studentId)"
+            :disabled="!acceptDialog.classIds.some(Boolean) || (acceptDialog.dossier?.type === 'reinscription' && !acceptDialog.studentId)"
             @click="confirmAccept"
           >
             Accepter
@@ -179,7 +210,7 @@ const pendingDossiers = ref([])
 const snackbar = ref({ show: false, text: '', color: 'success' })
 
 const acceptDialog = ref({
-  show: false, dossier: null, classId: null, studentId: null, saving: false,
+  show: false, dossier: null, classIds: [null], studentId: null, saving: false,
   searchQuery: '', autoMatched: false,
 })
 
@@ -235,7 +266,7 @@ function openAccept(dossier) {
   acceptDialog.value = {
     show: true,
     dossier,
-    classId: null,
+    classIds: [null],
     studentId: exactMatch?.id ?? null,
     saving: false,
     searchQuery,
@@ -245,17 +276,20 @@ function openAccept(dossier) {
 
 async function confirmAccept() {
   acceptDialog.value.saving = true
+  const validClassIds = acceptDialog.value.classIds.filter(Boolean)
   try {
     await api.post(`/api/admin/dossiers/${acceptDialog.value.dossier.id}/accept`, {
-      class_id:       acceptDialog.value.classId,
+      class_ids:      validClassIds,
       school_year_id: yearId.value,
       student_id:     acceptDialog.value.studentId ?? undefined,
     })
     pendingDossiers.value = pendingDossiers.value.filter((d) => d.id !== acceptDialog.value.dossier.id)
-    const className = allClasses.value.find((c) => c.id === acceptDialog.value.classId)?.name ?? '?'
+    const classNames = validClassIds
+      .map((id) => allClasses.value.find((c) => c.id === id)?.name ?? '?')
+      .join(', ')
     snackbar.value = {
       show: true,
-      text: `${acceptDialog.value.dossier.prenom_eleve} ${acceptDialog.value.dossier.nom_eleve} inscrit en ${className}`,
+      text: `${acceptDialog.value.dossier.prenom_eleve} ${acceptDialog.value.dossier.nom_eleve} inscrit en ${classNames}`,
       color: 'success',
     }
     acceptDialog.value.show = false
