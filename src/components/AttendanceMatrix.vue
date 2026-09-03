@@ -36,16 +36,39 @@
             >
               <v-icon size="18">mdi-calendar-month</v-icon>
             </v-btn>
-            <span v-if="currentSession" class="session-chip">
-              {{ studentsForCurrentSession.length }}&nbsp;élève{{ studentsForCurrentSession.length !== 1 ? 's' : '' }}&nbsp;&middot;&nbsp;Séance&nbsp;n&deg;{{ currentSessionIdx + 1 }}
-            </span>
-            <v-chip
-              v-if="currentSession && sessionStatus(currentSession.id) !== 'scheduled'"
-              size="x-small"
-              :color="chipColor(sessionStatus(currentSession.id))"
-              variant="tonal"
-              class="ml-1"
-            >{{ chipLabel(sessionStatus(currentSession.id)) }}</v-chip>
+
+            <template v-if="currentSession">
+              <!-- Statut si non standard -->
+              <v-chip
+                v-if="sessionStatus(currentSession.id) !== 'scheduled'"
+                size="x-small"
+                :color="chipColor(sessionStatus(currentSession.id))"
+                variant="tonal"
+              >{{ chipLabel(sessionStatus(currentSession.id)) }}</v-chip>
+
+              <!-- Annuler (seulement si pointable) -->
+              <v-btn
+                v-if="isSessionPointable(currentSession.id)"
+                size="small"
+                variant="outlined"
+                color="error"
+                rounded="pill"
+                prepend-icon="mdi-close-octagon-outline"
+                @click="openCancelDialog(currentSession)"
+              >Annuler</v-btn>
+
+              <!-- Note -->
+              <v-btn
+                size="small"
+                icon
+                :variant="sessionNote(currentSession.id) ? 'tonal' : 'text'"
+                :color="sessionNote(currentSession.id) ? 'primary' : 'default'"
+                :title="sessionNote(currentSession.id) ? 'Modifier la note' : 'Ajouter une note'"
+                @click="openNoteDialog(currentSession)"
+              >
+                <v-icon size="18">{{ sessionNote(currentSession.id) ? 'mdi-note-text' : 'mdi-note-plus-outline' }}</v-icon>
+              </v-btn>
+            </template>
           </div>
         </div>
 
@@ -479,6 +502,62 @@
       </v-card>
     </v-dialog>
 
+    <!-- Dialog : annuler la séance (mobile) -->
+    <v-dialog v-model="cancelDialog.show" max-width="360">
+      <v-card class="rounded-xl">
+        <v-card-title class="pt-4 px-4 text-body-1 font-weight-bold">Annuler ce cours ?</v-card-title>
+        <v-card-text class="px-4 pb-2">
+          <div class="text-caption text-medium-emphasis mb-3">{{ cancelDialog.dateLabel }}</div>
+          <v-textarea
+            v-model="cancelDialog.note"
+            label="Note (optionnelle)"
+            auto-grow
+            rows="2"
+            variant="outlined"
+            density="comfortable"
+            hide-details
+          />
+          <v-checkbox
+            v-model="cancelDialog.force"
+            class="mt-2"
+            label="Supprimer les pointages existants"
+            density="compact"
+            hide-details
+          />
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer />
+          <v-btn variant="text" :disabled="cancelDialog.saving" @click="cancelDialog.show = false">Fermer</v-btn>
+          <v-btn color="error" :loading="cancelDialog.saving" @click="confirmCancel">Confirmer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Dialog : note de séance (mobile) -->
+    <v-dialog v-model="noteDialog.show" max-width="420">
+      <v-card class="rounded-xl">
+        <v-card-title class="pt-4 px-4 text-body-1 font-weight-bold">Note de cours</v-card-title>
+        <v-card-text class="px-4 pb-2">
+          <div class="text-caption text-medium-emphasis mb-3">{{ noteDialog.dateLabel }}</div>
+          <v-textarea
+            v-model="noteDialog.note"
+            label="Note"
+            auto-grow
+            rows="4"
+            counter="500"
+            variant="outlined"
+            density="comfortable"
+            placeholder="Ex : exercice 2 p.8 — à revoir semaine prochaine"
+          />
+        </v-card-text>
+        <v-card-actions class="px-4 pb-4">
+          <v-spacer />
+          <v-btn variant="text" :disabled="noteDialog.saving" @click="noteDialog.show = false">Fermer</v-btn>
+          <v-btn color="primary" :loading="noteDialog.saving" @click="saveNote">Enregistrer</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
     <v-snackbar v-model="snackbar.show" :color="snackbar.color" timeout="1600">
       {{ snackbar.text }}
     </v-snackbar>
@@ -907,6 +986,77 @@ async function saveSessionStatus() {
     snackbar.value = { show: true, text: msg, color: 'error' }
   } finally {
     d.saving = false
+  }
+}
+
+// ─── Cancel dialog (mobile) ─────────────────────────────────
+const cancelDialog = ref<{
+  show: boolean; id: number | null; note: string; force: boolean; saving: boolean; dateLabel: string
+}>({ show: false, id: null, note: '', force: false, saving: false, dateLabel: '' })
+
+function openCancelDialog(s: Session) {
+  cancelDialog.value = {
+    show: true, id: s.id, note: s.note ?? '', force: false, saving: false,
+    dateLabel: `Séance du ${formatDate(s.date)}`,
+  }
+}
+
+async function confirmCancel() {
+  const d = cancelDialog.value
+  if (!d.id) return
+  try {
+    d.saving = true
+    const params = d.force ? '?force=true' : ''
+    const body = { status: 'cancelled', note: d.note?.trim() || null }
+    const { data } = await api.patch(`/sessions/${d.id}/status${params}`, body)
+    const idx = sessions.value.findIndex((s) => s.id === d.id)
+    if (idx >= 0)
+      sessions.value[idx] = { ...sessions.value[idx], status: 'cancelled', note: data?.note ?? body.note ?? null }
+    cancelDialog.value.show = false
+    snackbar.value = { show: true, text: 'Cours annulé', color: 'success' }
+  } catch (e: unknown) {
+    let msg = "Erreur lors de l’annulation."
+    if (isAxiosError(e)) {
+      const rd = (e.response?.data as { message?: string } | undefined)?.message
+      if (rd) msg = rd
+      else if (e.response?.status === 409)
+        msg = 'Des pointages existent. Cochez « Supprimer les pointages » pour forcer.'
+    }
+    snackbar.value = { show: true, text: msg, color: 'error' }
+  } finally {
+    cancelDialog.value.saving = false
+  }
+}
+
+// ─── Note dialog (mobile) ───────────────────────────────────
+const noteDialog = ref<{
+  show: boolean; id: number | null; note: string; saving: boolean; dateLabel: string
+}>({ show: false, id: null, note: '', saving: false, dateLabel: '' })
+
+function openNoteDialog(s: Session) {
+  noteDialog.value = {
+    show: true, id: s.id, note: s.note ?? '', saving: false,
+    dateLabel: `Séance du ${formatDate(s.date)}`,
+  }
+}
+
+async function saveNote() {
+  const d = noteDialog.value
+  if (!d.id) return
+  try {
+    d.saving = true
+    const st = sessions.value.find((x) => x.id === d.id)
+    const body = { status: (st?.status as SessionStatus) ?? 'scheduled', note: d.note?.trim() || null }
+    const { data } = await api.patch(`/sessions/${d.id}/status`, body)
+    const idx = sessions.value.findIndex((s) => s.id === d.id)
+    if (idx >= 0)
+      sessions.value[idx] = { ...sessions.value[idx], note: data?.note ?? body.note ?? null }
+    noteDialog.value.show = false
+    snackbar.value = { show: true, text: 'Note enregistrée', color: 'success' }
+  } catch {
+    snackbar.value = { show: true, text: "Erreur lors de l’enregistrement", color: ‘error’ }
+  } finally {
+    noteDialog.value.saving = false
   }
 }
 
