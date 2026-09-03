@@ -626,20 +626,20 @@
       </v-card>
     </v-dialog>
 
-    <!-- Confirm suppression élève -->
+    <!-- Confirm retrait élève (année courante) -->
     <v-dialog v-model="studentDeleteConfirm.open" max-width="420">
       <v-card class="rounded-xl">
-        <v-card-title>Supprimer l'élève</v-card-title>
+        <v-card-title>Retirer de l'année en cours</v-card-title>
         <v-card-text>
-          Confirmer la suppression de <strong>{{ studentDeleteConfirm.student?.lastname }} {{ studentDeleteConfirm.student?.firstname }}</strong> ?
-          <v-alert type="warning" variant="tonal" density="compact" class="mt-3 text-caption">
-            Toutes les présences enregistrées pour cet élève seront supprimées.
+          Retirer <strong>{{ studentDeleteConfirm.student?.lastname }} {{ studentDeleteConfirm.student?.firstname }}</strong> de l'année scolaire en cours ?
+          <v-alert type="info" variant="tonal" density="compact" class="mt-3 text-caption">
+            La fiche et l'historique des présences de l'élève sont conservés.
           </v-alert>
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="studentDeleteConfirm.open = false">Annuler</v-btn>
-          <v-btn color="red" :loading="studentDeleteConfirm.deleting" @click="doDeleteStudent">Supprimer</v-btn>
+          <v-btn color="red" :loading="studentDeleteConfirm.deleting" @click="doDeleteStudent">Retirer</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -841,7 +841,7 @@ async function loadCurrentYear() {
 async function loadAllStudents() {
   elevesModal.value.loading = true
   try {
-    const { data } = await api.get('/api/admin/students')
+    const { data } = await api.get('/api/admin/students', { params: { enrolled: true } })
     elevesModal.value.items = Array.isArray(data) ? data : []
   } finally {
     elevesModal.value.loading = false
