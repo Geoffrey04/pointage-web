@@ -140,11 +140,11 @@
           class="mb-2"
         />
         <v-select
-          v-model="selected.weekday"
+          v-model="selected.class_weekday_override"
           :items="weekdayItems"
           item-title="label"
           item-value="value"
-          label="Jour de cours"
+          label="Jour dans cette classe"
           density="compact"
           variant="outlined"
           clearable
@@ -193,7 +193,7 @@ const infoDialog = ref(false)
 const selected = ref(null)
 const snackbar = ref({ show: false, text: '', color: 'success' })
 const openInfo = (st) => {
-  selected.value = { ...st, weekday: st.weekday ?? null }
+  selected.value = { ...st, weekday: st.weekday ?? null, class_weekday_override: st.class_weekday_override ?? null }
   infoDialog.value = true
 }
 
@@ -276,16 +276,28 @@ onMounted(async () => {
 const saveStudent = async () => {
   if (!selected.value?.id) return
   try {
-    const { data } = await api.patch(`/api/students/${selected.value.id}`, {
+    await api.patch(`/api/students/${selected.value.id}`, {
       phone: selected.value.phone || null,
-      weekday: selected.value.weekday ?? null,
     })
+    const classId = effectiveClassId.value
+    const override = selected.value.class_weekday_override ?? null
+    if (override !== null) {
+      await api.put('/api/class-student-weekday', {
+        class_id: classId,
+        student_id: selected.value.id,
+        weekday: override,
+      })
+    } else {
+      try {
+        await api.delete(`/api/class-student-weekday?class_id=${classId}&student_id=${selected.value.id}`)
+      } catch (_) { /* pas d'override a supprimer */ }
+    }
     const index = students.value.findIndex((s) => s.id === selected.value.id)
-    if (index !== -1) students.value[index] = data
-    snackbar.value = { show: true, text: 'Élève mis à jour', color: 'success' }
+    if (index !== -1) students.value[index] = { ...students.value[index], phone: selected.value.phone, class_weekday_override: override }
+    snackbar.value = { show: true, text: 'Eleve mis a jour', color: 'success' }
     infoDialog.value = false
   } catch (e) {
-    const msg = e?.response?.data?.message || 'Erreur lors de la mise à jour'
+    const msg = e?.response?.data?.message || 'Erreur lors de la mise a jour'
     snackbar.value = { show: true, text: msg, color: 'error' }
   }
 }

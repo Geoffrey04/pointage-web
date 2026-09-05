@@ -828,12 +828,13 @@ function studentIsoWeekday(st: Student): number | null {
 }
 
 function mobileSessionsFor(st: Student): Session[] {
-  const w = studentIsoWeekday(st)
+  const override = (st as any)?.class_weekday_override ?? null
+  if (override !== null) {
+    return sortedSessions.value.filter((s) => isoDowFromYmd(s.date) === Number(override))
+  }
   const classW = classWeekday.value
-  // Pas de jour perso, ou jour perso = jour de classe → pas de filtre supplementaire
-  if (!w || w === classW) return sortedSessions.value
-  // Jour perso vraiment different (rattrapage) → seances de ce jour uniquement
-  return sortedSessions.value.filter((s) => isoDowFromYmd(s.date) === w)
+  if (!classW) return sortedSessions.value
+  return sortedSessions.value.filter((s) => isoDowFromYmd(s.date) === classW)
 }
 
 // ─── Couleurs / labels / icônes des statuts élève ───────────
@@ -881,15 +882,14 @@ function isExpectedForStudent(stId: number, seId: number): boolean {
   const se = sessions.value.find((x) => x.id === seId)
   if (!se) return false
   const sessionIso = isoDowFromYmd(se.date)
-  const classIso = classWeekday.value
-  // Seance sur le jour standard de la classe → toujours attendu
-  if (classIso && sessionIso === classIso) return true
-  // Aucun jour par defaut pour la classe → affiché partout
-  if (!classIso) return true
-  // Seance non-standard → seulement si correspond au jour perso de l'eleve
   const st = students.value.find((x) => x.id === stId)
-  const personalIso = st?.weekday ?? null
-  return !!personalIso && sessionIso === personalIso
+  // Override specifique pour cet eleve dans cette classe
+  const override = (st as any)?.class_weekday_override ?? null
+  if (override !== null) return sessionIso === Number(override)
+  // Pas d'override → jour standard de la classe (weekday=null = multi-classes)
+  const classIso = classWeekday.value
+  if (!classIso) return true
+  return sessionIso === classIso
 }
 function isPointableForStudent(stId: number, seId: number): boolean {
   if (!isExpectedForStudent(stId, seId)) return false
