@@ -22,7 +22,7 @@
             </button>
             <button
               class="btn-arrow"
-              :disabled="currentSessionIdx >= sortedSessions.length - 1"
+              :disabled="currentSessionIdx >= visibleSessions.length - 1"
               @click="goNext"
             >&#8250;</button>
           </div>
@@ -213,7 +213,7 @@
           <thead>
             <tr>
               <th class="sticky-left name-col z-20 bg-surface top-sticky">Élève</th>
-              <th v-for="s in sortedSessions" :key="s.id" class="text-center date-col top-sticky">
+              <th v-for="s in visibleSessions" :key="s.id" class="text-center date-col top-sticky">
                 <div class="d-flex align-center justify-center ga-1">
                   <span class="text-caption text-medium-emphasis">{{ formatDate(s.date) }}</span>
 
@@ -263,7 +263,7 @@
                 </div>
               </td>
 
-              <td v-for="s in sortedSessions" :key="`${s.id}-${st.id}`" class="text-center cell">
+              <td v-for="s in visibleSessions" :key="`${s.id}-${st.id}`" class="text-center cell">
                 <template v-if="!isSessionPointable(s.id)">
                   <div class="text-caption text-medium-emphasis">
                     — {{ chipLabel(sessionStatus(s.id)) }} —
@@ -357,7 +357,7 @@
             </tr>
 
             <tr v-if="students.length === 0">
-              <td :colspan="1 + sortedSessions.length">
+              <td :colspan="1 + visibleSessions.length">
                 <v-alert type="info" variant="tonal">Aucun élève.</v-alert>
               </td>
             </tr>
@@ -365,7 +365,7 @@
 
           <tbody v-else>
             <tr>
-              <td :colspan="1 + sortedSessions.length"><v-skeleton-loader type="table-row" /></td>
+              <td :colspan="1 + visibleSessions.length"><v-skeleton-loader type="table-row" /></td>
             </tr>
           </tbody>
         </v-table>
@@ -613,7 +613,7 @@ const snackbar = ref<{ show: boolean; text: string; color: string }>({
 const currentSessionIdx = ref<number>(0)
 
 const currentSession = computed<Session | null>(
-  () => sortedSessions.value[currentSessionIdx.value] ?? null,
+  () => visibleSessions.value[currentSessionIdx.value] ?? null,
 )
 
 const studentsForCurrentSession = computed<Student[]>(() => {
@@ -641,20 +641,20 @@ function goPrev() {
   if (currentSessionIdx.value > 0) currentSessionIdx.value--
 }
 function goNext() {
-  if (currentSessionIdx.value < sortedSessions.value.length - 1) currentSessionIdx.value++
+  if (currentSessionIdx.value < visibleSessions.value.length - 1) currentSessionIdx.value++
 }
 function goToday() {
   const today = new Date().toISOString().slice(0, 10)
   let best = 0
-  for (let i = 0; i < sortedSessions.value.length; i++) {
-    if (sortedSessions.value[i].date <= today) best = i
+  for (let i = 0; i < visibleSessions.value.length; i++) {
+    if (visibleSessions.value[i].date <= today) best = i
     else break
   }
   currentSessionIdx.value = best
 }
 
 const calendarOpen = ref(false)
-const sessionDates = computed(() => sortedSessions.value.map((s) => s.date).filter(Boolean))
+const sessionDates = computed(() => visibleSessions.value.map((s) => s.date).filter(Boolean))
 
 function dateToISO(v: unknown): string | null {
   if (!v) return null
@@ -675,7 +675,7 @@ function isAllowedDate(v: unknown): boolean {
 function onCalendarPick(v: unknown) {
   const iso = dateToISO(v)
   if (!iso) return
-  const idx = sortedSessions.value.findIndex((s) => s.date === iso)
+  const idx = visibleSessions.value.findIndex((s) => s.date === iso)
   if (idx !== -1) {
     currentSessionIdx.value = idx
     calendarOpen.value = false
@@ -1090,6 +1090,14 @@ const sortedSessions = computed<Session[]>(() =>
     .filter((s) => s && s.date && inSchoolWindow(s.date))
     .sort((a, b) => a.date.localeCompare(b.date)),
 )
+
+// Masque les seances ou aucun eleve n'est attendu (ex: jour par defaut sans override)
+const visibleSessions = computed<Session[]>(() => {
+  if (students.value.length === 0) return sortedSessions.value
+  return sortedSessions.value.filter((se) =>
+    students.value.some((st) => isExpectedForStudent(st.id, se.id)),
+  )
+})
 
 // ─── Déduplication ──────────────────────────────────────────
 function dedupeSessions(list: Session[]) {
