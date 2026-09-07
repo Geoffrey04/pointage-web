@@ -126,8 +126,8 @@
 
   <!-- Dialog édition -->
   <v-dialog v-model="infoDialog" max-width="420">
-    <v-card>
-      <v-card-title class="text-h6">Infos élève</v-card-title>
+    <v-card class="rounded-xl">
+      <v-card-title class="text-h6 pt-4 px-4">Infos élève</v-card-title>
       <v-card-text v-if="selected">
         <div class="mb-2"><strong>Nom :</strong> {{ selected.lastname }}</div>
         <div class="mb-2"><strong>Prénom :</strong> {{ selected.firstname }}</div>

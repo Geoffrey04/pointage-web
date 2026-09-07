@@ -467,32 +467,48 @@
 
     <!-- Dialog Création / Édition classe -->
     <v-dialog v-model="dialog.open" max-width="560">
-      <v-card>
-        <v-card-title>
+      <v-card class="rounded-xl">
+        <v-card-title class="pt-4 px-4">
           {{ dialog.mode === 'create' ? 'Nouvelle classe' : 'Éditer la classe' }}
         </v-card-title>
-        <v-card-text>
+        <v-card-text class="px-4 pb-2">
           <v-form ref="formRef" v-model="formValid">
             <v-text-field
               v-model="form.name"
               label="Nom *"
               :rules="[rules.required]"
+              density="compact"
+              variant="outlined"
               autocomplete="off"
+              class="mb-3"
             />
-            <v-textarea v-model="form.description" label="Description" auto-grow rows="2" />
+            <v-textarea
+              v-model="form.description"
+              label="Description"
+              density="compact"
+              variant="outlined"
+              auto-grow
+              rows="2"
+              class="mb-3"
+            />
             <v-select
               v-model="form.owner_id"
               :items="profs"
               item-title="username"
               item-value="id"
               label="Prof responsable (optionnel)"
+              density="compact"
+              variant="outlined"
               clearable
               :loading="loading.profs"
+              class="mb-3"
             />
             <v-select
               v-model="form.weekday"
               :items="weekdayItems"
               label="Jour de cours (optionnel)"
+              density="compact"
+              variant="outlined"
               clearable
               hint="Utilisé pour générer les séances de l'année scolaire"
               persistent-hint
@@ -504,6 +520,7 @@
           <v-btn variant="text" @click="dialog.open = false">Annuler</v-btn>
           <v-btn
             color="primary"
+            variant="tonal"
             :loading="saving"
             :disabled="!formValid || saving"
             @click="saveClass"
@@ -516,23 +533,23 @@
 
     <!-- Confirm suppression -->
     <v-dialog v-model="confirm.open" max-width="420">
-      <v-card>
-        <v-card-title>Supprimer la classe</v-card-title>
-        <v-card-text>
+      <v-card class="rounded-xl">
+        <v-card-title class="pt-4 px-4">Supprimer la classe</v-card-title>
+        <v-card-text class="px-4">
           Confirmer la suppression de <strong>{{ confirm.item?.name }}</strong> ?
         </v-card-text>
         <v-card-actions>
           <v-spacer />
           <v-btn variant="text" @click="confirm.open = false">Annuler</v-btn>
-          <v-btn color="red" :loading="deleting" @click="deleteClass">Supprimer</v-btn>
+          <v-btn color="red" variant="tonal" :loading="deleting" @click="deleteClass">Supprimer</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
 
     <!-- Dialog gestion des profs -->
     <v-dialog v-model="managersDialog.show" max-width="640">
-      <v-card>
-        <v-card-title class="text-subtitle-1 font-weight-600">
+      <v-card class="rounded-xl">
+        <v-card-title class="text-subtitle-1 font-weight-600 pt-4 px-4">
           Gestionnaires — {{ managersDialog.className }}
         </v-card-title>
 

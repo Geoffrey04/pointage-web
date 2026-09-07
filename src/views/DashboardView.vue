@@ -11,9 +11,9 @@
 
     <!-- Pop-up Ajouter un élève (admin uniquement) -->
     <v-dialog v-model="dialogAddStudent" max-width="520px">
-      <v-card>
-        <v-card-title>Ajouter un élève</v-card-title>
-        <v-card-text>
+      <v-card class="rounded-xl">
+        <v-card-title class="pt-4 px-4">Ajouter un élève</v-card-title>
+        <v-card-text class="px-4 pb-2">
           <AddStudentForm @student-added="onStudentAdded" />
         </v-card-text>
         <v-card-actions>
