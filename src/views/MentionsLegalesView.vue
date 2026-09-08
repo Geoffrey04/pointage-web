@@ -1,7 +1,7 @@
 <template>
   <v-container class="py-8">
 
-    <v-card class="rounded-2xl elevation-1">
+    <v-card class="rounded-xl elevation-1">
       <v-card-text class="pa-6 pa-md-8 content">
         <h1 class="text-h4 text-md-h3 mb-4">Mentions légales</h1>
         <p class="text-body-2 text-medium-emphasis mb-6">
@@ -110,7 +110,7 @@
             <a href="mailto:geoffrey.doh@gmail.com">geoffrey.doh@gmail.com</a>
           </p>
           <p class="text-body-2 text-medium-emphasis mt-4">
-            <em>Dernière mise à jour : 18/07/2026</em>
+            <em>Dernière mise à jour : 08/09/2026</em>
           </p>
         </section>
       </v-card-text>

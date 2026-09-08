@@ -1,6 +1,6 @@
 <template>
   <v-container class="py-8">
-    <v-card class="rounded-2xl elevation-1">
+    <v-card class="rounded-xl elevation-1">
       <v-card-text class="pa-6 pa-md-8 content">
         <h1 class="text-h4 text-md-h3 mb-4">Politique cookies</h1>
         <p class="text-body-2 text-medium-emphasis mb-6">
@@ -40,11 +40,30 @@
             </thead>
             <tbody>
               <tr>
-                <td><code>ui_prefs</code></td>
-                <td>sessionStorage</td>
-                <td>État UI (menu, filtres…) pour la session en cours (si utilisé).</td>
+                <td><code>token</code></td>
+                <td>localStorage</td>
+                <td>Jeton d’authentification (JWT) : maintient votre session ouverte entre deux pages.</td>
                 <td>Application EMM Pointage</td>
-                <td>Jusqu’à fermeture du navigateur</td>
+                <td>Jusqu’à déconnexion ou effacement — le jeton lui-même expire après 8 h</td>
+                <td>Domaine de l’application</td>
+              </tr>
+              <tr>
+                <td><code>user</code></td>
+                <td>localStorage</td>
+                <td>Identifiant, nom d’utilisateur et rôle du compte connecté, pour l’affichage de l’interface.</td>
+                <td>Application EMM Pointage</td>
+                <td>Jusqu’à déconnexion ou effacement</td>
+                <td>Domaine de l’application</td>
+              </tr>
+              <tr>
+                <td><code>sw.js</code></td>
+                <td>Service worker + abonnement Push</td>
+                <td>
+                  Réception des notifications, <strong>uniquement si vous les avez autorisées</strong>.
+                  L’abonnement transite par le service de notification de votre navigateur.
+                </td>
+                <td>Application EMM Pointage</td>
+                <td>Jusqu’au retrait de l’autorisation ou effacement</td>
                 <td>Domaine de l’application</td>
               </tr>
             </tbody>
@@ -61,7 +80,8 @@
           <h2 class="text-h5 mb-3">Gérer les cookies et stockages</h2>
           <p>
             Vous pouvez effacer ces données via les paramètres du navigateur ou en utilisant le bouton ci-dessous.
-            Attention : supprimer ces éléments peut vous <strong>déconnecter</strong> de l’application.
+            Celui-ci supprime le jeton de session, les informations de votre compte et, le cas échéant,
+            votre abonnement aux notifications. Il vous <strong>déconnectera</strong> de l’application.
           </p>
           <v-btn
             class="mt-3"
@@ -101,7 +121,7 @@
             <RouterLink to="/mentions-legales">Mentions légales</RouterLink>.
           </p>
           <p class="text-body-2 text-medium-emphasis mt-4">
-            <em>Dernière mise à jour : 10/09/2025</em>
+            <em>Dernière mise à jour : 08/09/2026</em>
           </p>
         </section>
       </v-card-text>
@@ -112,27 +132,29 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 
-const dev = import.meta.env.DEV
 const clearing = ref(false)
 const cleared = ref(false)
 
-function deleteCookie(name: string) {
-  // Efface un cookie basique (adapter domaine/attributs si nécessaire)
-  document.cookie = `${name}=; Max-Age=0; path=/;`
-  document.cookie = `${name}=; Max-Age=0; path=/; domain=${location.hostname}`
-}
-
-function clearAppStorage() {
+async function clearAppStorage() {
   clearing.value = true
   try {
-    // Ajuste la liste selon les clés réellement utilisées par ton app 🧩
-    const keys = ['auth_token', 'user', 'ui_prefs']
-    keys.forEach((k) => localStorage.removeItem(k))
+    // Clés réellement écrites par l'application (voir stores/user.js)
+    ;['token', 'user'].forEach((k) => localStorage.removeItem(k))
     sessionStorage.clear()
 
-    // Si un jour tu passes à une session par cookie, ajoute ici les noms réels 🧩
-    ;['__Secure-session', '__Host-session', 'session'].forEach(deleteCookie)
+    // Retire l'abonnement aux notifications et le service worker (best-effort)
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations()
+      for (const reg of regs) {
+        const sub = await reg.pushManager?.getSubscription?.()
+        if (sub) await sub.unsubscribe()
+        await reg.unregister()
+      }
+    }
 
+    cleared.value = true
+  } catch (e) {
+    console.warn('[cookies] effacement partiel :', e)
     cleared.value = true
   } finally {
     clearing.value = false
