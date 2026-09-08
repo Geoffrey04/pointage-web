@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="att-root">
 
     <!-- ====== MOBILE : Vue par date ====== -->
@@ -503,9 +503,19 @@
     <!-- Dialog : annuler la séance (mobile) -->
     <v-dialog v-model="cancelDialog.show" max-width="360">
       <v-card class="rounded-xl">
-        <v-card-title class="pt-4 px-4 text-body-1 font-weight-bold">Annuler ce cours ?</v-card-title>
+        <v-card-title class="pt-4 px-4 text-body-1 font-weight-bold">Ce cours...</v-card-title>
         <v-card-text class="px-4 pb-2">
           <div class="text-caption text-medium-emphasis mb-3">{{ cancelDialog.dateLabel }}</div>
+          <v-select
+            v-model="cancelDialog.status"
+            :items="cancelStatusOptions"
+            item-title="label"
+            item-value="value"
+            label="Statut"
+            variant="outlined"
+            density="compact"
+            class="mb-3"
+          />
           <v-textarea
             v-model="cancelDialog.note"
             label="Note (optionnelle)"
@@ -993,13 +1003,19 @@ async function saveSessionStatus() {
 }
 
 // ─── Cancel dialog (mobile) ─────────────────────────────────
+const cancelStatusOptions = [
+  { value: 'cancelled', label: 'Annulé' },
+  { value: 'holiday',   label: 'Férié' },
+  { value: 'vacation',  label: 'Vacances' },
+]
+
 const cancelDialog = ref<{
-  show: boolean; id: number | null; note: string; force: boolean; saving: boolean; dateLabel: string
-}>({ show: false, id: null, note: '', force: false, saving: false, dateLabel: '' })
+  show: boolean; id: number | null; status: string; note: string; force: boolean; saving: boolean; dateLabel: string
+}>({ show: false, id: null, status: 'cancelled', note: '', force: false, saving: false, dateLabel: '' })
 
 function openCancelDialog(s: Session) {
   cancelDialog.value = {
-    show: true, id: s.id, note: '', force: false, saving: false,
+    show: true, id: s.id, status: 'cancelled', note: '', force: false, saving: false,
     dateLabel: `Séance du ${formatDate(s.date)}`,
   }
 }
@@ -1011,20 +1027,21 @@ async function confirmCancel() {
     d.saving = true
     const params = d.force ? '?force=true' : ''
     const existingNote = sessions.value.find((s) => s.id === d.id)?.note ?? null
-    const body = { status: 'cancelled', note: d.note?.trim() || existingNote }
+    const body = { status: d.status, note: d.note?.trim() || existingNote }
     const { data } = await api.patch(`/sessions/${d.id}/status${params}`, body)
     const idx = sessions.value.findIndex((s) => s.id === d.id)
     if (idx >= 0)
-      sessions.value[idx] = { ...sessions.value[idx], status: 'cancelled', note: data?.note ?? body.note ?? null }
+      sessions.value[idx] = { ...sessions.value[idx], status: data?.status ?? d.status, note: data?.note ?? body.note ?? null }
     cancelDialog.value.show = false
-    snackbar.value = { show: true, text: 'Cours annulé', color: 'success' }
+    const label = cancelStatusOptions.find((o) => o.value === d.status)?.label ?? 'Mis à jour'
+    snackbar.value = { show: true, text: `Cours : ${label}`, color: 'success' }
   } catch (e: unknown) {
-    let msg = "Erreur lors de l'annulation."
+    let msg = "Erreur lors de la mise à jour."
     if (isAxiosError(e)) {
       const rd = (e.response?.data as { message?: string } | undefined)?.message
       if (rd) msg = rd
       else if (e.response?.status === 409)
-        msg = 'Des pointages existent. Cochez « Supprimer les pointages » pour forcer.'
+        msg = 'Des pointages existent. Cochez « Supprimer les pointages » pour forcer.'
     }
     snackbar.value = { show: true, text: msg, color: 'error' }
   } finally {
@@ -1032,7 +1049,6 @@ async function confirmCancel() {
   }
 }
 
-// ─── Note dialog (mobile) ───────────────────────────────────
 const noteDialog = ref<{
   show: boolean; id: number | null; note: string; saving: boolean; dateLabel: string
 }>({ show: false, id: null, note: '', saving: false, dateLabel: '' })
