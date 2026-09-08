@@ -1,26 +1,23 @@
 <script setup>
-import { ref, computed, watchEffect, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useUserStore } from '@/stores/user'
 import { useRouter, useRoute } from 'vue-router'
-import axios from 'axios'
+import { api } from '@/stores/user'
 import bg from '@/assets/logo-mobile.png'
 import logo from '@/assets/logo-64.png'
-
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
 
 const userStore = useUserStore()
 const router = useRouter()
 const route = useRoute()
 
 const year = new Date().getFullYear()
-const orgName = import.meta.env.VITE_ORG_NAME ?? 'École de Musique de Marpent'
-const brand = computed(() => `${orgName}`)
+const brand = import.meta.env.VITE_ORG_NAME ?? 'École de Musique de Marpent'
+const orgName = brand
 
 // Couleur fixe de l'app bar
 const APPBAR_BLUE = '#1E88E5'
 
-// Init auth
-userStore.initialize()
+// La session est restaurée par main.js avant le montage : pas de second appel.
 
 const isLoggedIn = computed(() => userStore.isLoggedIn)
 const isAdmin = computed(() => userStore.user?.role === 'admin')
@@ -32,12 +29,13 @@ const pageTitle = computed(() =>
   (isLoggedIn.value ? (isAdmin.value ? 'Tableau de bord' : 'Mes classes') : 'Identification')
 )
 
-// Initiales utilisateur (fallback sûr)
+// Initiales : l'API ne renvoie que { id, username, role }. On dérive donc les
+// initiales du pseudo, qui suit la forme "Prenom.Nom".
 const userInitials = computed(() => {
-  const u = userStore.user ?? {}
-  const f = (u.firstname ?? u.username ?? '?').toString().charAt(0)
-  const l = (u.lastname ?? '').toString().charAt(0)
-  return (f + l).toUpperCase()
+  const parts = String(userStore.user?.username ?? '?').split(/[.\s_-]+/).filter(Boolean)
+  const first = parts[0]?.charAt(0) ?? '?'
+  const second = parts[1]?.charAt(0) ?? ''
+  return (first + second).toUpperCase()
 })
 
 // Fond visible sur certaines sections
@@ -64,10 +62,9 @@ const confirming = ref(false)
 function askLogout() {
   confirmLogoutDialog.value = true
 }
-async function confirmLogout() {
+function confirmLogout() {
+  confirming.value = true
   try {
-    confirming.value = true
-    await Promise.resolve()
     doRealLogout()
   } finally {
     confirming.value = false
@@ -84,41 +81,35 @@ function go(path) {
 }
 
 // ---- Compteur de classes (badge) ----
+// Passe par l'instance `api` partagée : elle porte déjà l'en-tête Authorization
+// posé par le store, et surtout l'intercepteur qui détecte une session expirée.
+// L'ancienne version utilisait axios brut et échappait donc à ce filet.
 const classCount = ref(null)
-const authHeaders = () => {
-  const token = userStore.token
-  return token ? { Authorization: `Bearer ${token}` } : {}
-}
 async function fetchCounts() {
   classCount.value = null
   try {
     if (isAdmin.value) {
-      const { data } = await axios.get(`${API}/api/admin/stats`, { headers: authHeaders() })
+      const { data } = await api.get('/api/admin/stats')
       classCount.value = Number(data?.classes ?? 0)
     } else if (isLoggedIn.value) {
-      const { data: classes } = await axios.get(`${API}/api/classes`, { headers: authHeaders() })
+      const { data: classes } = await api.get('/api/classes')
       classCount.value = Array.isArray(classes) ? classes.length : 0
     }
   } catch (e) {
+    // Le badge est accessoire : on n'affiche pas d'erreur, on laisse le tiret.
     console.error('fetchCounts', e)
   }
 }
 onMounted(fetchCounts)
 watch(() => userStore.user?.role, fetchCounts)
 
-// Auth header par défaut
-watchEffect(() => {
-  axios.defaults.headers.common['Authorization'] = userStore.token
-    ? `Bearer ${userStore.token}`
-    : ''
-})
-
 // --------- Bottom navigation logic ---------
 const bottomSheet = ref(false) // "Plus" (liens légaux)
 const openSheet = () => (bottomSheet.value = true)
 const closeSheet = () => (bottomSheet.value = false)
 
-// Pour aria-current éventuel
+// Comparé au nom de route déclaré dans le router, qui est 'Login' avec une
+// majuscule : la comparaison précédente sur 'login' n'était jamais vraie.
 const currentPath = computed(() => route.name ?? route.path)
 
 // Pages publiques : pas de bottom nav
@@ -205,7 +196,7 @@ const isPublicPage = computed(() =>
     <v-bottom-navigation v-if="!isPublicPage" app :height="64" class="bottomnav" active>
       <!-- DÉCONNECTÉ -->
       <template v-if="!isLoggedIn">
-        <v-btn :to="homeRoute" :aria-current="currentPath === 'login' ? 'page' : undefined">
+        <v-btn :to="homeRoute" :aria-current="currentPath === 'Login' ? 'page' : undefined">
           <v-icon>mdi-home</v-icon>
           <span>Accueil</span>
         </v-btn>
@@ -294,8 +285,9 @@ const isPublicPage = computed(() =>
 </template>
 
 <style>
-/* Polices modernes : Inter (UI) + Poppins (titres) */
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap');
+/* La police Outfit est chargée depuis index.html via <link>, avec preconnect.
+   Un @import ici imposait trois allers-retours en série : télécharger ce CSS,
+   y découvrir l'import, aller chercher celui de Google, puis la police. */
 
 :root{
   --font-ui: 'Outfit', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;

@@ -1131,26 +1131,31 @@ async function fetchAll() {
   try {
     const classIdNum = Number(props.classId)
 
-    try {
-      const [clRes, syRes] = await Promise.all([
-        api.get(`/api/classes/${classIdNum}`),
-        api.get('/api/school-year'),
-      ])
-      classWeekday.value = Number(clRes.data?.weekday ?? 0) || null
-      className.value = clRes.data?.name ?? ''
-      schoolYearStart.value = syRes.data?.start_date ?? null
-      schoolYearEnd.value   = syRes.data?.end_date   ?? null
-    } catch {
-      classWeekday.value = null
-      className.value = ''
-    }
+    // Les cinq requêtes sont indépendantes : elles partent ensemble au lieu de
+    // s'enchaîner. Sur mobile avec une base Neon froide, la version séquentielle
+    // cumulait cinq allers-retours sur l'écran le plus utilisé.
+    //
+    // La classe est essentielle : son échec doit remonter, car classWeekday à
+    // null fait basculer isExpectedForStudent en « affiche tout le monde ». Un
+    // simple hoquet réseau changeait donc silencieusement l'affichage.
+    // L'année scolaire, elle, est tolérée absente (404 si aucune année active).
+    const [clRes, syRes, stRes, seRes, atRes] = await Promise.all([
+      api.get(`/api/classes/${classIdNum}`),
+      api.get('/api/school-year').catch(() => null),
+      api.get<Student[]>(`/api/students/${classIdNum}`),
+      api.get<{ id: number; date: string; status?: SessionStatus; note?: string | null }[]>(
+        `/sessions/${classIdNum}`,
+      ),
+      api.get<AttendanceRow[]>(`/attendance/${classIdNum}`),
+    ])
 
-    const stRes = await api.get<Student[]>(`/api/students/${classIdNum}`)
+    classWeekday.value = Number(clRes.data?.weekday ?? 0) || null
+    className.value = clRes.data?.name ?? ''
+    schoolYearStart.value = syRes?.data?.start_date ?? null
+    schoolYearEnd.value   = syRes?.data?.end_date   ?? null
+
     students.value = Array.isArray(stRes.data) ? stRes.data : []
 
-    const seRes = await api.get<
-      { id: number; date: string; status?: SessionStatus; note?: string | null }[]
-    >(`/sessions/${classIdNum}`)
     const raw = Array.isArray(seRes.data) ? seRes.data : []
     sessions.value = dedupeSessions(
       raw
@@ -1163,7 +1168,6 @@ async function fetchAll() {
         })),
     )
 
-    const atRes = await api.get<AttendanceRow[]>(`/attendance/${classIdNum}`)
     for (const sid in attendanceMap) delete attendanceMap[+sid]
     for (const row of atRes.data || []) {
       ensureKey(row.student_id, row.session_id)
@@ -1184,6 +1188,12 @@ async function fetchAll() {
 }
 
 // ─── Enregistrement d'une présence ──────────────────────────
+// Une requête au plus par case. Sans ça, des appuis rapides sur mobile
+// (présent → absent → présent) lançaient plusieurs requêtes concurrentes :
+// les réponses pouvaient revenir dans le désordre et le rollback d'un échec
+// ancien écrasait alors un état plus récent.
+const pendingCells = new Set<string>()
+
 async function onSetStatus(
   studentId: number,
   sessionId: number,
@@ -1204,6 +1214,10 @@ async function onSetStatus(
   if (status === 'excused' && (!comment || !comment.trim())) {
     return openExcuseDialog(studentId, sessionId)
   }
+
+  const cellKey = `${studentId}:${sessionId}`
+  if (pendingCells.has(cellKey)) return
+  pendingCells.add(cellKey)
 
   const prevStatus = attendanceMap[studentId][sessionId].status
   const prevComment = attendanceMap[studentId][sessionId].comment
@@ -1231,6 +1245,8 @@ async function onSetStatus(
     attendanceMap[studentId][sessionId].status = prevStatus ?? null
     attendanceMap[studentId][sessionId].comment = prevComment ?? null
     snackbar.value = { show: true, text: 'Erreur enregistrement', color: 'error' }
+  } finally {
+    pendingCells.delete(cellKey)
   }
 }
 
@@ -1242,9 +1258,8 @@ defineExpose({ reload })
 
 onMounted(fetchAll)
 watch(() => props.classId, fetchAll)
-watch([students, sessions], () => {
-  if (students.value.length && sessions.value.length) initSessionIdx()
-})
+// initSessionIdx() est déjà appelé en fin de fetchAll. Le watcher qui le
+// relançait derrière faisait doublon à chaque chargement.
 </script>
 
 <style scoped>

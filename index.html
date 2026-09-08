@@ -7,6 +7,15 @@
     <!-- La police Material Design Icons (339 Ko de CSS + 394 Ko de woff2) a été
          retirée : les 62 icônes réellement utilisées sont embarquées en chemins
          SVG via src/plugins/icons.js. Supprime aussi l'appel au CDN tiers. -->
+
+    <!-- Police Outfit. Déplacée ici depuis un @import dans App.vue, qui forçait
+         un chargement en série. Le preconnect ouvre la connexion en avance. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>EMM - Pointage</title>
     <link rel="manifest" href="/manifest.json" />

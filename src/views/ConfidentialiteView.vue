@@ -77,6 +77,7 @@
             <li><strong>Hébergeur</strong> (sous-traitant technique) : 1hebergement.com — accès limité et encadré.</li>
             <li><strong>Service d'envoi d'e-mail</strong> : Gmail / Google (USA) — utilisé uniquement pour notifier l'administrateur de la réception d'un dossier. Seuls le nom et prénom de l'élève transitent dans ces notifications.</li>
             <li><strong>Mesure d'audience</strong> : Umami (<code>cloud.umami.is</code>) — reçoit les adresses des pages consultées et des événements d'usage anonymes, sans cookie ni donnée nominative.</li>
+            <li><strong>Police de caractères</strong> : Google Fonts (<code>fonts.googleapis.com</code>, <code>fonts.gstatic.com</code>) — reçoit l'adresse IP du navigateur lors du chargement de la police de l'interface. Aucune autre donnée.</li>
             <li>Pas de cession de données à des tiers à des fins commerciales.</li>
           </ul>
         </section>

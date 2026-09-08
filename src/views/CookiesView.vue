@@ -100,6 +100,19 @@
 
         <v-divider class="my-4" />
 
+        <section id="ressources-tierces" class="mb-6">
+          <h2 class="text-h5 mb-3">Ressources chargées depuis un tiers</h2>
+          <p>
+            La police de caractères de l’interface (<strong>Outfit</strong>) est chargée depuis
+            <strong>Google Fonts</strong> (<code>fonts.googleapis.com</code> et
+            <code>fonts.gstatic.com</code>). Ce chargement ne dépose aucun cookie, mais il transmet
+            à Google l’adresse IP de votre navigateur, comme tout téléchargement de fichier depuis
+            un serveur tiers.
+          </p>
+        </section>
+
+        <v-divider class="my-4" />
+
         <section id="gestion" class="mb-6">
           <h2 class="text-h5 mb-3">Gérer les cookies et stockages</h2>
           <p>
