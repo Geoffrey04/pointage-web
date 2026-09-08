@@ -10,6 +10,12 @@ const selectedYear = ref(null)
 const loading = ref(false)
 const error = ref(null)
 
+// En dessous de ce taux de pointage, un mois est considéré trop peu saisi
+// pour que son taux de présence soit lu tel quel.
+const LOW_COVERAGE = 60
+
+const CHART_COLORS = ['#C41E3A', '#1565C0', '#2E7D32', '#E65100', '#6A1B9A', '#00838F']
+
 async function loadYears() {
   const { data } = await api.get('/api/admin/school-years')
   years.value = Array.isArray(data) ? data : []
@@ -77,21 +83,56 @@ const coverageColor = (v) => (v >= 90 ? 'green' : v >= 60 ? 'orange' : 'red')
 const MONTHS_FR = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Jun', 'Jul', 'Aoû', 'Sep', 'Oct', 'Nov', 'Déc']
 const selectedClasses = ref([])
 
+const monthKey = (r) => `${r.year}-${String(r.month).padStart(2, '0')}`
+const monthLabel = (key) => {
+  const [y, m] = key.split('-')
+  return `${MONTHS_FR[Number(m) - 1]} ${y}`
+}
+
+// Axe commun à toutes les classes : sans ça, une classe sans séance en
+// novembre décalerait tous ses points suivants d'un cran.
+const monthAxis = computed(() =>
+  [...new Set(monthlyRaw.value.map(monthKey))].sort(),
+)
+
 const chartSeries = computed(() => {
-  const byClass = {}
-  monthlyRaw.value.forEach((row) => {
-    if (!byClass[row.id]) byClass[row.id] = { name: row.name, data: [] }
-    byClass[row.id].data.push({
-      x: `${MONTHS_FR[row.month - 1]} ${row.year}`,
-      y: Number(row.rate),
-    })
+  const byClass = new Map()
+  monthlyRaw.value.forEach((r) => {
+    if (!byClass.has(r.id)) byClass.set(r.id, { name: r.name, points: new Map() })
+    byClass.get(r.id).points.set(monthKey(r), r)
   })
-  return Object.values(byClass)
+
+  return [...byClass.values()].map((cls) => ({
+    name: cls.name,
+    data: monthAxis.value.map((key) => {
+      const r = cls.points.get(key)
+      // Aucun pointage saisi -> trou dans la courbe, surtout pas un 0 %
+      // qui se lirait comme « tout le monde était absent ».
+      if (!r || r.marked === 0) {
+        return { x: monthLabel(key), y: null, meta: r ? { ...r, empty: true } : null }
+      }
+      return { x: monthLabel(key), y: Number(r.rate), meta: { ...r, empty: false } }
+    }),
+  }))
 })
 
 const allClassNames = computed(() => chartSeries.value.map((s) => s.name))
 const filteredChartSeries = computed(() =>
   chartSeries.value.filter((s) => selectedClasses.value.includes(s.name)),
+)
+
+// Nombre de mois masqués faute de pointage, pour l'expliquer sous le graphe
+const emptyMonthCount = computed(() =>
+  filteredChartSeries.value.reduce(
+    (n, s) => n + s.data.filter((p) => p.y === null && p.meta?.empty).length,
+    0,
+  ),
+)
+const lowCoverageCount = computed(() =>
+  filteredChartSeries.value.reduce(
+    (n, s) => n + s.data.filter((p) => p.y !== null && p.meta?.coverage < LOW_COVERAGE).length,
+    0,
+  ),
 )
 
 function toggleClass(name) {
@@ -105,16 +146,59 @@ function toggleAll() {
     selectedClasses.value.length === allClassNames.value.length ? [] : [...allClassNames.value]
 }
 
-const chartOptions = {
-  chart: { type: 'line', toolbar: { show: false }, zoom: { enabled: false } },
-  stroke: { curve: 'smooth', width: 2 },
-  markers: { size: 4 },
-  xaxis: { type: 'category' },
-  yaxis: { min: 0, max: 100, labels: { formatter: (v) => v + '%' } },
-  tooltip: { y: { formatter: (v) => v + '%' } },
-  legend: { position: 'bottom' },
-  colors: ['#C41E3A', '#1565C0', '#2E7D32', '#E65100', '#6A1B9A', '#00838F'],
+function tooltipHtml({ seriesIndex, dataPointIndex, w }) {
+  const serie = w.config.series[seriesIndex]
+  const point = serie?.data?.[dataPointIndex]
+  if (!point || point.y === null) return ''
+  const m = point.meta
+  const color = CHART_COLORS[seriesIndex % CHART_COLORS.length]
+  const thin = m.coverage < LOW_COVERAGE
+  return `
+    <div style="padding:8px 10px;font-size:12px;line-height:1.5;min-width:190px">
+      <div style="font-weight:700;color:${color}">${serie.name}</div>
+      <div style="color:#666;margin-bottom:4px">${point.x}</div>
+      <div><strong>${m.rate}% de présence</strong></div>
+      <div style="color:#444">${m.presents} présent(s) sur ${m.marked} pointage(s)</div>
+      <div style="color:#444">${m.marked} pointage(s) saisi(s) sur ${m.expected} attendu(s)</div>
+      ${
+        thin
+          ? `<div style="margin-top:4px;color:#E65100">Mois peu pointé (${m.coverage}%) — chiffre à relativiser</div>`
+          : ''
+      }
+    </div>`
 }
+
+const chartOptions = computed(() => {
+  // Points creux là où le mois est trop peu pointé pour être lu tel quel
+  const discrete = []
+  filteredChartSeries.value.forEach((serie, si) => {
+    serie.data.forEach((point, di) => {
+      if (point.y !== null && point.meta?.coverage < LOW_COVERAGE) {
+        discrete.push({
+          seriesIndex: si,
+          dataPointIndex: di,
+          fillColor: '#ffffff',
+          strokeColor: CHART_COLORS[si % CHART_COLORS.length],
+          size: 5,
+          strokeWidth: 2,
+        })
+      }
+    })
+  })
+
+  return {
+    chart: { type: 'line', toolbar: { show: false }, zoom: { enabled: false } },
+    stroke: { curve: 'straight', width: 2 },
+    markers: { size: 4, strokeWidth: 2, hover: { sizeOffset: 2 }, discrete },
+    xaxis: { type: 'category', categories: monthAxis.value.map(monthLabel) },
+    yaxis: { min: 0, max: 100, tickAmount: 4, labels: { formatter: (v) => v + '%' } },
+    legend: { position: 'bottom' },
+    colors: CHART_COLORS,
+    grid: { borderColor: 'rgba(0,0,0,.08)' },
+    tooltip: { custom: tooltipHtml },
+    noData: { text: 'Aucune donnée' },
+  }
+})
 </script>
 
 <template>
@@ -188,13 +272,13 @@ const chartOptions = {
         </v-row>
 
         <v-alert
-          v-if="!loading && totals.expected > 0 && totals.coverage < 60"
+          v-if="!loading && totals.expected > 0 && totals.coverage < LOW_COVERAGE"
           type="warning"
           variant="tonal"
           density="compact"
           class="mt-4 text-caption"
         >
-          Moins de 60 % des pointages attendus ont été saisis — le taux de présence
+          Moins de {{ LOW_COVERAGE }} % des pointages attendus ont été saisis — le taux de présence
           ci-dessus ne porte que sur les données réellement enregistrées.
         </v-alert>
       </v-card-text>
@@ -258,7 +342,7 @@ const chartOptions = {
 
     <!-- Graphique mensuel -->
     <v-card class="rounded-xl elevation-2">
-      <v-card-title class="text-subtitle-1">Évolution mensuelle par classe</v-card-title>
+      <v-card-title class="text-subtitle-1">Évolution mensuelle du taux de présence</v-card-title>
       <v-divider />
       <v-card-text>
         <v-skeleton-loader v-if="loading" type="image" />
@@ -282,12 +366,30 @@ const chartOptions = {
               {{ name }}
             </v-chip>
           </div>
+
           <VueApexCharts
             type="line"
             height="320"
             :options="chartOptions"
             :series="filteredChartSeries"
           />
+
+          <!-- Clé de lecture, affichée seulement quand elle sert -->
+          <div class="chart-key text-caption text-medium-emphasis mt-2">
+            <div v-if="lowCoverageCount">
+              <span class="key-dot key-dot--hollow"></span>
+              Point creux : mois pointé à moins de {{ LOW_COVERAGE }} % — taux peu fiable
+              ({{ lowCoverageCount }} sur la période).
+            </div>
+            <div v-if="emptyMonthCount">
+              <span class="key-gap">— —</span>
+              Ligne interrompue : aucun pointage saisi ce mois-là, donc rien à afficher
+              ({{ emptyMonthCount }} mois).
+            </div>
+            <div v-if="!lowCoverageCount && !emptyMonthCount">
+              Tous les mois affichés sont pointés à plus de {{ LOW_COVERAGE }} %.
+            </div>
+          </div>
         </template>
       </v-card-text>
     </v-card>
@@ -324,5 +426,27 @@ const chartOptions = {
 .stat-help {
   font-size: 0.8rem;
   color: rgba(0, 0, 0, 0.6);
+}
+.chart-key > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.key-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.key-dot--hollow {
+  background: #fff;
+  border: 2px solid #666;
+}
+.key-gap {
+  font-weight: 700;
+  letter-spacing: -1px;
+  flex-shrink: 0;
 }
 </style>
