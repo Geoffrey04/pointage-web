@@ -4,14 +4,14 @@ import { createPinia } from 'pinia'
 import router from './router'
 import { useUserStore, api } from './stores/user'
 
-import 'vuetify/styles'
-import { createVuetify } from 'vuetify'
-import * as components from 'vuetify/components'
-import * as directives from 'vuetify/directives'
+// Instance Vuetify centralisée dans plugins/vuetify.js : elle porte la locale
+// française, le jeu d'icônes mdi et le format de date fr-FR. Ce fichier existait
+// déjà mais n'était importé nulle part — d'où le contournement par
+// <v-locale-provider locale="fr"> dans la matrice pour le calendrier.
+import vuetify from './plugins/vuetify'
 
 const app = createApp(App)
 const pinia = createPinia()
-const vuetify = createVuetify({ components, directives })
 
 app.use(pinia)
 app.use(router)
