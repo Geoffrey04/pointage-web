@@ -16,7 +16,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
-    "@mdi/font": "^7.4.47",
+    "@mdi/js": "^7.4.47",
     "apexcharts": "^5.12.0",
     "axios": "^1.11.0",
     "pinia": "^3.0.3",
