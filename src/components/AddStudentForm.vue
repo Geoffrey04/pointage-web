@@ -47,19 +47,6 @@
       </template>
     </v-select>
 
-    <!-- Jour de cours (obligatoire) -->
-    <v-select
-      v-model="studentWeekday"
-      :items="weekdayItems"
-      item-title="title"
-      item-value="value"
-      label="Jour de cours"
-      :rules="[rules.required]"
-      variant="outlined"
-      density="comfortable"
-      class="mb-4"
-    />
-
     <v-alert v-if="submitError" type="error" variant="tonal" class="mb-3">
       {{ submitError }}
     </v-alert>
@@ -83,18 +70,8 @@ const firstname = ref('')
 const lastname = ref('')
 const phone = ref('')
 const class_id = ref(null)
-const studentWeekday = ref(null)
 const submitError = ref(null)
 
-const weekdayItems = [
-  { title: 'Lundi', value: 1 },
-  { title: 'Mardi', value: 2 },
-  { title: 'Mercredi', value: 3 },
-  { title: 'Jeudi', value: 4 },
-  { title: 'Vendredi', value: 5 },
-  { title: 'Samedi', value: 6 },
-  { title: 'Dimanche', value: 7 },
-]
 const classes = ref([])
 
 const formRef = ref(null)
@@ -147,7 +124,6 @@ async function submitForm() {
       lastname: lastname.value.trim(),
       phone: phone.value.trim(),
       class_id: Number(class_id.value),
-      weekday: studentWeekday.value ?? null,
     })
 
     emit('student-added')
@@ -155,7 +131,6 @@ async function submitForm() {
     firstname.value = ''
     lastname.value = ''
     phone.value = ''
-    studentWeekday.value = null
     if (!lockClass.value) class_id.value = null
   } catch (e) {
     console.error('Erreur ajout élève :', e)

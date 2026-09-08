@@ -609,15 +609,6 @@
         </v-card-title>
         <v-card-text class="px-4 pb-2">
           <v-select
-            v-model="studentEditDialog.form.weekday"
-            :items="weekdayItems"
-            label="Jour de cours"
-            clearable
-            variant="outlined"
-            density="comfortable"
-            class="mb-3"
-          />
-          <v-select
             v-model="studentEditDialog.form.class_id"
             :items="classes"
             item-title="name"
@@ -719,7 +710,7 @@ const profsModal  = ref({ show: false })
 const elevesModal = ref({ show: false, loading: false, items: [] })
 const classesModal = ref({ show: false })
 
-const studentEditDialog = ref({ open: false, student: null, saving: false, form: { weekday: null, class_id: null, phone: '' } })
+const studentEditDialog = ref({ open: false, student: null, saving: false, form: { class_id: null, phone: '' } })
 const studentDeleteConfirm = ref({ open: false, student: null, deleting: false })
 
 const duplicateStudentIds = computed(() => {
@@ -870,7 +861,7 @@ function openStudentEdit(student) {
     open: true,
     student,
     saving: false,
-    form: { weekday: student.weekday ?? null, class_id: student.class_id ?? null, phone: student.phone ?? '' },
+    form: { class_id: student.class_id ?? null, phone: student.phone ?? '' },
   }
 }
 
@@ -879,7 +870,6 @@ async function saveStudentEdit() {
   try {
     const { student, form } = studentEditDialog.value
     await api.patch(`/api/students/${student.id}`, {
-      weekday: form.weekday,
       class_id: form.class_id ?? null,
       phone: form.phone || null,
     })
@@ -888,7 +878,6 @@ async function saveStudentEdit() {
     if (idx >= 0) {
       elevesModal.value.items[idx] = {
         ...elevesModal.value.items[idx],
-        weekday: form.weekday,
         class_id: form.class_id,
         class_name: cls?.name ?? elevesModal.value.items[idx].class_name,
         phone: form.phone,

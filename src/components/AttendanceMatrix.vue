@@ -103,7 +103,7 @@
             <div class="student-avatar">{{ initials(st) }}</div>
             <div class="student-name">
               <div class="sname">{{ st.lastname }}</div>
-              <div class="ssub">{{ st.firstname }}<template v-if="st.weekday"> &middot; {{ weekdayLabel(st.weekday) }}</template></div>
+              <div class="ssub">{{ st.firstname }}</div>
               <div
                 v-if="currentSession && getStatus(st.id, currentSession.id) === 'excused' && getComment(st.id, currentSession.id)"
                 class="excuse-hint"
@@ -695,10 +695,6 @@ function initSessionIdx() {
   goToday()
 }
 
-const WEEKDAY_NAMES = ['', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
-function weekdayLabel(w: number | null | undefined): string {
-  return w ? (WEEKDAY_NAMES[w] ?? '') : ''
-}
 function initials(st: Student): string {
   return `${(st.firstname[0] ?? '').toUpperCase()}${(st.lastname[0] ?? '').toUpperCase()}`
 }
@@ -830,11 +826,6 @@ function isoDowFromYmd(ymd: string): number {
   const d = new Date(ymd + 'T12:00:00Z')
   const js = d.getUTCDay()
   return js === 0 ? 7 : js
-}
-
-function studentIsoWeekday(st: Student): number | null {
-  const w = Number((st as Student & { weekday?: number }).weekday ?? 0)
-  return w >= 1 && w <= 7 ? w : null
 }
 
 function mobileSessionsFor(st: Student): Session[] {
