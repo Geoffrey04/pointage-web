@@ -2,8 +2,20 @@
   <v-container>
     <h2>Mes Classes</h2>
 
+    <!-- Erreur de chargement : distincte de l'état vide -->
+    <v-alert v-if="error" type="error" variant="tonal" class="mt-2">
+      {{ error }}
+    </v-alert>
+
+    <!-- Chargement -->
+    <v-row v-else-if="loading">
+      <v-col cols="12" sm="6" md="4" v-for="i in 3" :key="i">
+        <v-skeleton-loader type="card" class="rounded-lg" />
+      </v-col>
+    </v-row>
+
     <!-- État vide -->
-    <v-alert v-if="!classes || classes.length === 0" type="info" variant="tonal" class="mt-2">
+    <v-alert v-else-if="classes.length === 0" type="info" variant="tonal" class="mt-2">
       Aucune classe disponible.
     </v-alert>
 
@@ -25,28 +37,23 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useUserStore } from '@/stores/user'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import { api } from '@/stores/user'
 
 const classes = ref([])
+const loading = ref(true)
+const error = ref(null)
 const router = useRouter()
-const userStore = useUserStore()
-
-
-// ✅ base API: .env ou le domaine courant (prod)
-const API = import.meta.env.VITE_API_URL || window.location.origin
-const authHeaders = () => {
-  const t = userStore.token || localStorage.getItem('token')
-  return t ? { Authorization: `Bearer ${t}` } : {}
-}
 
 onMounted(async () => {
   try {
-    const res = await axios.get(`${API}/my-classes`, { headers: authHeaders() })
-    classes.value = res.data
+    const res = await api.get('/my-classes')
+    classes.value = Array.isArray(res.data) ? res.data : []
   } catch (err) {
     console.error('Erreur récupération classes :', err)
+    error.value = err?.response?.data?.message || 'Impossible de charger vos classes.'
+  } finally {
+    loading.value = false
   }
 })
 

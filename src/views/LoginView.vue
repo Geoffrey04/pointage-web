@@ -50,13 +50,14 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 import { registerPushNotifications } from '@/utils/push'
 import logo from '@/assets/logo-master.png'
 
 const router = useRouter()
+const route = useRoute()
 const userStore = useUserStore()
 
 const formRef = ref(null)
@@ -69,6 +70,16 @@ const loading = ref(false)
 const snack = reactive({ show: false, text: '', color: 'error' })
 
 const rules = { required: (v) => !!v || 'Champ requis' }
+
+// Renvoyé ici par l'intercepteur après expiration du jeton : on l'explique
+// au lieu de laisser croire à une déconnexion inexpliquée.
+onMounted(() => {
+  if (route.query.expired) {
+    snack.text = 'Votre session a expiré, merci de vous reconnecter.'
+    snack.color = 'info'
+    snack.show = true
+  }
+})
 
 async function handleLogin() {
   const { valid } = await formRef.value.validate()

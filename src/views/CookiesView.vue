@@ -4,9 +4,10 @@
       <v-card-text class="pa-6 pa-md-8 content">
         <h1 class="text-h4 text-md-h3 mb-4">Politique cookies</h1>
         <p class="text-body-2 text-medium-emphasis mb-6">
-          L’application utilise exclusivement des traceurs <strong>techniquement nécessaires</strong> à son fonctionnement
-          (aucun cookie publicitaire, social ou d’analytics tiers). Conformément au cadre ePrivacy/RGPD, ces traceurs
-          nécessaires ne requièrent pas de consentement préalable.
+          L’application utilise des traceurs <strong>techniquement nécessaires</strong> à son fonctionnement,
+          ainsi qu’un outil de <strong>mesure d’audience sans cookie</strong> décrit plus bas. Aucun cookie
+          publicitaire ni bouton de réseau social n’est déposé, et aucune donnée n’est revendue. Conformément
+          au cadre ePrivacy/RGPD, les traceurs strictement nécessaires ne requièrent pas de consentement préalable.
         </p>
 
         <v-divider class="my-4" />
@@ -70,7 +71,30 @@
           </v-table>
 
           <p class="text-body-2 text-medium-emphasis">
-            Aucun cookie tiers (publicité, réseaux sociaux, analytics) n’est déposé.
+            Aucun cookie publicitaire ni bouton de réseau social n’est déposé.
+          </p>
+        </section>
+
+        <v-divider class="my-4" />
+
+        <section id="audience" class="mb-6">
+          <h2 class="text-h5 mb-3">Mesure d’audience</h2>
+          <p class="mb-3">
+            L’application utilise <strong>Umami</strong> (service <code>cloud.umami.is</code>) pour mesurer
+            la fréquentation, principalement afin de suivre l’usage du formulaire d’inscription.
+            Umami fonctionne <strong>sans cookie</strong> et ne dépose rien sur votre appareil :
+            il n’apparaît donc pas dans le tableau ci-dessus.
+          </p>
+          <p class="mb-2">Les informations transmises sont :</p>
+          <ul class="list mb-3">
+            <li>L’adresse des pages consultées, à chaque navigation.</li>
+            <li>Le franchissement des étapes du formulaire d’inscription et sa soumission (avec le type : inscription ou réinscription).</li>
+            <li>Les connexions réussies ou échouées à l’espace professeur, avec le rôle du compte pour les connexions réussies.</li>
+            <li>L’enregistrement d’un pointage de présence, avec son statut.</li>
+          </ul>
+          <p class="text-body-2 text-medium-emphasis">
+            Ces mesures sont agrégées et ne servent qu’au suivi interne de l’activité du site.
+            Aucune donnée nominative d’élève ou de responsable légal n’y est transmise.
           </p>
         </section>
 

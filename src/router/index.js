@@ -16,7 +16,7 @@ const routes = [
 
   { path: '/classes', name: 'ClassesList', component: ClassesView, meta: { requiresAuth: true, roles: ['prof', 'admin'] } },
   { path: '/classes/:id', name: 'ClassPresence', component: DashboardView, meta: { requiresAuth: true, roles: ['prof', 'admin'] } },
-  { path: '/dashboard/:id', name: 'DashboardView', component: DashboardView, props: true, meta: { requiresAuth: true } },
+  { path: '/dashboard/:id', name: 'DashboardView', component: DashboardView, props: true, meta: { requiresAuth: true, roles: ['prof', 'admin'] } },
 
   { path: '/admin', name: 'Admin', component: AdminView, meta: { requiresAuth: true, roles: ['admin'] } },
   { path: '/admin/attendance-rates', name: 'AdminAttendanceRates', component: AdminAttendanceRatesView, meta: { requiresAuth: true, roles: ['admin'] } },

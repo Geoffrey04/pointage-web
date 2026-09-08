@@ -34,7 +34,12 @@
               antécédents musicaux, instruments souhaités, signature numérique, choix relatif au droit à l’image.
               Ces données concernent des mineurs — elles sont fournies et signées par le responsable légal.
             </li>
-            <li><strong>Aucun suivi marketing</strong> : pas d’analytics tiers, pas de prospection.</li>
+            <li>
+              <strong>Mesure d’audience</strong> : statistiques de fréquentation via Umami, sans cookie
+              et sans donnée nominative (pages consultées, étapes du formulaire d’inscription, connexions,
+              enregistrement de pointages). Voir la <RouterLink to="/cookies">Politique cookies</RouterLink>.
+            </li>
+            <li><strong>Aucune prospection commerciale</strong> : pas de publicité, pas de revente de données.</li>
           </ul>
         </section>
 
@@ -71,6 +76,7 @@
             <li>Accès restreint aux <strong>administrateurs</strong> et <strong>professeurs</strong> concernés.</li>
             <li><strong>Hébergeur</strong> (sous-traitant technique) : 1hebergement.com — accès limité et encadré.</li>
             <li><strong>Service d'envoi d'e-mail</strong> : Gmail / Google (USA) — utilisé uniquement pour notifier l'administrateur de la réception d'un dossier. Seuls le nom et prénom de l'élève transitent dans ces notifications.</li>
+            <li><strong>Mesure d'audience</strong> : Umami (<code>cloud.umami.is</code>) — reçoit les adresses des pages consultées et des événements d'usage anonymes, sans cookie ni donnée nominative.</li>
             <li>Pas de cession de données à des tiers à des fins commerciales.</li>
           </ul>
         </section>
@@ -81,8 +87,18 @@
           <h2 class="text-h5 mb-3">Hébergement &amp; transferts</h2>
           <ul class="list">
             <li><strong>Serveur applicatif</strong> : 1hebergement.com (France).</li>
-            <li><strong>Base de données</strong> : UE</li>
-            <li>Aucun transfert hors UE en l’état. Si nécessaire, des garanties appropriées seront mises en place.</li>
+            <li><strong>Base de données</strong> : hébergée dans l’Union européenne.</li>
+            <li>
+              <strong>Transferts hors UE</strong> : les données de gestion (élèves, présences, dossiers)
+              restent dans l’UE. Deux traitements accessoires font intervenir des prestataires susceptibles
+              d’opérer hors UE : la notification par e-mail à l’administrateur (Google), et la mesure
+              d’audience (Umami). Ils ne reçoivent respectivement que le nom et prénom de l’élève, et des
+              données de navigation anonymes.
+            </li>
+            <li>
+              Si un transfert plus large devenait nécessaire, des garanties appropriées seraient mises
+              en place au préalable.
+            </li>
           </ul>
         </section>
 
@@ -137,8 +153,10 @@
         <section id="cookies" class="mb-6">
           <h2 class="text-h5 mb-3">Cookies &amp; traceurs</h2>
           <p>
-            L’application n’utilise que des mécanismes techniques indispensables au fonctionnement (p. ex. jeton d’authentification).
-            Aucun cookie de publicité ou d’analytics tiers n’est déposé.
+            Les mécanismes déposés sur votre appareil sont uniquement techniques et indispensables au
+            fonctionnement (jeton d’authentification, profil du compte connecté, service worker pour les
+            notifications). S’y ajoute une mesure d’audience <strong>sans cookie</strong> (Umami), qui ne
+            stocke rien sur votre appareil. Aucun cookie publicitaire ni bouton de réseau social n’est déposé.
           </p>
           <p class="mt-2">
             Détails dans la <RouterLink to="/cookies">Politique cookies</RouterLink>. Voir aussi les

@@ -594,7 +594,9 @@
 
 <script setup>
 import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
-import { api } from '@/stores/user'
+// Formulaire public : instance sans Authorization, pour ne pas joindre le
+// jeton d'un admin connecté à une soumission anonyme.
+import { httpNoAuth } from '@/stores/user'
 import SignaturePad from 'signature_pad'
 
 const STEPS = [
@@ -840,7 +842,7 @@ async function submit() {
   submitting.value = true
   submitError.value = null
   try {
-    await api.post('/api/public/inscription', {
+    await httpNoAuth.post('/api/public/inscription', {
       type: type.value,
       eleve: eleve.value,
       parents: parents.value,
